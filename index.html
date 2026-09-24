@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- SEO Primary -->
+  <title>Google Forms Bot con IA — Rellena tu formulario automáticamente | Lima, Perú</title>
+  <meta name="description" content="Bot que rellena Google Forms automáticamente usando IA. Prueba que tu formulario funciona antes de lanzarlo. Respuestas personalizadas, realistas y en segundos. Servicio o software disponible." />
+  <meta name="keywords" content="google forms bot, rellenar formulario automaticamente, bot formularios google, probar google form, respuestas automaticas google forms, software bot formularios, lima peru" />
+  <meta name="author" content="Eduardo — Google Forms Bot" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://googleformsbot.vercel.app/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Google Forms Bot con IA — Rellena tu formulario automáticamente" />
+  <meta property="og:description" content="¿Lanzaste un Google Form y nadie lo llenó? Nuestro bot con IA lo rellena en segundos con respuestas reales y personalizadas." />
+  <meta property="og:url" content="https://googleformsbot.vercel.app/" />
+  <meta property="og:locale" content="es_PE" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Google Forms Bot con IA" />
+  <meta name="twitter:description" content="Rellena tu Google Form automáticamente con IA. Respuestas reales, no genéricas." />
+
+  <!-- Schema.org structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Google Forms Bot v6",
+    "operatingSystem": "Windows, macOS",
+    "applicationCategory": "ProductivityApplication",
+    "description": "Bot de escritorio que rellena Google Forms automáticamente con inteligencia artificial. Genera respuestas personalizadas y realistas. Incluye Workers, proxies, exportación CSV y más.",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Paquete Básico — Servicio",
+        "price": "35",
+        "priceCurrency": "PEN"
+      },
+      {
+        "@type": "Offer",
+        "name": "Licencia Software Personal",
+        "price": "29",
+        "priceCurrency": "USD"
+      }
+    ],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+51935372306",
+      "contactType": "sales",
+      "availableLanguage": "Spanish"
+    }
+  }
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #000000;
+      --bg2:      #0d0d0d;
+      --bg3:      #141414;
+      --border:   #222222;
+      --green:    #00E676;
+      --green-dim:#00c85e;
+      --white:    #ffffff;
+      --grey:     #888888;
+      --grey-light:#bbbbbb;
+      --font:     'Inter', system-ui, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── LAYOUT ── */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section { padding: 80px 0; border-top: 1px solid var(--border); }
+    section:first-of-type { border-top: none; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(0,0,0,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+    }
+    .nav-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+    .nav-logo span { color: var(--green); }
+    .nav-cta {
+      background: var(--green);
+      color: #000;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: var(--green-dim); }
+
+    /* ── HERO ── */
+    #hero {
+      padding: 100px 0 80px;
+      border-top: none;
+    }
+    .badge {
+      display: inline-block;
+      background: #001a0d;
+      border: 1px solid #00522a;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 28px;
+      letter-spacing: 0.2px;
+    }
+    h1 {
+      font-size: clamp(32px, 6vw, 52px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 20px;
+    }
+    h1 .accent { color: var(--green); }
+    .hero-sub {
+      font-size: 18px;
+      color: var(--grey-light);
+      max-width: 560px;
+      margin-bottom: 40px;
+      line-height: 1.65;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--green);
+      color: #000;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 14px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { background: var(--green-dim); transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--white);
+      font-weight: 600;
+      font-size: 15px;
+      padding: 14px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: border-color 0.15s;
+    }
+    .btn-secondary:hover { border-color: #444; }
+
+    /* ── STATS BAR ── */
+    .stats {
+      display: flex;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-top: 56px;
+      padding-top: 40px;
+      border-top: 1px solid var(--border);
+    }
+    .stat-item { }
+    .stat-num {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--green);
+      letter-spacing: -1px;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--grey);
+      margin-top: 2px;
+    }
+
+    /* ── SECTION HEADINGS ── */
+    h2 {
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      color: var(--grey-light);
+      font-size: 16px;
+      margin-bottom: 48px;
+      max-width: 520px;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      gap: 24px;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      background: #001a0d;
+      border: 1px solid #00522a;
+      color: var(--green);
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .step-content h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .step-content p {
+      font-size: 14px;
+      color: var(--grey-light);
+      line-height: 1.6;
+    }
+
+    /* ── FEATURES ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .feature {
+      background: var(--bg2);
+      padding: 24px;
+    }
+    .feature-icon {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    .feature h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .feature p {
+      font-size: 13px;
+      color: var(--grey);
+      line-height: 1.5;
+    }
+
+    /* ── PRICING ── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .price-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+    }
+    .price-card.featured {
+      border-color: var(--green);
+      background: #001a0d;
+    }
+    .price-tag {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--grey);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .price-card.featured .price-tag { color: var(--green); }
+    .price-name {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .price-desc {
+      font-size: 13px;
+      color: var(--grey);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .price-amount {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      margin-bottom: 4px;
+    }
+    .price-amount .currency {
+      font-size: 18px;
+      font-weight: 600;
+      vertical-align: super;
+      margin-right: 2px;
+    }
+    .price-note {
+      font-size: 12px;
+      color: var(--grey);
+      margin-bottom: 24px;
+    }
+    .price-list {
+      list-style: none;
+      margin-bottom: 28px;
+      flex: 1;
+    }
+    .price-list li {
+      font-size: 13px;
+      color: var(--grey-light);
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .price-card.featured .price-list li { border-color: #003319; }
+    .price-list li:last-child { border-bottom: none; }
+    .check { color: var(--green); flex-shrink: 0; margin-top: 1px; }
+    .price-btn {
+      display: block;
+      text-align: center;
+      padding: 12px;
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .price-btn-ghost {
+      border: 1px solid var(--border);
+      color: var(--white);
+    }
+    .price-btn-ghost:hover { border-color: #444; }
+    .price-btn-solid {
+      background: var(--green);
+      color: #000;
+    }
+    .price-btn-solid:hover { background: var(--green-dim); }
+
+    /* Paquetes de servicio */
+    .packs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .pack {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .pack.popular { border-color: var(--green); }
+    .pack-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 8px;
+    }
+    .pack-responses {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 2px;
+    }
+    .pack-responses-label {
+      font-size: 11px;
+      color: var(--grey);
+      margin-bottom: 12px;
+    }
+    .pack-price {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--green);
+    }
+    .pack-price-label { font-size: 11px; color: var(--grey); }
+
+    .payment-note {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--grey-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    /* ── FAQ ── */
+    .faq-list { display: flex; flex-direction: column; gap: 0; }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+    }
+    .faq-item:first-child { border-top: 1px solid var(--border); }
+    .faq-q {
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      background: none;
+      border: none;
+      color: var(--white);
+      width: 100%;
+      text-align: left;
+      padding: 0;
+      font-family: var(--font);
+    }
+    .faq-q:hover { color: var(--green); }
+    .faq-icon { flex-shrink: 0; font-size: 18px; color: var(--grey); transition: transform 0.2s; }
+    .faq-a {
+      font-size: 14px;
+      color: var(--grey-light);
+      line-height: 1.65;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+    .faq-item.open .faq-a { max-height: 200px; padding-top: 12px; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); color: var(--green); }
+
+    /* ── CONTACT / CTA ── */
+    #contacto { padding-bottom: 100px; }
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .contact-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-decoration: none;
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .contact-card:hover { border-color: var(--green); transform: translateY(-2px); }
+    .contact-icon { font-size: 28px; }
+    .contact-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--grey);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .contact-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .contact-hint {
+      font-size: 12px;
+      color: var(--grey);
+    }
+
+    /* Formulario email */
+    .email-form {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+    }
+    .email-form h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .email-form p {
+      font-size: 14px;
+      color: var(--grey);
+      margin-bottom: 24px;
+    }
+    .form-row { margin-bottom: 14px; }
+    .form-row label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--grey);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .form-row input,
+    .form-row select,
+    .form-row textarea {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--white);
+      font-family: var(--font);
+      font-size: 14px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-row input:focus,
+    .form-row select:focus,
+    .form-row textarea:focus { border-color: var(--green); }
+    .form-row select option { background: #1a1a1a; }
+    .form-row textarea { resize: vertical; min-height: 90px; }
+    .form-submit {
+      width: 100%;
+      background: var(--green);
+      color: #000;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 13px;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+    .form-submit:hover { background: var(--green-dim); }
+    .form-success {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: var(--green);
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    /* ── WHATSAPP FLOAT ── */
+    .wa-float {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 200;
+      background: #25D366;
+      color: #fff;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(37,211,102,0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .wa-float:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(37,211,102,0.5); }
+    .wa-float svg { width: 28px; height: 28px; fill: white; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--grey);
+    }
+    footer a { color: var(--grey); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      section { padding: 60px 0; }
+      #hero { padding: 72px 0 60px; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .contact-grid { grid-template-columns: 1fr; }
+      .packs { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; }
+      .btn-primary, .btn-secondary { justify-content: center; }
+      .stats { gap: 24px; }
+      .wa-float { bottom: 20px; right: 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">Forms<span>Bot</span> <span style="color:var(--grey);font-weight:400;font-size:12px">v6</span></div>
+    <a href="https://wa.me/51935372306?text=Hola,%20quiero%20información%20sobre%20Google%20Forms%20Bot" class="nav-cta" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="container">
+    <div class="badge">✦ Software con IA · v6 · Disponible ahora</div>
+    <h1>Tu Google Form<br />llenado <span class="accent">en segundos</span></h1>
+    <p class="hero-sub">
+      Prueba que tu formulario funciona antes de lanzarlo al mundo. Bot con IA que genera respuestas reales, personalizadas y convincentes — no datos genéricos de prueba.
+    </p>
+    <div class="hero-actions">
+      <a href="https://wa.me/51935372306?text=Hola,%20quiero%20que%20llenes%20mi%20Google%20Form" class="btn-primary" target="_blank" rel="noopener">
+        💬 Quiero el servicio
+      </a>
+      <a href="#pricing" class="btn-secondary">Ver precios →</a>
+    </div>
+
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-num">v6</div>
+        <div class="stat-label">Versión actual</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">IA</div>
+        <div class="stat-label">Respuestas personalizadas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">&lt;60s</div>
+        <div class="stat-label">Para llenar 50 respuestas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">Yape</div>
+        <div class="stat-label">Pago fácil</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="como-funciona">
+  <div class="container">
+    <h2>Cómo funciona</h2>
+    <p class="section-sub">En tres pasos. Sin configuración complicada, sin esperar días.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Me mandas el link de tu form</h3>
+          <p>Solo necesito el link público de tu Google Form. Nada más. Por WhatsApp en menos de un minuto.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>La IA genera respuestas reales</h3>
+          <p>El bot analiza cada pregunta y responde como una persona real. No "John Doe / test@test.com" — respuestas con nombre, opiniones, texto coherente según lo que pregunta tu form.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Ves las respuestas en tu Google Sheets</h3>
+          <p>En minutos tienes las respuestas en tu hoja de cálculo. Confirmas que todo funciona y ya puedes compartirlo con confianza.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <h2>Qué tiene el bot</h2>
+    <p class="section-sub">No es un script básico. Es software desktop completo con todo lo que necesitas.</p>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon">🤖</div>
+        <h3>IA con API integrada</h3>
+        <p>Usa Groq, OpenAI u otros proveedores para generar respuestas personalizadas. Tú defines el perfil: "actúa como estudiante de 20 años".</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <h3>Workers paralelos</h3>
+        <p>Envía múltiples respuestas al mismo tiempo. 50 respuestas en segundos, no en horas.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📋</div>
+        <h3>Multi-sección</h3>
+        <p>Soporta formularios con múltiples páginas, saltos condicionales y preguntas requeridas.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🌐</div>
+        <h3>Proxies opcionales</h3>
+        <p>Configura proxies para que cada respuesta llegue desde una IP diferente.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📸</div>
+        <h3>Capturas por envío</h3>
+        <p>Guarda un PNG de cada formulario enviado como comprobante automático.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <h3>Exportar CSV / JSON</h3>
+        <p>Descarga el log de todos los envíos en el formato que necesites.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔐</div>
+        <h3>Cookies Google</h3>
+        <p>Para forms que requieren cuenta de Google logueada. Compatible con autenticación.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⏰</div>
+        <h3>Programar envíos</h3>
+        <p>Define a qué hora quieres que se envíen las respuestas. Modo secuencial o con intervalo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="container">
+    <h2>Precios</h2>
+    <p class="section-sub">Dos opciones: lo hago yo por ti, o te doy el software para que lo uses tú mismo.</p>
+
+    <div class="pricing-grid">
+
+      <!-- SERVICIO -->
+      <div class="price-card">
+        <div class="price-tag">Servicio</div>
+        <div class="price-name">Yo lo hago por ti</div>
+        <div class="price-desc">Me mandas el link, yo lleno tu form con el bot y ves los resultados en tu Sheets.</div>
+
+        <div style="margin-bottom: 20px;">
+          <div class="packs" style="grid-template-columns: 1fr; gap: 8px;">
+            <div class="pack">
+              <div class="pack-label">Básico</div>
+              <div class="pack-responses">50</div>
+              <div class="pack-responses-label">respuestas</div>
+              <div class="pack-price">S/ 35</div>
+            </div>
+            <div class="pack popular">
+              <div class="pack-label" style="color:var(--green)">⭐ Popular</div>
+              <div class="pack-responses">150</div>
+              <div class="pack-responses-label">respuestas</div>
+              <div class="pack-price">S/ 80</div>
+            </div>
+            <div class="pack">
+              <div class="pack-label">Full</div>
+              <div class="pack-responses">500</div>
+              <div class="pack-responses-label">respuestas</div>
+              <div class="pack-price">S/ 200</div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="price-list">
+          <li><span class="check">✓</span> Respuestas con IA personalizada</li>
+          <li><span class="check">✓</span> Entrega en minutos</li>
+          <li><span class="check">✓</span> Comprobante de envío</li>
+          <li><span class="check">✓</span> Pago por Yape</li>
+        </ul>
+        <a href="https://wa.me/51935372306?text=Hola,%20quiero%20el%20servicio%20de%20relleno%20de%20Google%20Forms" class="price-btn price-btn-ghost" target="_blank" rel="noopener">Pedir por WhatsApp →</a>
+      </div>
+
+      <!-- SOFTWARE -->
+      <div class="price-card featured">
+        <div class="price-tag">Software</div>
+        <div class="price-name">El bot para ti</div>
+        <div class="price-desc">Licencia del software completo. Lo usas tú mismo, cuando quieras, para todos tus forms.</div>
+
+        <div class="price-amount"><span class="currency">$</span>29</div>
+        <div class="price-note">Licencia personal · Pago único · Sin mensualidad</div>
+
+        <ul class="price-list">
+          <li><span class="check">✓</span> App de escritorio (Windows/Mac)</li>
+          <li><span class="check">✓</span> IA con API propia (Groq gratis incluido)</li>
+          <li><span class="check">✓</span> Workers paralelos ilimitados</li>
+          <li><span class="check">✓</span> Proxies, cookies, programar envíos</li>
+          <li><span class="check">✓</span> Exportar CSV y JSON</li>
+          <li><span class="check">✓</span> Capturas automáticas por envío</li>
+          <li><span class="check">✓</span> Sin límite de formularios</li>
+        </ul>
+        <a href="https://wa.me/51935372306?text=Hola,%20quiero%20comprar%20el%20Google%20Forms%20Bot%20software" class="price-btn price-btn-solid" target="_blank" rel="noopener">Comprar por WhatsApp →</a>
+      </div>
+
+    </div>
+
+    <div class="payment-note">
+      <span style="font-size:20px">💚</span>
+      <span>Pago por <strong>Yape</strong> al número <strong>935 372 306</strong>. Después de confirmar el pago te envío el software o inicio el servicio de inmediato.</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <h2>Preguntas frecuentes</h2>
+    <p class="section-sub">Lo que más me preguntan antes de comprar.</p>
+    <div class="faq-list">
+
+      <div class="faq-item">
+        <button class="faq-q">¿Las respuestas se ven reales o como bot? <span class="faq-icon">+</span></button>
+        <div class="faq-a">La IA analiza cada pregunta y responde de forma coherente. Puedes darle instrucciones como "actúa como empresario de 35 años" y las respuestas van a sonar exactamente así. No vas a ver "test123" ni datos genéricos.</div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">¿Funciona con cualquier Google Form? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Sí. Forms simples, multi-sección, con saltos condicionales, preguntas de opción múltiple, texto corto, texto largo, escalas, checkboxes y más. Si el form requiere cuenta de Google logueada también funciona usando cookies.</div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">¿Cuánto demora el servicio? <span class="faq-icon">+</span></button>
+        <div class="faq-a">50 respuestas normalmente están listas en menos de 2 minutos. 500 respuestas pueden tardar entre 5 y 15 minutos dependiendo de la complejidad del form y la velocidad de la IA.</div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">¿El software es para Windows o Mac? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Compatible con Windows y macOS. Si tienes otra configuración escríbeme por WhatsApp y lo verificamos antes de que compres.</div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">¿Cómo pago y cómo recibo el software? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Pago por Yape al 935 372 306. Una vez confirmado el pago te envío el software por WhatsApp o correo. Todo en minutos, sin burocracia.</div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">¿Qué necesito para usar la IA? <span class="faq-icon">+</span></button>
+        <div class="faq-a">El bot viene configurado con Groq, que es gratis. Solo creas una cuenta en console.groq.com, obtienes tu API Key gratuita y la pegas en el software. También puedes usar OpenAI si ya tienes cuenta.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- CONTACTO -->
+<section id="contacto">
+  <div class="container">
+    <h2>¿Listo para probarlo?</h2>
+    <p class="section-sub">Escríbeme por WhatsApp o mándame un mensaje. Te respondo rápido.</p>
+
+    <div class="contact-grid">
+      <a href="https://wa.me/51935372306?text=Hola,%20quiero%20información%20sobre%20Google%20Forms%20Bot" class="contact-card" target="_blank" rel="noopener">
+        <div class="contact-icon">💬</div>
+        <div class="contact-label">WhatsApp</div>
+        <div class="contact-value">935 372 306</div>
+        <div class="contact-hint">Respuesta inmediata · Preferido</div>
+      </a>
+      <a href="mailto:eduviro05@gmail.com" class="contact-card">
+        <div class="contact-icon">✉️</div>
+        <div class="contact-label">Correo</div>
+        <div class="contact-value">eduviro05@gmail.com</div>
+        <div class="contact-hint">Para consultas más detalladas</div>
+      </a>
+    </div>
+
+    <!-- FORMULARIO EMAIL -->
+    <div class="email-form">
+      <h3>O déjame tu mensaje aquí</h3>
+      <p>Te escribo al correo o WhatsApp que indiques.</p>
+      <form id="contactForm">
+        <div class="form-row">
+          <label>Tu nombre</label>
+          <input type="text" name="nombre" placeholder="¿Cómo te llamas?" required />
+        </div>
+        <div class="form-row">
+          <label>Tu correo o WhatsApp</label>
+          <input type="text" name="contacto" placeholder="email@ejemplo.com o tu número" required />
+        </div>
+        <div class="form-row">
+          <label>¿Qué necesitas?</label>
+          <select name="servicio">
+            <option value="servicio">Quiero que llenen mi form (servicio)</option>
+            <option value="software">Quiero comprar el bot (software $29)</option>
+            <option value="duda">Tengo una duda antes de comprar</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Mensaje</label>
+          <textarea name="mensaje" placeholder="Cuéntame qué necesitas, link de tu form, etc."></textarea>
+        </div>
+        <button type="submit" class="form-submit">Enviar mensaje →</button>
+        <div class="form-success" id="formSuccess">✅ ¡Mensaje enviado! Te escribo pronto.</div>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Google Forms Bot v6 &nbsp;·&nbsp; Lima, Perú &nbsp;·&nbsp;
+    <a href="https://wa.me/51935372306">WhatsApp</a> &nbsp;·&nbsp;
+    <a href="mailto:eduviro05@gmail.com">eduviro05@gmail.com</a>
+  </p>
+  <p style="margin-top:8px;font-size:12px;">© 2026 · Hecho por un dev peruano 🇵🇪</p>
+</footer>
+
+<!-- WHATSAPP FLOAT -->
+<a href="https://wa.me/51935372306?text=Hola,%20quiero%20información%20sobre%20Google%20Forms%20Bot" class="wa-float" target="_blank" rel="noopener" aria-label="Contactar por WhatsApp">
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+</a>
+
+<script>
+  // FAQ accordion
+  document.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
+    });
+  });
+
+  // Email form — envía a Formspree (reemplaza con tu endpoint) o abre WhatsApp como fallback
+  document.getElementById('contactForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const data = new FormData(this);
+    const nombre   = data.get('nombre');
+    const contacto = data.get('contacto');
+    const servicio = data.get('servicio');
+    const mensaje  = data.get('mensaje');
+
+    // Arma el mensaje de WhatsApp como fallback inmediato
+    const servicioTexto = {
+      'servicio': 'Quiero que llenen mi form (servicio)',
+      'software': 'Quiero comprar el bot ($29)',
+      'duda':     'Tengo una duda antes de comprar'
+    }[servicio] || servicio;
+
+    const waText = encodeURIComponent(
+      `Hola! Te escribo desde la web.\n\n` +
+      `Nombre: ${nombre}\n` +
+      `Contacto: ${contacto}\n` +
+      `Necesito: ${servicioTexto}\n` +
+      (mensaje ? `Mensaje: ${mensaje}` : '')
+    );
+
+    // Abre WhatsApp con los datos del form
+    window.open(`https://wa.me/51935372306?text=${waText}`, '_blank');
+
+    // Muestra confirmación
+    document.getElementById('formSuccess').style.display = 'block';
+    this.reset();
+    setTimeout(() => {
+      document.getElementById('formSuccess').style.display = 'none';
+    }, 5000);
+  });
+</script>
+
+</body>
+</html>
