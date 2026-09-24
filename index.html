@@ -417,21 +417,16 @@ h2{
 .faq-item.open .faq-body{max-height:260px;padding-bottom:20px}
 
 /* ── CONTACT ── */
-.cg{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-@media(max-width:600px){.cg{grid-template-columns:1fr}}
+.cg{display:grid;grid-template-columns:minmax(0,420px);gap:12px;margin-bottom:16px}
 .ca{
   text-decoration:none;color:var(--tx);padding:22px;
   display:flex;flex-direction:column;gap:7px;
   transition:border-color .2s,transform .15s;
 }
 .ca:hover{border-color:var(--acc);transform:translateY(-2px)}
-.ca-ico{font-size:24px}
-.ca-lbl{font-size:11px;color:var(--tx3);font-weight:600}
-.ca-val{font-family:var(--fh);font-weight:700;font-size:14px}
-.ca-hint{font-size:12px;color:var(--tx3)}
-.email-form{padding:28px}
-.email-form h3{font-family:var(--fh);font-size:19px;font-weight:800;margin-bottom:5px}
-.email-form p{font-size:13.5px;color:var(--tx2);margin-bottom:22px}
+.contact-form{padding:28px}
+.contact-form h3{font-family:var(--fh);font-size:19px;font-weight:800;margin-bottom:5px}
+.contact-form p{font-size:13.5px;color:var(--tx2);margin-bottom:22px}
 .frow{margin-bottom:12px}
 .frow label{display:block;font-size:11.5px;font-weight:600;color:var(--tx3);margin-bottom:5px}
 .frow input,.frow select,.frow textarea{
@@ -450,7 +445,10 @@ h2{
 }
 .fsub:hover{opacity:.88}
 .form-ok{display:none;text-align:center;padding:14px;color:var(--acc2);font-weight:600;font-size:14px}
-
+.ca-ico{font-size:24px}
+.ca-lbl{font-size:11px;color:var(--tx3);font-weight:600}
+.ca-val{font-family:var(--fh);font-weight:700;font-size:14px}
+.ca-hint{font-size:12px;color:var(--tx3)}
 /* ── WA FLOAT ── */
 .wa{
   position:fixed;bottom:22px;right:22px;z-index:400;
@@ -684,17 +682,7 @@ footer a:hover{color:var(--acc)}
   <div class="w">
     <h2 data-i18n="ct-title"></h2>
     <p class="sec-sub" data-i18n="ct-sub"></p>
-    <div class="cg">
-      <a href="https://wa.me/51935372306?text=Hola,%20quiero%20informaci%C3%B3n%20sobre%20Google%20Forms%20Bot" class="ca g" target="_blank" rel="noopener">
-        <div class="ca-ico">💬</div><div class="ca-lbl">WhatsApp</div>
-        <div class="ca-val">935 372 306</div><div class="ca-hint" data-i18n="wa-hint"></div>
-      </a>
-      <a href="mailto:eduviro05@gmail.com" class="ca g">
-        <div class="ca-ico">✉️</div><div class="ca-lbl">Email</div>
-        <div class="ca-val">eduviro05@gmail.com</div><div class="ca-hint" data-i18n="email-hint"></div>
-      </a>
-    </div>
-    <div class="email-form g">
+    <div class="contact-form g">
       <h3 data-i18n="form-title"></h3>
       <p data-i18n="form-sub"></p>
       <div id="contactForm">
@@ -717,7 +705,7 @@ footer a:hover{color:var(--acc)}
 </section>
 
 <footer>
-  <p>FormsBot v6 · Lima, Perú · <a href="https://wa.me/51935372306">WhatsApp</a> · <a href="mailto:eduviro05@gmail.com">eduviro05@gmail.com</a></p>
+  <p>FormsBot v6 · Lima, Perú · <a href="https://wa.me/51935372306">WhatsApp</a></p>
   <p style="margin-top:6px;font-size:11px">© 2026 · <span data-i18n="footer-made"></span> 🇵🇪</p>
 </footer>
 
@@ -759,20 +747,19 @@ const T = {
     fl1:"App desktop Windows / Mac",fl2:"IA con API (Groq gratis incluido)",fl3:"Workers paralelos ilimitados",
     fl4:"Proxies + cookies Google",fl5:"Exportar CSV y JSON",fl6:"Sin límite de formularios",
     "pc2-btn":"Comprar por WhatsApp",
-    yape:"Pago por <strong>Yape</strong> al <strong>935 372 306</strong>. Confirmo el pago y te entrego el software o inicio el servicio de inmediato.",
+    yape:"Pago por <strong>Yape</strong>. Confirmo el pago y te entrego el software o inicio el servicio de inmediato.",
     "faq-title":"Preguntas frecuentes","faq-sub":"Lo que más me preguntan antes de comprar.",
     faqs:[
       {q:"¿Las respuestas se ven reales o como bot?",a:"La IA analiza cada pregunta y genera respuestas coherentes. Puedes darle instrucciones como \"actúa como empresario de 35 años de Lima\" y así van a sonar. Nada de \"test123\" ni datos genéricos."},
       {q:"¿Funciona con cualquier Google Form?",a:"Sí. Forms simples, multi-sección, con saltos condicionales, opción múltiple, texto corto, texto largo, escalas, checkboxes. Si requiere cuenta de Google también funciona con cookies."},
       {q:"¿Cuánto demora el servicio?",a:"50 respuestas en menos de 2 minutos. 500 respuestas entre 5 y 15 minutos según la complejidad del form y la velocidad de la IA."},
       {q:"¿El software es para Windows o Mac?",a:"Compatible con Windows y macOS. Si tienes otra configuración escríbeme por WhatsApp antes de comprar y lo verificamos."},
-      {q:"¿Cómo pago y cómo recibo el software?",a:"Pago por Yape al 935 372 306. Confirmo el pago y te envío el software por WhatsApp o correo en minutos. Sin burocracia."},
+      {q:"¿Cómo pago y cómo recibo el software?",a:"Pago por Yape. Confirmo el pago y te envío el software por WhatsApp en minutos. Sin burocracia."},
       {q:"¿Qué necesito para usar la IA?",a:"El bot viene configurado con Groq, que es gratis. Creas cuenta en console.groq.com, copias tu API Key y la pegas en el software. También puedes usar OpenAI."}
     ],
-    "ct-title":"¿Listo para probarlo?","ct-sub":"Escríbeme por WhatsApp o déjame tu mensaje. Te respondo rápido.",
-    "wa-hint":"Respuesta inmediata · Preferido","email-hint":"Para consultas detalladas",
-    "form-title":"O déjame tu mensaje aquí","form-sub":"Te escribo al correo o WhatsApp que indiques.",
-    "f-name-lbl":"Tu nombre","f-contact-lbl":"Tu correo o WhatsApp","f-service-lbl":"¿Qué necesitas?",
+    "ct-title":"¿Listo para probarlo?","ct-sub":"Escríbeme por WhatsApp. Te respondo rápido.",
+    "form-title":"Déjame tu mensaje aquí","form-sub":"Te responderé por WhatsApp.",
+    "f-name-lbl":"Tu nombre","f-contact-lbl":"Tu WhatsApp","f-service-lbl":"¿Qué necesitas?",
     fo1:"Quiero que llenen mi form (servicio)",fo2:"Quiero el bot ($29)",fo3:"Tengo una duda",
     "f-msg-lbl":"Mensaje","f-submit-btn":"Enviar mensaje","form-ok":"✅ ¡Listo! Te escribo pronto.",
     "footer-made":"Hecho por un dev peruano",
@@ -809,20 +796,19 @@ const T = {
     fl1:"Desktop app Windows / Mac",fl2:"AI with API (free Groq included)",fl3:"Unlimited parallel workers",
     fl4:"Proxies + Google cookies",fl5:"Export CSV and JSON",fl6:"Unlimited forms",
     "pc2-btn":"Buy via WhatsApp",
-    yape:"Payment via <strong>Yape</strong> to <strong>935 372 306</strong>. I confirm payment and deliver the software or start the service immediately.",
+    yape:"Payment via <strong>Yape</strong>. I confirm payment and deliver the software or start the service immediately.",
     "faq-title":"Frequently asked questions","faq-sub":"What people ask me most before buying.",
     faqs:[
       {q:"Do the responses look real or like a bot?",a:"The AI analyzes each question and generates coherent responses. You can give instructions like \"act like a 35-year-old Lima business owner\" and that's how they'll sound. No \"test123\" or generic data."},
       {q:"Does it work with any Google Form?",a:"Yes. Simple forms, multi-section, with conditional jumps, multiple choice, short text, long text, scales, checkboxes. If it requires a Google account it also works with cookies."},
       {q:"How long does the service take?",a:"50 responses in under 2 minutes. 500 responses between 5 and 15 minutes depending on the form's complexity and AI speed."},
       {q:"Is the software for Windows or Mac?",a:"Compatible with Windows and macOS. If you have another configuration, message me on WhatsApp before buying and we'll verify."},
-      {q:"How do I pay and receive the software?",a:"Payment via Yape to 935 372 306. I confirm payment and send you the software via WhatsApp or email in minutes. No bureaucracy."},
+      {q:"How do I pay and receive the software?",a:"Payment via Yape. I confirm payment and send you the software via WhatsApp in minutes. No bureaucracy."},
       {q:"What do I need to use the AI?",a:"The bot comes configured with Groq, which is free. Create an account at console.groq.com, copy your API Key and paste it into the software. You can also use OpenAI."}
     ],
-    "ct-title":"Ready to try it?","ct-sub":"Message me on WhatsApp or leave me a note. I respond fast.",
-    "wa-hint":"Immediate response · Preferred","email-hint":"For detailed inquiries",
-    "form-title":"Or leave me a message here","form-sub":"I'll write back to the email or WhatsApp you provide.",
-    "f-name-lbl":"Your name","f-contact-lbl":"Your email or WhatsApp","f-service-lbl":"What do you need?",
+    "ct-title":"Ready to try it?","ct-sub":"Message me on WhatsApp. I respond fast.",
+    "form-title":"Leave me a message here","form-sub":"I'll reply to you on WhatsApp.",
+    "f-name-lbl":"Your name","f-contact-lbl":"Your WhatsApp","f-service-lbl":"What do you need?",
     fo1:"I want my form filled (service)",fo2:"I want the bot ($29)",fo3:"I have a question",
     "f-msg-lbl":"Message","f-submit-btn":"Send message","form-ok":"✅ Done! I'll write back soon.",
     "footer-made":"Made by a Peruvian dev",
@@ -859,20 +845,19 @@ const T = {
     fl1:"App desktop Windows / Mac",fl2:"IA com API (Groq grátis incluído)",fl3:"Workers paralelos ilimitados",
     fl4:"Proxies + cookies Google",fl5:"Exportar CSV e JSON",fl6:"Formulários ilimitados",
     "pc2-btn":"Comprar pelo WhatsApp",
-    yape:"Pagamento via <strong>Yape</strong> para <strong>935 372 306</strong>. Confirmo o pagamento e entrego o software ou inicio o serviço imediatamente.",
+    yape:"Pagamento via <strong>Yape</strong>. Confirmo o pagamento e entrego o software ou inicio o serviço imediatamente.",
     "faq-title":"Perguntas frequentes","faq-sub":"O que mais me perguntam antes de comprar.",
     faqs:[
       {q:"As respostas parecem reais ou de bot?",a:"A IA analisa cada pergunta e gera respostas coerentes. Você pode dar instruções como \"aja como empresário de 35 anos de Lima\" e é assim que vão soar. Nada de \"teste123\" ou dados genéricos."},
       {q:"Funciona com qualquer Google Form?",a:"Sim. Formulários simples, multi-seção, com saltos condicionais, múltipla escolha, texto curto, texto longo, escalas, checkboxes. Se precisar de conta Google também funciona com cookies."},
       {q:"Quanto tempo demora o serviço?",a:"50 respostas em menos de 2 minutos. 500 respostas entre 5 e 15 minutos dependendo da complexidade do form e velocidade da IA."},
       {q:"O software é para Windows ou Mac?",a:"Compatível com Windows e macOS. Se tiver outra configuração, me manda mensagem pelo WhatsApp antes de comprar e verificamos."},
-      {q:"Como pago e como recebo o software?",a:"Pagamento via Yape para 935 372 306. Confirmo o pagamento e envio o software pelo WhatsApp ou email em minutos. Sem burocracia."},
+      {q:"Como pago e como recebo o software?",a:"Pagamento via Yape. Confirmo o pagamento e envio o software pelo WhatsApp em minutos. Sem burocracia."},
       {q:"O que preciso para usar a IA?",a:"O bot vem configurado com Groq, que é grátis. Cria conta em console.groq.com, copia sua API Key e cola no software. Também pode usar OpenAI."}
     ],
-    "ct-title":"Pronto para experimentar?","ct-sub":"Me manda mensagem pelo WhatsApp ou deixa seu recado. Respondo rápido.",
-    "wa-hint":"Resposta imediata · Preferido","email-hint":"Para consultas detalhadas",
-    "form-title":"Ou deixe uma mensagem aqui","form-sub":"Te escrevo no email ou WhatsApp que você indicar.",
-    "f-name-lbl":"Seu nome","f-contact-lbl":"Seu email ou WhatsApp","f-service-lbl":"O que você precisa?",
+    "ct-title":"Pronto para experimentar?","ct-sub":"Me manda mensagem pelo WhatsApp. Respondo rápido.",
+    "form-title":"Deixe uma mensagem aqui","form-sub":"Vou responder pelo WhatsApp.",
+    "f-name-lbl":"Seu nome","f-contact-lbl":"Seu WhatsApp","f-service-lbl":"O que você precisa?",
     fo1:"Quero que preencham meu form (serviço)",fo2:"Quero o bot ($29)",fo3:"Tenho uma dúvida",
     "f-msg-lbl":"Mensagem","f-submit-btn":"Enviar mensagem","form-ok":"✅ Pronto! Te escrevo em breve.",
     "footer-made":"Feito por um dev peruano",
@@ -929,11 +914,12 @@ function applyLang(lang){
   // Form placeholders
   const fi = document.getElementById('f-name');
   if(fi){
-    const phs = {es:['¿Cómo te llamas?','email o número','Cuéntame qué necesitas...'],en:['Your name','email or number','Tell me what you need...'],pt:['Seu nome','email ou número','Me conta o que você precisa...']};
+    const phs = {es:['¿Cómo te llamas?','Tu número de WhatsApp','Cuéntame qué necesitas...'],en:['Your name','Your WhatsApp number','Tell me what you need...'],pt:['Seu nome','Seu número de WhatsApp','Me conta o que você precisa...']};
     document.getElementById('f-name').placeholder = phs[lang][0];
     document.getElementById('f-contact').placeholder = phs[lang][1];
     document.getElementById('f-msg').placeholder = phs[lang][2];
   }
+
 }
 
 // ─── COUNTERS ───────────────────────────────────────────────────────────────
@@ -982,6 +968,25 @@ const obs = new IntersectionObserver((entries) => {
 const lc = document.getElementById('live-counter');
 if(lc) obs.observe(lc);
 
+// ─── FORM ───────────────────────────────────────────────────────────────────
+document.getElementById('f-submit').addEventListener('click', () => {
+  const d = T[currentLang];
+  const name = document.getElementById('f-name').value;
+  const contact = document.getElementById('f-contact').value;
+  const svc = document.getElementById('f-service');
+  const msg = document.getElementById('f-msg').value;
+  if(!name || !contact) return;
+  const svcMap = {servicio:d.fo1, software:d.fo2, duda:d.fo3};
+  const txt = encodeURIComponent('Hola! Te escribo desde la web.\n\nNombre: '+name+'\nWhatsApp: '+contact+'\nNecesito: '+(svcMap[svc.value]||svc.value)+'\n'+(msg?'Mensaje: '+msg:''));
+  window.open('https://wa.me/51935372306?text='+txt,'_blank');
+  const ok = document.getElementById('formOk');
+  ok.style.display='block';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-contact').value='';
+  document.getElementById('f-msg').value='';
+  setTimeout(()=>{ok.style.display='none'},5000);
+});
+
 // ─── THEME ───────────────────────────────────────────────────────────────────
 const themeBtn = document.getElementById('themeBtn');
 if(localStorage.getItem('theme') === 'light'){
@@ -999,25 +1004,6 @@ themeBtn.addEventListener('click', () => {
     themeBtn.textContent = '☀️';
     localStorage.setItem('theme','light');
   }
-});
-
-// ─── FORM ───────────────────────────────────────────────────────────────────
-document.getElementById('f-submit').addEventListener('click', () => {
-  const d = T[currentLang];
-  const name = document.getElementById('f-name').value;
-  const contact = document.getElementById('f-contact').value;
-  const svc = document.getElementById('f-service');
-  const msg = document.getElementById('f-msg').value;
-  if(!name || !contact) return;
-  const svcMap = {servicio:d.fo1, software:d.fo2, duda:d.fo3};
-  const txt = encodeURIComponent('Hola! Te escribo desde la web.\n\nNombre: '+name+'\nContacto: '+contact+'\nNecesito: '+(svcMap[svc.value]||svc.value)+'\n'+(msg?'Mensaje: '+msg:''));
-  window.open('https://wa.me/51935372306?text='+txt,'_blank');
-  const ok = document.getElementById('formOk');
-  ok.style.display='block';
-  document.getElementById('f-name').value='';
-  document.getElementById('f-contact').value='';
-  document.getElementById('f-msg').value='';
-  setTimeout(()=>{ok.style.display='none'},5000);
 });
 
 // ─── LANG SELECT ────────────────────────────────────────────────────────────
