@@ -49,8 +49,9 @@ if(contactForm)contactForm.addEventListener('submit',event=>{event.preventDefaul
 const cookieBanner=document.querySelector('.cookie');
 const cookieButton=document.querySelector('[data-cookie-accept]');
 if(cookieBanner&&cookieButton){
+  const grantConsent=()=>{if(typeof window.gtag==='function')window.gtag('consent','update',{analytics_storage:'granted',ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'})};
   let consentGiven=false;
   try{consentGiven=localStorage.getItem('formsbot-cookie-consent')==='accepted'}catch(error){consentGiven=false}
-  if(consentGiven){cookieBanner.hidden=true}else{cookieButton.addEventListener('click',()=>{cookieBanner.hidden=true;try{localStorage.setItem('formsbot-cookie-consent','accepted')}catch(error){}})}
+  if(consentGiven){cookieBanner.hidden=true;grantConsent()}else{cookieButton.addEventListener('click',()=>{cookieBanner.hidden=true;grantConsent();try{localStorage.setItem('formsbot-cookie-consent','accepted')}catch(error){}})}
 }
 })();
