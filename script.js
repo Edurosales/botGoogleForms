@@ -48,5 +48,9 @@ if(contactForm)contactForm.addEventListener('submit',event=>{event.preventDefaul
 
 const cookieBanner=document.querySelector('.cookie');
 const cookieButton=document.querySelector('[data-cookie-accept]');
-if(cookieBanner&&cookieButton&&!localStorage.getItem('formsbot-cookie-consent')){cookieButton.addEventListener('click',()=>{localStorage.setItem('formsbot-cookie-consent','accepted');cookieBanner.hidden=true})}else if(cookieBanner){cookieBanner.hidden=true}
+if(cookieBanner&&cookieButton){
+  let consentGiven=false;
+  try{consentGiven=localStorage.getItem('formsbot-cookie-consent')==='accepted'}catch(error){consentGiven=false}
+  if(consentGiven){cookieBanner.hidden=true}else{cookieButton.addEventListener('click',()=>{cookieBanner.hidden=true;try{localStorage.setItem('formsbot-cookie-consent','accepted')}catch(error){}})}
+}
 })();
