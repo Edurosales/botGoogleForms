@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guía de validación de datos en Google Forms | FormsBot</title>
+<meta name="description" content="Aprende a configurar validaciones de datos en Google Forms: formato de correo, números, texto, expresiones regulares y mensajes de error personalizados.">
+<link rel="canonical" href="https://googleformsbot.vercel.app/guia-validacion-datos.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Guía de validación de datos en Google Forms">
+<meta property="og:description" content="Configura validaciones para asegurar que los encuestados ingresen datos en el formato correcto.">
+<meta property="og:url" content="https://googleformsbot.vercel.app/guia-validacion-datos.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"Article",
+  "headline":"Guía de validación de datos en Google Forms",
+  "description":"Aprende a configurar validaciones de datos en Google Forms para asegurar respuestas correctas.",
+  "author":{"@type":"Person","name":"Eduardo Rosales"},
+  "publisher":{"@type":"Organization","name":"FormsBot","url":"https://googleformsbot.vercel.app"},
+  "datePublished":"2026-10-09",
+  "dateModified":"2026-10-10",
+  "mainEntityOfPage":"https://googleformsbot.vercel.app/guia-validacion-datos.html"
+}
+</script>
+</head>
+<body>
+
+<header>
+  <div class="w">
+    <a class="logo" href="index.html">Forms<b>Bot</b></a>
+    <button class="menu-toggle" type="button" aria-controls="main-nav" aria-expanded="false" aria-label="Abrir menú"><span></span><span></span><span></span></button>
+    <nav id="main-nav" aria-label="Principal">
+      <a href="index.html#como">Cómo funciona</a>
+      <a href="guias.html">Guías</a>
+      <a href="index.html#precios">Precios</a>
+      <a href="index.html#faq">Preguntas</a>
+      <a href="acerca-de.html">Acerca de</a>
+      <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">WhatsApp</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<article class="article">
+  <div class="w">
+    <nav class="breadcrumb" aria-label="Ruta">
+      <a href="index.html">Inicio</a>
+      <a href="guias.html">Guías</a>
+      <span>Validación de datos</span>
+    </nav>
+
+    <div class="article-header">
+      <span class="eyebrow">Tutorial avanzado</span>
+      <h1>Guía de validación de datos en Google Forms</h1>
+      <p class="lead">Las validaciones aseguran que los encuestados ingresen datos en el formato correcto. Menos datos mal formateados significa menos tiempo limpiando la hoja de resultados.</p>
+      <div class="article-meta">
+        <span>Por Eduardo Rosales</span>
+        <time datetime="2026-10-09">9 de octubre de 2026</time>
+        <span>· 8 min de lectura</span>
+      </div>
+    </div>
+
+    <div class="article-body">
+
+      <div class="toc">
+        <h4>Contenido</h4>
+        <ol>
+          <li><a href="#que-es">Qué es la validación de datos</a></li>
+          <li><a href="#activar">Cómo activar la validación</a></li>
+          <li><a href="#texto">Validación de texto</a></li>
+          <li><a href="#numeros">Validación numérica</a></li>
+          <li><a href="#longitud">Validación de longitud</a></li>
+          <li><a href="#regex">Expresiones regulares</a></li>
+          <li><a href="#checkboxes">Validación de casillas</a></li>
+          <li><a href="#mensajes">Mensajes de error personalizados</a></li>
+          <li><a href="#mejores">Mejores prácticas</a></li>
+        </ol>
+      </div>
+
+      <h2 id="que-es">Qué es la validación de datos</h2>
+      <p>La validación de datos es una regla que defines para cada pregunta del formulario que verifica el formato de la respuesta antes de aceptarla. Si la respuesta no cumple la regla, el formulario muestra un mensaje de error y no permite avanzar hasta que el encuestado corrija su respuesta.</p>
+      <p>Por ejemplo, si pides un número de teléfono, puedes validar que contenga exactamente 9 dígitos. Si pides un correo electrónico, puedes validar que tenga el formato correcto con @.</p>
+      <p>Sin validaciones, los encuestados pueden ingresar datos en cualquier formato: «mi teléfono es el 987654321», «987-654-321», «+51987654321» o simplemente «987654321». Todas son válidas para una persona, pero solo una es fácil de procesar automáticamente.</p>
+
+      <h2 id="activar">Cómo activar la validación en Google Forms</h2>
+      <ol>
+        <li>Selecciona la pregunta donde quieres agregar validación.</li>
+        <li>Haz clic en el ícono de tres puntos (⋮) en la esquina inferior derecha.</li>
+        <li>Selecciona «Validación de la respuesta».</li>
+        <li>Aparecerán opciones de validación específicas según el tipo de pregunta.</li>
+      </ol>
+      <p>Las validaciones están disponibles para los siguientes tipos de preguntas:</p>
+      <ul>
+        <li><strong>Respuesta corta:</strong> validación de número, texto, longitud y expresión regular.</li>
+        <li><strong>Párrafo:</strong> validación de longitud y expresión regular.</li>
+        <li><strong>Casillas de verificación:</strong> validación de cantidad mínima/máxima de opciones seleccionadas.</li>
+      </ul>
+
+      <h2 id="texto">Validación de texto</h2>
+      <p>La validación de texto permite verificar que la respuesta contenga, no contenga, o coincida con ciertos criterios:</p>
+
+      <table>
+        <thead>
+          <tr><th>Condición</th><th>Uso típico</th><th>Ejemplo</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Contiene</td><td>Verificar que incluya una palabra clave</td><td>Debe contener «@» para correos</td></tr>
+          <tr><td>No contiene</td><td>Excluir ciertos valores</td><td>No debe contener «test»</td></tr>
+          <tr><td>Dirección de correo</td><td>Validar formato de email</td><td>Acepta solo formatos válidos</td></tr>
+          <tr><td>URL</td><td>Validar que sea un enlace</td><td>Acepta solo URLs válidas</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Validar correo electrónico</h3>
+      <p>Google Forms tiene una validación integrada para correo electrónico. En la configuración de validación, selecciona «Texto» → «Dirección de correo electrónico». Esto verifica automáticamente que la respuesta tenga formato de email (algo@algo.algo).</p>
+
+      <div class="tip">
+        <p><strong>💡 Consejo:</strong> si solo necesitas recopilar correos, también puedes activar «Recopilar direcciones de correo» en la configuración general del formulario. Esto agrega automáticamente un campo de correo validado al inicio.</p>
+      </div>
+
+      <h2 id="numeros">Validación numérica</h2>
+      <p>Para preguntas que esperan un número como respuesta, puedes definir rangos y condiciones:</p>
+
+      <table>
+        <thead>
+          <tr><th>Condición</th><th>Ejemplo</th><th>Uso</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Es número</td><td>Solo acepta dígitos</td><td>Edad, cantidad, código</td></tr>
+          <tr><td>Mayor que / Menor que</td><td>Mayor que 0, menor que 150</td><td>Rango de edad válido</td></tr>
+          <tr><td>Mayor o igual / Menor o igual</td><td>Mayor o igual a 18</td><td>Edad mínima</td></tr>
+          <tr><td>Entre</td><td>Entre 1 y 100</td><td>Porcentaje, puntuación</td></tr>
+          <tr><td>Es número entero</td><td>Sin decimales</td><td>Cantidad de personas, productos</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Ejemplo práctico: validar edad</h3>
+      <p>Para una pregunta «¿Cuántos años tienes?» donde necesitas que la respuesta sea un número entero entre 1 y 120:</p>
+      <ol>
+        <li>Tipo de pregunta: Respuesta corta</li>
+        <li>Validación: Número → Entre → 1 y 120</li>
+        <li>Mensaje de error personalizado: «Por favor ingresa tu edad como un número entre 1 y 120»</li>
+      </ol>
+
+      <h2 id="longitud">Validación de longitud</h2>
+      <p>Controla cuántos caracteres puede tener una respuesta. Esto es especialmente útil para:</p>
+      <ul>
+        <li><strong>Comentarios con límite:</strong> «Describe tu experiencia en máximo 500 caracteres».</li>
+        <li><strong>Códigos de longitud fija:</strong> «Ingresa tu código de 6 dígitos».</li>
+        <li><strong>Respuestas mínimas:</strong> «Tu comentario debe tener al menos 50 caracteres» para evitar respuestas vacías como «ok» o «bien».</li>
+      </ul>
+      <p>Configuración: Validación → Longitud → Número mínimo/máximo de caracteres.</p>
+
+      <h2 id="regex">Expresiones regulares (regex)</h2>
+      <p>Las expresiones regulares son patrones que definen exactamente qué formato debe tener la respuesta. Son la herramienta de validación más poderosa pero también la más compleja.</p>
+
+      <h3>Regex útiles para Google Forms</h3>
+      <table>
+        <thead>
+          <tr><th>Validación</th><th>Regex</th><th>Acepta</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Teléfono Perú (9 dígitos)</td><td><code>[0-9]{9}</code></td><td>987654321</td></tr>
+          <tr><td>DNI Perú (8 dígitos)</td><td><code>[0-9]{8}</code></td><td>12345678</td></tr>
+          <tr><td>RUC (11 dígitos)</td><td><code>(10|20)[0-9]{9}</code></td><td>20123456789</td></tr>
+          <tr><td>Solo letras y espacios</td><td><code>[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+</code></td><td>María José</td></tr>
+          <tr><td>Código alfanumérico</td><td><code>[A-Z0-9]{6}</code></td><td>ABC123</td></tr>
+          <tr><td>Fecha DD/MM/AAAA</td><td><code>[0-9]{2}/[0-9]{2}/[0-9]{4}</code></td><td>15/10/2026</td></tr>
+        </tbody>
+      </table>
+
+      <p>Para usar regex en Google Forms:</p>
+      <ol>
+        <li>Selecciona la pregunta de respuesta corta o párrafo.</li>
+        <li>Activa la validación → Expresión regular.</li>
+        <li>Elige «Coincide con» para que la respuesta completa siga el patrón.</li>
+        <li>Escribe el patrón regex.</li>
+        <li>Añade un mensaje de error claro que explique el formato esperado.</li>
+      </ol>
+
+      <blockquote>
+        <p><strong>Importante:</strong> cuando uses regex, siempre añade un mensaje de error que explique el formato esperado con un ejemplo. «Formato incorrecto» no ayuda al encuestado; «Ingresa tu teléfono como 9 dígitos: 987654321» sí lo hace.</p>
+      </blockquote>
+
+      <h2 id="checkboxes">Validación de casillas de verificación</h2>
+      <p>Para preguntas de casillas de verificación (donde el encuestado puede seleccionar varias opciones), puedes limitar cuántas opciones puede marcar:</p>
+      <ul>
+        <li><strong>Seleccionar exactamente N:</strong> «Selecciona exactamente 3 opciones».</li>
+        <li><strong>Seleccionar como mínimo N:</strong> «Selecciona al menos 2 opciones».</li>
+        <li><strong>Seleccionar como máximo N:</strong> «Selecciona hasta 5 opciones».</li>
+      </ul>
+      <p>Esto es útil para preguntas como «¿Cuáles son tus 3 prioridades principales?» donde necesitas exactamente 3 respuestas, o «¿Qué días estás disponible?» donde necesitas al menos 1.</p>
+
+      <h2 id="mensajes">Mensajes de error personalizados</h2>
+      <p>Cada validación permite un mensaje de error personalizado. Este texto aparece debajo de la pregunta cuando el encuestado ingresa datos que no cumplen la regla. Un buen mensaje de error:</p>
+      <ul>
+        <li>Explica <strong>qué está mal</strong> de forma específica.</li>
+        <li>Indica <strong>qué se espera</strong> con un ejemplo concreto.</li>
+        <li>Usa un tono amigable, no acusatorio.</li>
+      </ul>
+
+      <h3>Ejemplos de buenos mensajes de error</h3>
+      <table>
+        <thead><tr><th>Malo ❌</th><th>Bueno ✅</th></tr></thead>
+        <tbody>
+          <tr><td>«Formato inválido»</td><td>«Ingresa tu teléfono como 9 dígitos, ejemplo: 987654321»</td></tr>
+          <tr><td>«Error»</td><td>«Por favor ingresa un número entre 1 y 100»</td></tr>
+          <tr><td>«Respuesta incorrecta»</td><td>«Selecciona exactamente 3 opciones de la lista»</td></tr>
+          <tr><td>«Inválido»</td><td>«Ingresa una dirección de correo válida, ejemplo: tu@correo.com»</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="mejores">Mejores prácticas de validación</h2>
+      <ol>
+        <li><strong>No valides en exceso.</strong> Cada validación es una barrera potencial. Si la respuesta es comprensible en cualquier formato, no la valides. Por ejemplo, no valides el formato de un nombre —«Juan Pérez», «JUAN PEREZ» y «juan perez» son igualmente útiles.</li>
+        <li><strong>Prueba todas las validaciones.</strong> Intenta enviar el formulario con datos que deberían ser rechazados y con datos que deberían ser aceptados. Los regex son especialmente propensos a falsos positivos.</li>
+        <li><strong>Incluye ejemplos en la descripción.</strong> Además del mensaje de error, usa el campo de descripción de la pregunta para mostrar el formato esperado: «Formato: 987654321 (9 dígitos, sin espacios ni guiones)».</li>
+        <li><strong>Prefiere el tipo de pregunta correcto.</strong> Si necesitas una fecha, usa el tipo «Fecha» en lugar de «Respuesta corta» con regex. Si necesitas un número, usa validación numérica en lugar de regex.</li>
+        <li><strong>Considera la experiencia en móvil.</strong> Las validaciones con regex pueden ser frustrantes en teléfonos donde es difícil ver exactamente qué se ingresó.</li>
+      </ol>
+
+      <h2>Conclusión</h2>
+      <p>Las validaciones de datos son una inversión que se paga sola: cada respuesta bien formateada que entra es una fila menos que necesitas limpiar en Sheets. La clave es encontrar el equilibrio entre la rigurosidad de la validación y la facilidad de uso para el encuestado. Valida lo necesario, proporciona mensajes claros y siempre prueba con datos reales antes de publicar.</p>
+
+      <div class="article-cta">
+        <h3>¿Quieres probar que tus validaciones funcionan?</h3>
+        <p>FormsBot envía respuestas de prueba que ayudan a verificar que cada validación acepta y rechaza correctamente.</p>
+        <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">Probar por WhatsApp</a>
+      </div>
+
+      <div class="related">
+        <h3>Guías relacionadas</h3>
+        <div class="articles">
+          <article class="article-card"><span class="eyebrow">Diseño</span><h3>Errores comunes al diseñar formularios</h3><p>Los problemas que más afectan la calidad de tus datos y cómo evitarlos.</p><a href="guia-errores-formularios.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Tutorial</span><h3>Cómo configurar saltos de sección</h3><p>Crea formularios dinámicos que se adaptan a cada encuestado.</p><a href="guia-saltos-seccion.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Datos</span><h3>Cómo validar con datos de prueba</h3><p>Crea registros de prueba para verificar que todo funciona antes de publicar.</p><a href="guia-datos-de-prueba.html">Leer la guía</a></article>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</article>
+</main>
+
+<footer>
+  <p>FormsBot v6 · Lima, Perú · <a href="https://t.me/onPowerTec">@onPowerTec</a></p>
+  <p style="margin-top:4px">© 2026 · Hecho por un dev peruano</p>
+  <div class="footer-links"><a href="acerca-de.html">Acerca de</a><a href="privacidad.html">Privacidad</a><a href="terminos.html">Términos de uso</a><a href="guias.html">Guías</a></div>
+</footer>
+<script src="script.js" defer></script>
+</body>
+</html>

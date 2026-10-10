@@ -1,2 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cómo validar una encuesta con datos de prueba — Guía práctica | FormsBot</title>
+<meta name="description" content="Aprende a crear datos de prueba identificables para validar tu encuesta propia en Google Forms sin contaminar los resultados reales.">
+<link rel="canonical" href="https://googleformsbot.vercel.app/guia-datos-de-prueba.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cómo validar una encuesta con datos de prueba">
+<meta property="og:description" content="Guía para crear y gestionar datos de prueba en Google Forms de forma ordenada.">
+<meta property="og:url" content="https://googleformsbot.vercel.app/guia-datos-de-prueba.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"Article",
+  "headline":"Cómo validar una encuesta con datos de prueba",
+  "description":"Aprende a crear datos de prueba identificables para validar tu encuesta propia en Google Forms sin contaminar los resultados reales.",
+  "author":{"@type":"Person","name":"Eduardo Rosales"},
+  "publisher":{"@type":"Organization","name":"FormsBot","url":"https://googleformsbot.vercel.app"},
+  "datePublished":"2026-10-04",
+  "dateModified":"2026-10-10",
+  "mainEntityOfPage":"https://googleformsbot.vercel.app/guia-datos-de-prueba.html"
+}
+</script>
+</head>
+<body>
+
+<header>
+  <div class="w">
+    <a class="logo" href="index.html">Forms<b>Bot</b></a>
+    <button class="menu-toggle" type="button" aria-controls="main-nav" aria-expanded="false" aria-label="Abrir menú"><span></span><span></span><span></span></button>
+    <nav id="main-nav" aria-label="Principal">
+      <a href="index.html#como">Cómo funciona</a>
+      <a href="guias.html">Guías</a>
+      <a href="index.html#precios">Precios</a>
+      <a href="index.html#faq">Preguntas</a>
+      <a href="acerca-de.html">Acerca de</a>
+      <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">WhatsApp</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<article class="article">
+  <div class="w">
+    <nav class="breadcrumb" aria-label="Ruta">
+      <a href="index.html">Inicio</a>
+      <a href="guias.html">Guías</a>
+      <span>Validar encuesta con datos de prueba</span>
+    </nav>
+
+    <div class="article-header">
+      <span class="eyebrow">Guía de datos</span>
+      <h1>Cómo validar una encuesta con datos de prueba</h1>
+      <p class="lead">Los datos de prueba sirven para comprobar que tu formulario funciona correctamente, no para fabricar resultados ni reemplazar las respuestas de tu público real.</p>
+      <div class="article-meta">
+        <span>Por Eduardo Rosales</span>
+        <time datetime="2026-10-04">4 de octubre de 2026</time>
+        <span>· 9 min de lectura</span>
+      </div>
+    </div>
+
+    <div class="article-body">
+
+      <div class="toc">
+        <h4>Contenido</h4>
+        <ol>
+          <li><a href="#que-son">Qué son los datos de prueba y para qué sirven</a></li>
+          <li><a href="#marca">Usa una marca clara en cada registro</a></li>
+          <li><a href="#escenarios">Diseña escenarios de prueba variados</a></li>
+          <li><a href="#tabla">Crea una tabla de validación</a></li>
+          <li><a href="#sheets">Verifica los datos en Google Sheets</a></li>
+          <li><a href="#limpiar">Limpia antes de publicar</a></li>
+          <li><a href="#privacidad">Protege la información</a></li>
+          <li><a href="#automatizar">Cuándo conviene automatizar</a></li>
+        </ol>
+      </div>
+
+      <h2 id="que-son">Qué son los datos de prueba y para qué sirven</h2>
+      <p>Cuando un formulario es tuyo, necesitas comprobar que la estructura funciona antes de compartirlo con tu audiencia. Los datos de prueba son respuestas controladas que envías deliberadamente para verificar campos, validaciones, saltos de sección y la conexión con Google Sheets.</p>
+      <p>La diferencia entre datos de prueba bien gestionados y datos basura es simple: los primeros son identificables, documentados y eliminables. Los segundos se mezclan con las respuestas reales y contaminan tu análisis.</p>
+      <p>El objetivo no es inflar el número de respuestas ni simular participación. Es asegurarte de que, cuando una persona real responda, todo funcione como esperas.</p>
+
+      <h2 id="marca">Usa una marca clara en cada registro</h2>
+      <p>El principio más importante de los datos de prueba es que cualquier persona que abra tu hoja de resultados pueda identificarlos de inmediato. Hay varias formas de hacerlo:</p>
+      <ul>
+        <li><strong>Prefijo en el nombre:</strong> usa «PRUEBA —» o «[TEST]» como parte del nombre del perfil de prueba. Por ejemplo: «PRUEBA — María García» en lugar de solo «María García».</li>
+        <li><strong>Correo electrónico de prueba:</strong> si el formulario pide un correo, usa una dirección que no pueda confundirse con una persona real, como <code>test-001@ejemplo.com</code>.</li>
+        <li><strong>Campo interno:</strong> si puedes agregar un campo oculto o una pregunta auxiliar, inclúyelo con el valor «PRUEBA» para filtrar fácilmente después.</li>
+      </ul>
+      <p>Evita usar datos que parezcan reales sin ninguna marca. Un nombre como «Juan Pérez» con un correo como «juan@gmail.com» es indistinguible de una respuesta genuina una vez que la hoja tiene decenas de filas.</p>
+
+      <blockquote>
+        <p><strong>Regla de oro:</strong> si no puedes filtrar tus datos de prueba con una sola búsqueda en Sheets, tu marcado no es suficiente.</p>
+      </blockquote>
+
+      <h2 id="escenarios">Diseña escenarios de prueba variados</h2>
+      <p>Un solo envío de prueba no basta para validar un formulario completo. Necesitas cubrir diferentes situaciones para detectar los errores que un uso normal revelaría:</p>
+
+      <h3>Caso mínimo</h3>
+      <p>Responde solo los campos obligatorios y deja todo lo demás en blanco. Esto te muestra qué datos recibirás de los encuestados menos comprometidos y verifica que los campos opcionales no generan errores cuando están vacíos.</p>
+
+      <h3>Caso completo</h3>
+      <p>Rellena absolutamente todos los campos. Usa textos largos en los campos abiertos, selecciona múltiples opciones donde sea posible y sube archivos si el formulario lo permite. Esto verifica que la hoja de Sheets maneja correctamente todos los datos simultáneamente.</p>
+
+      <h3>Casos de cada ruta condicional</h3>
+      <p>Si tu formulario tiene saltos de sección, crea un caso de prueba para cada combinación posible de respuestas que lleve a una ruta diferente. Anota qué ruta esperabas antes de enviar y compara con lo que ocurrió.</p>
+
+      <h3>Caso con datos extremos</h3>
+      <p>Prueba con valores en los límites: números muy grandes o muy pequeños, textos con caracteres especiales (ñ, tildes, emojis), fechas en el pasado lejano. Estos casos revelan problemas de formato que no aparecen con datos «normales».</p>
+
+      <h3>Caso desde diferentes dispositivos</h3>
+      <p>Envía al menos una respuesta desde un teléfono móvil y otra desde un ordenador de escritorio. La experiencia y los datos resultantes pueden ser diferentes, especialmente con campos de fecha y hora.</p>
+
+      <h2 id="tabla">Crea una tabla de validación</h2>
+      <p>Antes de enviar tus datos de prueba, prepara una tabla sencilla que te permita comparar lo esperado con lo recibido:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Escenario</th>
+            <th>Qué respondí</th>
+            <th>Sección esperada</th>
+            <th>Columna en Sheets</th>
+            <th>¿Correcto?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Caso mínimo</td>
+            <td>Solo campos obligatorios</td>
+            <td>Sección 1 → Final</td>
+            <td>Columnas A-E</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Caso completo</td>
+            <td>Todos los campos</td>
+            <td>Sección 1 → 2 → Final</td>
+            <td>Columnas A-J</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Ruta alternativa</td>
+            <td>Opción B en pregunta 3</td>
+            <td>Sección 1 → 3 → Final</td>
+            <td>Columnas A-E, G</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Esta tabla te ahorra tiempo porque no dependes de la memoria para recordar qué esperabas. Después de enviar cada caso, abres Sheets, marcas la columna «¿Correcto?» y tienes un registro claro de qué funciona y qué no.</p>
+
+      <h2 id="sheets">Verifica los datos en Google Sheets</h2>
+      <p>Una vez que has enviado tus respuestas de prueba, abre la hoja vinculada y revisa estos aspectos:</p>
+      <ul>
+        <li><strong>Encabezados de columna:</strong> ¿coinciden con las preguntas del formulario? Si renombraste alguna pregunta después de recibir respuestas, la columna puede estar duplicada.</li>
+        <li><strong>Formato de fechas:</strong> Google Sheets puede mostrar fechas en un formato diferente al que esperas, dependiendo de la configuración regional de tu cuenta.</li>
+        <li><strong>Respuestas múltiples:</strong> las preguntas de casillas de verificación (checkbox) almacenan las opciones separadas por comas en una sola celda. Verifica que esto no rompa fórmulas o filtros.</li>
+        <li><strong>Celdas vacías:</strong> confirma que los campos opcionales que no se llenaron aparecen como celdas vacías y no como texto «No respondido» o similar.</li>
+        <li><strong>Orden de las filas:</strong> las respuestas deben aparecer en orden cronológico. Si no es así, puede haber un problema con la zona horaria de la hoja.</li>
+      </ul>
+
+      <h2 id="limpiar">Limpia antes de publicar</h2>
+      <p>Nunca dejes datos de prueba mezclados con datos reales. Antes de publicar tu formulario o antes de analizar los resultados:</p>
+      <ol>
+        <li><strong>Filtra por tu marca:</strong> busca «PRUEBA» o «[TEST]» en toda la hoja para encontrar tus registros de prueba.</li>
+        <li><strong>Elimina o mueve:</strong> borra las filas de prueba por completo, o muévelas a una hoja separada llamada «Pruebas» para conservarlas como referencia.</li>
+        <li><strong>Documenta el proceso:</strong> si trabajas en equipo, deja una nota en la hoja indicando que los registros anteriores a cierta fecha son pruebas.</li>
+        <li><strong>Verifica los totales:</strong> después de limpiar, asegúrate de que los contadores, gráficos y fórmulas automáticas reflejan solo los datos reales.</li>
+      </ol>
+
+      <div class="tip">
+        <p><strong>💡 Consejo:</strong> si necesitas conservar los datos de prueba, añade una columna llamada «Tipo» con los valores «Real» o «Prueba». Así puedes filtrar sin eliminar filas y siempre sabrás qué es qué.</p>
+      </div>
+
+      <h2 id="privacidad">Protege la información</h2>
+      <p>Nunca uses datos personales reales para probar un formulario, ni siquiera tus propios datos si el formulario recopila información sensible:</p>
+      <ul>
+        <li>Usa nombres ficticios que sean claramente inventados.</li>
+        <li>No incluyas números de documento, cuentas bancarias o información médica real.</li>
+        <li>Si necesitas probar un campo de teléfono, usa un número que no pertenezca a nadie.</li>
+        <li>Si pruebas formularios que piden correo electrónico, usa direcciones de prueba, no las de tus contactos.</li>
+      </ul>
+      <p>Recuerda que, dependiendo de tu país y sector, puede haber regulaciones sobre el manejo de datos personales incluso en entornos de prueba. En Perú, la Ley de Protección de Datos Personales (Ley N.º 29733) aplica desde el momento en que recopilas información identificable.</p>
+
+      <h2 id="automatizar">Cuándo conviene automatizar las pruebas</h2>
+      <p>Crear datos de prueba manualmente funciona bien cuando necesitas 3 o 5 respuestas. Pero hay situaciones donde la automatización ahorra tiempo real:</p>
+      <ul>
+        <li><strong>Formularios largos:</strong> si tu encuesta tiene más de 20 preguntas, llenarla manualmente 5 veces consume fácilmente una hora.</li>
+        <li><strong>Pruebas de volumen:</strong> necesitas 50 o más respuestas para verificar que Sheets, tus gráficos y tus scripts manejan correctamente la carga.</li>
+        <li><strong>Formularios con muchas rutas:</strong> si tienes 4 secciones condicionales con 3 opciones cada una, las combinaciones posibles crecen rápido.</li>
+        <li><strong>Iteraciones frecuentes:</strong> si estás afinando el formulario y necesitas probar después de cada cambio.</li>
+      </ul>
+      <p>Herramientas como <a href="index.html">FormsBot</a> generan respuestas de prueba realistas usando IA, enviándolas directamente a tu formulario. Las respuestas son coherentes —no «test123»— y llegan a tu Sheets en minutos.</p>
+
+      <h2>Conclusión</h2>
+      <p>Los datos de prueba son una herramienta de calidad, no un atajo. Usados correctamente, te dan la confianza de que tu formulario funciona antes de que una sola persona real lo responda. La clave es planificar los escenarios, marcar claramente cada registro y limpiar todo antes de pasar a producción.</p>
+
+      <div class="article-cta">
+        <h3>¿Necesitas datos de prueba realistas?</h3>
+        <p>FormsBot genera respuestas coherentes con IA para validar tu formulario en minutos.</p>
+        <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">Solicitar prueba por WhatsApp</a>
+      </div>
+
+      <div class="related">
+        <h3>Guías relacionadas</h3>
+        <div class="articles">
+          <article class="article-card"><span class="eyebrow">Diseño</span><h3>Cómo probar un Google Form antes de lanzarlo</h3><p>Checklist completo para revisar la estructura, navegación y experiencia de tu formulario.</p><a href="guia-probar-google-form.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Sheets</span><h3>Cómo analizar respuestas en Google Sheets</h3><p>Fórmulas, filtros y gráficos para convertir respuestas en información útil.</p><a href="guia-analizar-respuestas-sheets.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Formularios</span><h3>Errores comunes al diseñar formularios</h3><p>Los problemas que más afectan la calidad de tus datos y cómo evitarlos.</p><a href="guia-errores-formularios.html">Leer la guía</a></article>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</article>
+</main>
+
+<footer>
+  <p>FormsBot v6 · Lima, Perú · <a href="https://t.me/onPowerTec">@onPowerTec</a></p>
+  <p style="margin-top:4px">© 2026 · Hecho por un dev peruano</p>
+  <div class="footer-links"><a href="acerca-de.html">Acerca de</a><a href="privacidad.html">Privacidad</a><a href="terminos.html">Términos de uso</a><a href="guias.html">Guías</a></div>
+</footer>
 <script src="script.js" defer></script>
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Cómo validar una encuesta con datos de prueba | FormsBot</title><meta name="description" content="Cómo usar datos de prueba identificables para validar una encuesta propia sin confundir sus resultados."><link rel="canonical" href="https://googleformsbot.vercel.app/guia-datos-de-prueba.html"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css"></head><body><header><div class="w"><a class="logo" href="index.html">Forms<b>Bot</b></a><nav aria-label="Principal"><a href="index.html#como">Cómo funciona</a><a href="guias.html">Guías</a><a href="index.html#precios">Precios</a><a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">WhatsApp</a></nav></div></header><main><article class="article"><div class="w"><div class="article-header"><span class="eyebrow">Guía de datos</span><h1>Cómo validar una encuesta con datos de prueba</h1><p class="lead">Los datos de prueba sirven para detectar fallos técnicos, no para fabricar resultados ni reemplazar respuestas de tu público.</p></div><div class="article-body"><p>Cuando una encuesta es tuya, puedes crear algunos registros controlados para comprobar que la estructura funciona. La clave es que cualquier persona que revise la hoja pueda distinguirlos de las respuestas reales.</p><h2>Usa una marca clara</h2><p>Incluye una etiqueta como “PRUEBA” en un campo interno o en el nombre del perfil de prueba. Evita datos que puedan confundirse con una persona real.</p><h2>Cubre diferentes escenarios</h2><p>Prepara casos mínimos, completos y con distintas opciones de respuesta. Si tienes secciones condicionales, crea un caso para cada ruta y anota qué esperabas que ocurriera.</p><h2>Compara lo esperado con lo recibido</h2><p>Antes de enviar, escribe una pequeña tabla con la respuesta prevista, la sección que debería abrirse y la columna donde debería aparecer. Así puedes detectar errores sin depender de una impresión subjetiva.</p><h2>Limpia antes de publicar</h2><p>Elimina las filas de prueba o muévelas a una hoja separada. Si necesitas conservarlas, añade una columna de estado y filtra siempre los registros marcados como prueba al analizar resultados.</p><h2>Protege la información</h2><p>No uses datos personales reales para probar un formulario. Utiliza valores ficticios y evita incluir información sensible en campos abiertos.</p></div></div></article></main><footer><p>FormsBot v6 · Lima, Perú</p><div class="footer-links"><a href="index.html">Inicio</a><a href="guias.html">Más guías</a><a href="privacidad.html">Privacidad</a></div></footer></body></html>
+</body>
+</html>

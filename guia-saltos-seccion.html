@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cómo configurar saltos de sección en Google Forms | FormsBot</title>
+<meta name="description" content="Aprende a usar saltos de sección en Google Forms para dirigir a los encuestados por rutas diferentes según sus respuestas. Guía paso a paso con ejemplos.">
+<link rel="canonical" href="https://googleformsbot.vercel.app/guia-saltos-seccion.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cómo configurar saltos de sección en Google Forms">
+<meta property="og:description" content="Guía paso a paso para configurar saltos de sección y lógica condicional en Google Forms.">
+<meta property="og:url" content="https://googleformsbot.vercel.app/guia-saltos-seccion.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"Article",
+  "headline":"Cómo configurar saltos de sección en Google Forms",
+  "description":"Guía paso a paso para configurar saltos de sección y lógica condicional en Google Forms.",
+  "author":{"@type":"Person","name":"Eduardo Rosales"},
+  "publisher":{"@type":"Organization","name":"FormsBot","url":"https://googleformsbot.vercel.app"},
+  "datePublished":"2026-10-08",
+  "dateModified":"2026-10-10",
+  "mainEntityOfPage":"https://googleformsbot.vercel.app/guia-saltos-seccion.html"
+}
+</script>
+</head>
+<body>
+
+<header>
+  <div class="w">
+    <a class="logo" href="index.html">Forms<b>Bot</b></a>
+    <button class="menu-toggle" type="button" aria-controls="main-nav" aria-expanded="false" aria-label="Abrir menú"><span></span><span></span><span></span></button>
+    <nav id="main-nav" aria-label="Principal">
+      <a href="index.html#como">Cómo funciona</a>
+      <a href="guias.html">Guías</a>
+      <a href="index.html#precios">Precios</a>
+      <a href="index.html#faq">Preguntas</a>
+      <a href="acerca-de.html">Acerca de</a>
+      <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form" target="_blank" rel="noopener">WhatsApp</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<article class="article">
+  <div class="w">
+    <nav class="breadcrumb" aria-label="Ruta">
+      <a href="index.html">Inicio</a>
+      <a href="guias.html">Guías</a>
+      <span>Saltos de sección</span>
+    </nav>
+
+    <div class="article-header">
+      <span class="eyebrow">Tutorial avanzado</span>
+      <h1>Cómo configurar saltos de sección en Google Forms</h1>
+      <p class="lead">Los saltos de sección permiten crear formularios dinámicos que muestran preguntas diferentes según las respuestas del encuestado. Aprende a configurarlos correctamente y a evitar los errores más comunes.</p>
+      <div class="article-meta">
+        <span>Por Eduardo Rosales</span>
+        <time datetime="2026-10-08">8 de octubre de 2026</time>
+        <span>· 9 min de lectura</span>
+      </div>
+    </div>
+
+    <div class="article-body">
+
+      <div class="toc">
+        <h4>Contenido</h4>
+        <ol>
+          <li><a href="#que-son">Qué son los saltos de sección</a></li>
+          <li><a href="#cuando">Cuándo usarlos</a></li>
+          <li><a href="#configurar">Configuración paso a paso</a></li>
+          <li><a href="#patrones">Patrones comunes de ramificación</a></li>
+          <li><a href="#probar">Cómo probar los saltos</a></li>
+          <li><a href="#errores">Errores frecuentes y soluciones</a></li>
+          <li><a href="#sheets">Impacto en Google Sheets</a></li>
+        </ol>
+      </div>
+
+      <h2 id="que-son">Qué son los saltos de sección</h2>
+      <p>Los saltos de sección (también llamados «lógica condicional» o «branching») son una funcionalidad de Google Forms que permite dirigir al encuestado a diferentes secciones del formulario según la respuesta que haya dado en una pregunta específica.</p>
+      <p>Por ejemplo, si preguntas «¿Eres estudiante o profesional?», puedes enviar a los estudiantes a una sección con preguntas sobre su universidad, y a los profesionales a una sección sobre su empresa. Ambos terminan en una sección final común.</p>
+      <p>Sin saltos de sección, todos los encuestados ven todas las preguntas, incluyendo las que no les aplican. Esto alarga el formulario innecesariamente y puede generar confusión o datos vacíos.</p>
+
+      <h2 id="cuando">Cuándo usar saltos de sección</h2>
+      <p>Los saltos de sección son útiles cuando:</p>
+      <ul>
+        <li><strong>Diferentes perfiles necesitan preguntas diferentes:</strong> un formulario de registro donde clientes y proveedores llenan datos distintos.</li>
+        <li><strong>Quieres profundizar según una respuesta:</strong> si alguien dice que tuvo una mala experiencia, puedes enviarle a una sección que pregunte los detalles.</li>
+        <li><strong>Hay preguntas que solo aplican a ciertos grupos:</strong> preguntas sobre maternidad/paternidad solo para quienes tienen hijos.</li>
+        <li><strong>Quieres acortar el formulario:</strong> en lugar de marcar 5 preguntas como opcionales, crea una ruta que las salte para quienes no las necesitan.</li>
+      </ul>
+
+      <blockquote>
+        <p><strong>Importante:</strong> los saltos de sección solo funcionan con preguntas de tipo <strong>opción múltiple</strong> y <strong>desplegable</strong>. No están disponibles para casillas de verificación, respuestas cortas ni otros tipos de preguntas.</p>
+      </blockquote>
+
+      <h2 id="configurar">Configuración paso a paso</h2>
+
+      <h3>Paso 1: Crear las secciones</h3>
+      <p>Antes de configurar los saltos, necesitas tener las secciones creadas. Cada sección es una «página» del formulario.</p>
+      <ol>
+        <li>En el editor de Google Forms, haz clic en el ícono de «Añadir sección» (dos rectángulos apilados) en la barra lateral derecha.</li>
+        <li>Dale un nombre descriptivo a cada sección: «Preguntas para estudiantes», «Preguntas para profesionales», «Sección final», etc.</li>
+        <li>Agrega las preguntas correspondientes a cada sección.</li>
+      </ol>
+
+      <div class="tip">
+        <p><strong>💡 Consejo:</strong> planifica la estructura de tu formulario en papel antes de crear las secciones. Dibuja un diagrama de flujo simple con las posibles rutas. Esto te ahorrará tiempo y errores.</p>
+      </div>
+
+      <h3>Paso 2: Configurar la pregunta de ramificación</h3>
+      <ol>
+        <li>Ve a la pregunta de opción múltiple o desplegable que determinará el salto.</li>
+        <li>Haz clic en el ícono de tres puntos (⋮) en la esquina inferior derecha de la pregunta.</li>
+        <li>Selecciona «Ir a la sección según la respuesta».</li>
+        <li>Junto a cada opción de respuesta, aparecerá un desplegable donde puedes elegir a qué sección dirigir al encuestado.</li>
+      </ol>
+
+      <h3>Paso 3: Configurar el destino de cada sección</h3>
+      <p>Al final de cada sección, Google Forms muestra un desplegable «Después de la sección X». Las opciones son:</p>
+      <ul>
+        <li><strong>Continuar a la siguiente sección:</strong> el comportamiento predeterminado.</li>
+        <li><strong>Ir a la sección [nombre]:</strong> saltar a una sección específica.</li>
+        <li><strong>Enviar formulario:</strong> terminar el formulario inmediatamente después de esa sección.</li>
+      </ul>
+      <p>Esto es importante porque, sin configurarlo correctamente, un encuestado que fue enviado a la sección de «Estudiantes» podría continuar automáticamente a la sección de «Profesionales» (la siguiente en orden), lo cual no tiene sentido.</p>
+
+      <h2 id="patrones">Patrones comunes de ramificación</h2>
+
+      <h3>Patrón 1: Bifurcación simple</h3>
+      <p>El más común. Una pregunta divide el flujo en dos rutas que convergen al final:</p>
+      <ul>
+        <li>Sección 1 (General) → Pregunta: «¿Eres cliente o proveedor?»</li>
+        <li>→ Si «Cliente»: ir a Sección 2A (Preguntas para clientes)</li>
+        <li>→ Si «Proveedor»: ir a Sección 2B (Preguntas para proveedores)</li>
+        <li>Ambas secciones → Sección 3 (Final / Datos de contacto)</li>
+      </ul>
+
+      <h3>Patrón 2: Filtro de elegibilidad</h3>
+      <p>Una pregunta inicial determina si el encuestado puede continuar:</p>
+      <ul>
+        <li>Sección 1: «¿Tienes más de 18 años?»</li>
+        <li>→ Si «Sí»: continuar a la encuesta completa</li>
+        <li>→ Si «No»: ir a una sección de disculpa y enviar formulario</li>
+      </ul>
+
+      <h3>Patrón 3: Profundización condicional</h3>
+      <p>Preguntas de seguimiento solo para quienes dan una respuesta específica:</p>
+      <ul>
+        <li>Sección 1: «¿Cómo calificarías tu experiencia?» (1 a 5)</li>
+        <li>→ Si 1 o 2: ir a Sección 2 (¿Qué podemos mejorar?)</li>
+        <li>→ Si 3, 4 o 5: ir a Sección 3 (Gracias, datos finales)</li>
+      </ul>
+      <p>Nota: para este patrón, necesitas usar opción múltiple con opciones como «Muy insatisfecho (1-2)» y «Satisfecho (3-5)» en lugar de una escala lineal, ya que las escalas no soportan saltos de sección.</p>
+
+      <h3>Patrón 4: Múltiples rutas</h3>
+      <p>Más de dos caminos posibles desde una pregunta:</p>
+      <ul>
+        <li>Sección 1: «¿En qué departamento trabajas?» (Ventas / Marketing / Tecnología / RRHH)</li>
+        <li>→ Cada opción lleva a una sección diferente con preguntas específicas del departamento</li>
+        <li>→ Todas convergen en la sección final</li>
+      </ul>
+
+      <h2 id="probar">Cómo probar los saltos correctamente</h2>
+      <p>Los saltos de sección son la parte del formulario donde más errores se cometen, precisamente porque el creador suele probar solo una ruta y asume que las demás funcionan igual.</p>
+      <ol>
+        <li><strong>Haz un mapa de todas las rutas posibles.</strong> Si tienes 3 opciones que llevan a 3 secciones, necesitas probar al menos 3 veces.</li>
+        <li><strong>Usa la vista previa</strong> (ícono del ojo 👁 en la barra superior) para probar cada ruta. La vista previa funciona exactamente como el formulario público.</li>
+        <li><strong>Verifica el destino de cada sección.</strong> Después de cada sección, confirma que el formulario continúa a la sección correcta y no a la siguiente en orden.</li>
+        <li><strong>Prueba la ruta «Enviar formulario».</strong> Si alguna sección termina con «Enviar formulario», asegúrate de que las preguntas anteriores recopilan toda la información necesaria.</li>
+        <li><strong>Revisa la hoja de Sheets.</strong> Envía una respuesta por cada ruta y verifica que todas las columnas se llenan correctamente.</li>
+      </ol>
+
+      <div class="tip">
+        <p><strong>💡 Consejo:</strong> si tu formulario tiene muchas rutas, usa una herramienta como <a href="index.html">FormsBot</a> para generar respuestas de prueba que cubran todas las combinaciones automáticamente.</p>
+      </div>
+
+      <h2 id="errores">Errores frecuentes y soluciones</h2>
+
+      <h3>Error 1: No configurar «Después de la sección»</h3>
+      <p><strong>Síntoma:</strong> el encuestado termina la sección de «Estudiantes» y continúa a la sección de «Profesionales».</p>
+      <p><strong>Solución:</strong> al final de cada sección ramificada, configura «Después de la sección X» → «Ir a [sección final]» o «Enviar formulario».</p>
+
+      <h3>Error 2: Sección sin salida</h3>
+      <p><strong>Síntoma:</strong> el encuestado queda atrapado en un bucle entre secciones.</p>
+      <p><strong>Solución:</strong> nunca configures un salto que vuelva a una sección anterior (a menos que sea intencionalmente un formulario repetitivo). Siempre avanza hacia adelante o envía el formulario.</p>
+
+      <h3>Error 3: Usar casillas de verificación para ramificar</h3>
+      <p><strong>Síntoma:</strong> no aparece la opción «Ir a la sección según la respuesta».</p>
+      <p><strong>Solución:</strong> cambia el tipo de pregunta a opción múltiple o desplegable. Solo estos dos tipos soportan saltos de sección.</p>
+
+      <h3>Error 4: Preguntas obligatorias en rutas que no aplican</h3>
+      <p><strong>Síntoma:</strong> un encuestado no puede enviar el formulario porque una pregunta de otra ruta está marcada como obligatoria.</p>
+      <p><strong>Solución:</strong> las preguntas obligatorias solo bloquean en las secciones que el encuestado visita. Si la configuración es correcta, este error indica que el salto de sección no está bien configurado y el encuestado está viendo una sección que no debería ver.</p>
+
+      <h2 id="sheets">Impacto en Google Sheets</h2>
+      <p>Cuando un formulario tiene saltos de sección, la hoja de Sheets refleja todas las preguntas de todas las secciones como columnas. Las preguntas de secciones que un encuestado no visitó aparecen como celdas vacías en su fila.</p>
+      <p>Esto es normal y esperado, pero tiene implicaciones para el análisis:</p>
+      <ul>
+        <li><strong>Usa COUNTA en lugar de ROWS</strong> para contar respuestas reales en columnas que no todos los encuestados llenan.</li>
+        <li><strong>Filtra por la pregunta de ramificación</strong> antes de analizar las columnas de cada ruta. Por ejemplo, filtra por «Estudiante» antes de calcular promedios en las columnas de la sección de estudiantes.</li>
+        <li><strong>No uses AVERAGE directamente</strong> en columnas con muchas celdas vacías, ya que las celdas vacías se excluyen y el resultado puede ser engañoso si no lo tienes en cuenta.</li>
+      </ul>
+
+      <h2>Conclusión</h2>
+      <p>Los saltos de sección convierten un formulario estático en una experiencia dinámica y personalizada. La clave es planificar las rutas antes de construirlas, probar cada camino posible y configurar correctamente el destino de cada sección. Con un poco de planificación previa, puedes crear formularios que se adaptan a cada encuestado y recopilan solo la información relevante.</p>
+
+      <div class="article-cta">
+        <h3>¿Quieres probar todas las rutas de tu formulario?</h3>
+        <p>FormsBot genera respuestas que cubren diferentes combinaciones para validar tus saltos de sección.</p>
+        <a class="btn wa" href="https://wa.me/51935372306?text=Hola%2C%20quiero%20probar%20mi%20Google%20Form%20con%20saltos%20de%20secci%C3%B3n" target="_blank" rel="noopener">Probar por WhatsApp</a>
+      </div>
+
+      <div class="related">
+        <h3>Guías relacionadas</h3>
+        <div class="articles">
+          <article class="article-card"><span class="eyebrow">Diseño</span><h3>Cómo probar un Google Form antes de lanzarlo</h3><p>Checklist para revisar estructura, validaciones y experiencia de usuario.</p><a href="guia-probar-google-form.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Tutorial</span><h3>Cómo crear una encuesta en Google Forms</h3><p>Guía completa desde cero hasta un formulario publicado y funcional.</p><a href="guia-crear-encuesta-google-forms.html">Leer la guía</a></article>
+          <article class="article-card"><span class="eyebrow">Validación</span><h3>Guía de validación de datos en formularios</h3><p>Asegura que los encuestados ingresen datos en el formato correcto.</p><a href="guia-validacion-datos.html">Leer la guía</a></article>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</article>
+</main>
+
+<footer>
+  <p>FormsBot v6 · Lima, Perú · <a href="https://t.me/onPowerTec">@onPowerTec</a></p>
+  <p style="margin-top:4px">© 2026 · Hecho por un dev peruano</p>
+  <div class="footer-links"><a href="acerca-de.html">Acerca de</a><a href="privacidad.html">Privacidad</a><a href="terminos.html">Términos de uso</a><a href="guias.html">Guías</a></div>
+</footer>
+<script src="script.js" defer></script>
+</body>
+</html>
