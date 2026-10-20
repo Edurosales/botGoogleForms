@@ -80,3 +80,15 @@ footer{border-top:1px solid var(--line);padding:28px 20px;text-align:center;colo
 .tool-question{border-top:1px solid var(--line);padding-top:12px}
 .tool-question p{margin-bottom:6px}
 .tool-question small{color:var(--mute)}
+.tool-warning{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:.9rem;color:var(--mute);margin-bottom:6px}
+.tool-hint{color:var(--mute);font-size:.85rem;margin-top:4px}
+.tool-check{display:flex;align-items:flex-start;gap:8px;font-size:.88rem;color:var(--mute);margin-top:16px;font-weight:400}
+.tool-check input{width:auto;min-height:auto;margin-top:2px}
+.tool-wait-options{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.tool-wait-options .btn{width:100%;margin-top:0}
+.tool-ad-slot{margin-top:18px;text-align:center}
+.hero-tool-form{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.hero-tool-form input{flex:1;min-width:220px;min-height:52px;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:2px solid var(--line);border-radius:12px;padding:0 16px}
+.hero-tool-form .btn{min-height:52px}
+@media(max-width:480px){.hero-tool-form{flex-direction:column}.hero-tool-form .btn{width:100%}}
+.tool-ok{background:#E8F5E9;border:1px solid #A5D6A7;color:#1B5E20;border-radius:12px;padding:12px 16px;margin-bottom:12px;font-weight:600}

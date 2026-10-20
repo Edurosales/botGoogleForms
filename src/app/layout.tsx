@@ -47,6 +47,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           crossOrigin="anonymous"
         />
         {children}
+
+        <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
+          <p>
+            Usamos cookies necesarias y medición anónima para mejorar el sitio. Puedes consultar
+            nuestra <a href="/privacidad.html">política de privacidad</a>.
+          </p>
+          <button className="btn" type="button" data-cookie-accept="">
+            Aceptar
+          </button>
+        </div>
+
+        <Script src="/script.js" strategy="afterInteractive" />
       </body>
     </html>
   );

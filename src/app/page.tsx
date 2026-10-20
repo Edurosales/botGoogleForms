@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "FormsBot — Rellena Google Forms automáticamente con IA",
@@ -59,10 +58,25 @@ export default function Home() {
         <section className="hero">
           <div className="w">
             <div>
-              <h1>Prueba tu Google Form con 50 respuestas reales antes de lanzarlo</h1>
+              <h1>Prueba tu Google Form con respuestas reales antes de lanzarlo</h1>
               <p className="lead" style={{ marginTop: 18 }}>
-                La IA contesta cada pregunta como una persona de verdad, no con «test123». Tú ves
-                todo en tu Google Sheets en minutos.
+                La IA contesta cada pregunta como una persona de verdad, no con «test123». Pega tu
+                link y pruébalo gratis ahora mismo — hasta 30 respuestas sin costo.
+              </p>
+              <form className="hero-tool-form" action="/herramienta" method="get">
+                <input
+                  type="url"
+                  name="url"
+                  placeholder="Pega el link de tu Google Form…"
+                  required
+                  aria-label="Link de tu Google Form"
+                />
+                <button className="btn wa" type="submit">
+                  Probar gratis
+                </button>
+              </form>
+              <p className="tool-hint" style={{ marginTop: 8 }}>
+                Debe ser público. No se aceptan concursos, sorteos ni votaciones.
               </p>
               <div className="cta">
                 <a
@@ -71,7 +85,7 @@ export default function Home() {
                   target="_blank"
                   rel="noopener"
                 >
-                  Pedir por WhatsApp
+                  O que lo haga yo por ti (WhatsApp)
                 </a>
                 <a className="btn" href="#como">
                   Ver cómo funciona
@@ -475,17 +489,6 @@ export default function Home() {
         </a>
       </div>
 
-      <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
-        <p>
-          Usamos cookies necesarias y medición anónima para mejorar el sitio. Puedes consultar nuestra{" "}
-          <a href="privacidad.html">política de privacidad</a>.
-        </p>
-        <button className="btn" type="button" data-cookie-accept="">
-          Aceptar
-        </button>
-      </div>
-
-      <Script src="/script.js" strategy="afterInteractive" />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import HerramientaClient from "./HerramientaClient";
 
 export const metadata: Metadata = {
@@ -19,10 +20,14 @@ export default function HerramientaPage() {
           <h1>Prueba tu Google Form</h1>
           <p className="lead">
             Pega el link público de tu formulario. Generamos respuestas con IA y las enviamos por ti —
-            fase de pruebas, máximo 5 respuestas por ahora.
+            hasta 30 respuestas gratis (con espera si el servidor está ocupado), o compra créditos para
+            más y saltar la cola.{" "}
+            <Link href="/#features">¿Quieres saber más sobre FormsBot?</Link>
           </p>
         </header>
-        <HerramientaClient />
+        <Suspense fallback={null}>
+          <HerramientaClient />
+        </Suspense>
       </div>
     </main>
   );
