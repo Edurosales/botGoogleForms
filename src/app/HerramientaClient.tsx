@@ -211,201 +211,254 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
 
   // ── Render ──────────────────────────────────────────────────────
 
+  const STEP_INDEX: Record<Step, number> = {
+    input: 0,
+    preview: 1,
+    queued: 2,
+    processing: 2,
+    done: 3,
+    blocked: 0,
+    error: 0,
+  };
+  const currentStepIndex = STEP_INDEX[step];
+  const stepIndicator = (
+    <div className="tool-steps" aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className={i < currentStepIndex ? "done" : i === currentStepIndex ? "now" : ""} />
+      ))}
+    </div>
+  );
+
   if (step === "input") {
     return (
-      <div className="tool-card">
-        <div className="tool-warning">
-          <b>Antes de probar:</b> tu formulario debe ser <b>público</b> (cualquiera con el link puede
-          verlo, sin pedir cuenta). No lo usamos para concursos, sorteos, votaciones ni nada ilegal —
-          lo rechazamos automáticamente. Servicio en fase de pruebas: no garantizamos disponibilidad
-          continua.
+      <>
+        {stepIndicator}
+        <div className="tool-card">
+          <span className="tool-eyebrow">Paso 1 de 4</span>
+          <h2>Pega el link de tu formulario</h2>
+          <div className="tool-warning">
+            Tu formulario debe ser <b>público</b> (cualquiera con el link puede verlo, sin pedir
+            cuenta). No lo usamos para concursos, sorteos, votaciones ni nada ilegal — lo rechazamos
+            automáticamente. Servicio en fase de pruebas: no garantizamos disponibilidad continua.
+          </div>
+          <label htmlFor="form-url">Link de tu Google Form</label>
+          <input
+            id="form-url"
+            type="url"
+            placeholder="https://docs.google.com/forms/d/e/.../viewform"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button className="btn wa" onClick={handleAnalyzeClick} disabled={!url.trim()}>
+            Probar mi formulario →
+          </button>
+          {message && <p className="tool-error">{message}</p>}
         </div>
-        <label htmlFor="form-url">Link de tu Google Form</label>
-        <input
-          id="form-url"
-          type="url"
-          placeholder="https://docs.google.com/forms/d/e/.../viewform"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button className="btn wa" onClick={handleAnalyzeClick} disabled={!url.trim()}>
-          Probar mi formulario
-        </button>
-        {message && <p className="tool-error">{message}</p>}
-      </div>
+      </>
     );
   }
 
   if (step === "blocked" || step === "error") {
     return (
-      <div className="tool-card">
-        <p className="tool-error">{message}</p>
-        <button className="btn" onClick={reset}>
-          Probar con otro link
-        </button>
-      </div>
+      <>
+        {stepIndicator}
+        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
+          <span className="tool-status-icon">{step === "blocked" ? "🚫" : "⚠️"}</span>
+          <h2>{step === "blocked" ? "No podemos procesar este formulario" : "Algo salió mal"}</h2>
+          <p className="tool-error">{message}</p>
+          <button className="btn wa" onClick={reset}>
+            Probar con otro link
+          </button>
+        </div>
+      </>
     );
   }
 
   if (step === "preview" && form) {
     return (
-      <div className="tool-card">
-        <h2>{form.title}</h2>
-        <p className="lead">{form.questions.length} preguntas detectadas.</p>
+      <>
+        {stepIndicator}
+        <div className="tool-card">
+          <span className="tool-eyebrow">Paso 2 de 4 · {form.questions.length} preguntas detectadas</span>
+          <h2>{form.title}</h2>
 
-        <label htmlFor="lang">Idioma de las respuestas</label>
-        <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
-          {SUPPORTED_LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+          <h3>Configuración general</h3>
+          <label htmlFor="lang">Idioma de las respuestas</label>
+          <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
 
-        <label htmlFor="total">Cantidad de respuestas</label>
-        <input
-          id="total"
-          type="number"
-          min={1}
-          max={500}
-          value={total}
-          onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
-        />
-        {total > FREE_MAX && (
-          <p className="tool-hint">
-            Más de {FREE_MAX} respuestas requiere créditos ({total} créditos para este envío).
-          </p>
-        )}
+          <label htmlFor="total">Cantidad de respuestas</label>
+          <input
+            id="total"
+            type="number"
+            min={1}
+            max={500}
+            value={total}
+            onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+          />
+          {total > FREE_MAX && (
+            <p className="tool-hint">
+              Más de {FREE_MAX} respuestas requiere créditos ({total} créditos para este envío).
+            </p>
+          )}
 
-        <label htmlFor="persona">Instrucciones / perfil (opcional)</label>
-        <textarea
-          id="persona"
-          placeholder='Ej: "Actúa como estudiante universitario de 20 años"'
-          value={customInstructions}
-          onChange={(e) => setCustomInstructions(e.target.value)}
-        />
+          <label htmlFor="persona">Instrucciones / perfil (opcional)</label>
+          <textarea
+            id="persona"
+            placeholder='Ej: "Actúa como estudiante universitario de 20 años"'
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+          />
 
-        <h3>Configurar por pregunta</h3>
-        <div className="tool-questions">
-          {form.questions.map((q) => (
-            <div className="tool-question" key={q.entry}>
-              <p>
-                <b>{q.title}</b> <small>({q.typeName})</small>
-              </p>
-              <select
-                value={qConfig[q.entry]?.mode ?? "ai"}
-                onChange={(e) =>
-                  setQConfig((prev) => ({
-                    ...prev,
-                    [q.entry]: { mode: e.target.value as Mode, value: prev[q.entry]?.value ?? "" },
-                  }))
-                }
-              >
-                <option value="ai">IA</option>
-                <option value="random">Aleatorio</option>
-                <option value="fixed">Fijo</option>
-              </select>
-              {qConfig[q.entry]?.mode === "fixed" && (
-                <input
-                  type="text"
-                  placeholder={q.options.length ? q.options.join(" | ") : "Valor fijo"}
-                  value={qConfig[q.entry]?.value ?? ""}
+          <h3>Configurar por pregunta</h3>
+          <div className="tool-questions">
+            {form.questions.map((q) => (
+              <div className="tool-question" key={q.entry}>
+                <p>
+                  <b>{q.title}</b> <small>({q.typeName})</small>
+                </p>
+                <select
+                  value={qConfig[q.entry]?.mode ?? "ai"}
                   onChange={(e) =>
-                    setQConfig((prev) => ({ ...prev, [q.entry]: { mode: "fixed", value: e.target.value } }))
+                    setQConfig((prev) => ({
+                      ...prev,
+                      [q.entry]: { mode: e.target.value as Mode, value: prev[q.entry]?.value ?? "" },
+                    }))
                   }
-                />
-              )}
-            </div>
-          ))}
+                >
+                  <option value="ai">🤖 IA</option>
+                  <option value="random">🎲 Aleatorio</option>
+                  <option value="fixed">📌 Fijo</option>
+                </select>
+                {qConfig[q.entry]?.mode === "fixed" && (
+                  <input
+                    type="text"
+                    placeholder={q.options.length ? q.options.join(" | ") : "Valor fijo"}
+                    value={qConfig[q.entry]?.value ?? ""}
+                    onChange={(e) =>
+                      setQConfig((prev) => ({ ...prev, [q.entry]: { mode: "fixed", value: e.target.value } }))
+                    }
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <h3>Confirmar y enviar</h3>
+          <label className="tool-check">
+            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
+            <span>
+              Acepto los{" "}
+              <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                términos del servicio
+              </a>{" "}
+              — el formulario es público, no es concurso ni actividad ilegal, y soy responsable de su
+              uso.
+            </span>
+          </label>
+
+          {userChecked && !user && (
+            <p className="tool-hint">
+              Para enviar necesitas iniciar sesión con Google (no pedimos contraseña, solo tu cuenta).
+            </p>
+          )}
+
+          <button className="btn wa" onClick={handleSend} disabled={!acceptedTerms}>
+            {user ? `Generar y enviar ${total} respuesta(s) →` : "Iniciar sesión con Google y enviar"}
+          </button>
+          <button className="btn ghost-link" onClick={reset}>
+            Cancelar y probar otro link
+          </button>
+          {message && <p className="tool-error">{message}</p>}
         </div>
-
-        <label className="tool-check">
-          <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
-          Acepto los{" "}
-          <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
-            términos del servicio
-          </a>{" "}
-          — el formulario es público, no es concurso ni actividad ilegal, y soy responsable de su uso.
-        </label>
-
-        {userChecked && !user && (
-          <p className="tool-hint">Para enviar necesitas iniciar sesión con Google (no pedimos contraseña, solo tu cuenta).</p>
-        )}
-
-        <button className="btn wa" onClick={handleSend} disabled={!acceptedTerms}>
-          {user ? `Generar y enviar ${total} respuesta(s)` : "Iniciar sesión con Google y enviar"}
-        </button>
-        <button className="btn" onClick={reset}>
-          Cancelar
-        </button>
-        {message && <p className="tool-error">{message}</p>}
-      </div>
+      </>
     );
   }
 
   if (step === "queued") {
     return (
-      <div className="tool-card">
-        <h2>⏳ En espera</h2>
-        <p className="lead">
-          {progress.isPaid
-            ? "Tu envío pagado tiene prioridad — ya está en la fila de créditos, empezará apenas haya un cupo libre."
-            : `El servidor está lleno por ahora. Posición en la cola: ${progress.queuePosition || "calculando…"}.`}
-        </p>
-        <p className="tool-hint">Esta pestaña se actualiza sola — puedes dejarla abierta o volver luego.</p>
-        {!progress.isPaid && (
-          <div className="tool-wait-options">
-            <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
-              Comprar créditos (pasas al frente)
-            </a>
-            <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
-              Mejor que lo llenen por mí (WhatsApp)
-            </a>
-            <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-              Comprar el software completo
-            </a>
-          </div>
-        )}
-      </div>
+      <>
+        {stepIndicator}
+        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
+          <span className="tool-status-icon">⏳</span>
+          <h2>En espera</h2>
+          <p className="lead">
+            {progress.isPaid
+              ? "Tu envío pagado tiene prioridad — ya está en la fila de créditos, empezará apenas haya un cupo libre."
+              : `El servidor está lleno por ahora. Posición en la cola: ${progress.queuePosition || "calculando…"}.`}
+          </p>
+          <p className="tool-hint">Esta pestaña se actualiza sola — puedes dejarla abierta o volver luego.</p>
+          {!progress.isPaid && (
+            <div className="tool-wait-options">
+              <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
+                Comprar créditos (pasas al frente)
+              </a>
+              <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
+                Mejor que lo llenen por mí (WhatsApp)
+              </a>
+              <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
+                Comprar el software completo
+              </a>
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
   if (step === "processing") {
+    const pct = progress.total > 0 ? Math.round(((progress.sent + progress.failed) / progress.total) * 100) : 0;
     return (
-      <div className="tool-card">
-        <h2>🤖 Generando y enviando…</h2>
-        <p className="lead">
-          {progress.sent + progress.failed} / {progress.total} respuestas procesadas.
-        </p>
-      </div>
+      <>
+        {stepIndicator}
+        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
+          <span className="tool-status-icon">🤖</span>
+          <h2>Generando y enviando…</h2>
+          <p className="lead">
+            {progress.sent + progress.failed} / {progress.total} respuestas procesadas.
+          </p>
+          <div className="tool-progress">
+            <span style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </>
     );
   }
 
   if (step === "done") {
     return (
-      <div className="tool-card">
-        <h2>✅ Enviado</h2>
-        <p className="lead">
-          {progress.sent} de {progress.total} respuestas enviadas correctamente
-          {progress.failed > 0 ? ` (${progress.failed} fallaron)` : ""}.
-        </p>
-        <div className="tool-ad-slot" aria-label="Publicidad">
-          <div className="ad-slot">
-            <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
+      <>
+        {stepIndicator}
+        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
+          <span className="tool-status-icon">✅</span>
+          <h2>Enviado</h2>
+          <p className="lead">
+            {progress.sent} de {progress.total} respuestas enviadas correctamente
+            {progress.failed > 0 ? ` (${progress.failed} fallaron)` : ""}.
+          </p>
+          <div className="tool-ad-slot" aria-label="Publicidad">
+            <div className="ad-slot">
+              <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
+            </div>
           </div>
+          <div className="tool-wait-options">
+            <a className="btn wa" href="/comprar-creditos">
+              Comprar créditos para más respuestas
+            </a>
+            <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
+              O compra el software (pago único)
+            </a>
+          </div>
+          <button className="btn ghost-link" onClick={reset}>
+            Probar otro formulario
+          </button>
         </div>
-        <div className="tool-wait-options">
-          <a className="btn wa" href="/comprar-creditos">
-            Comprar créditos para más respuestas
-          </a>
-          <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-            O compra el software (pago único)
-          </a>
-        </div>
-        <button className="btn" onClick={reset}>
-          Probar otro formulario
-        </button>
-      </div>
+      </>
     );
   }
 
