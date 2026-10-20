@@ -5,7 +5,7 @@ const GA_ID = "G-4WCK4EME75";
 const ADSENSE_CLIENT = "ca-pub-8213456831990505";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://googleformsbot.vercel.app"),
+  metadataBase: new URL("https://bot-google-forms.vercel.app"),
   title: {
     default: "FormsBot — Rellena Google Forms automáticamente con IA",
     template: "%s · FormsBot",

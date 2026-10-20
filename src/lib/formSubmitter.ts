@@ -5,7 +5,7 @@
  * endpoint de "tick" del job (Fase 3), llamando submitOne() por lotes.
  *
  * Nota: el servicio bloquea la creación de jobs cuando
- * `form.collectsEmail` es true (ver formParser.ts / página /herramienta),
+ * `form.collectsEmail` es true (ver formParser.ts / página principal),
  * así que a diferencia del bot de escritorio, aquí NO se agrega el campo
  * emailAddress al payload.
  */

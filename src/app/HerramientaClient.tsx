@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 
 type Mode = "ai" | "random" | "fixed";
@@ -35,10 +34,9 @@ type SavedDraft = {
 const DRAFT_KEY = "formsbot_tool_draft";
 const FREE_MAX = 30;
 
-export default function HerramientaClient() {
-  const searchParams = useSearchParams();
+export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: string }) {
   const [step, setStep] = useState<Step>("input");
-  const [url, setUrl] = useState(() => searchParams.get("url") ?? "");
+  const [url, setUrl] = useState(initialUrl);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState<FormView | null>(null);
   const [language, setLanguage] = useState<string>(SUPPORTED_LANGUAGES[0].code);
@@ -79,11 +77,11 @@ export default function HerramientaClient() {
       .catch(() => setUserChecked(true));
   }, []);
 
-  // ── Si llegó desde el hero de la landing con ?url=... , auto-analizar ──
+  // ── Si llegó con ?url=... (desde /sobre o un link viejo /herramienta), auto-analizar ──
   useEffect(() => {
-    const fromHero = searchParams.get("url");
-    if (fromHero) void analyze(fromHero);
-  }, [searchParams]);
+    if (initialUrl) void analyze(initialUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -135,7 +133,7 @@ export default function HerramientaClient() {
     // Navegación completa a propósito: dispara el flujo OAuth de Google,
     // no es una ruta de página que el router de Next deba manejar.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/api/auth/google?next=/herramienta";
+    window.location.href = "/api/auth/google?next=/";
   }
 
   const startPolling = useCallback((id: string) => {
