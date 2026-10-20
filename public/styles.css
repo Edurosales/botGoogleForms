@@ -65,3 +65,18 @@ footer{border-top:1px solid var(--line);padding:28px 20px;text-align:center;colo
 .article-body table{width:100%;border-collapse:collapse;margin:18px 0;font-size:.95rem;overflow-x:auto;display:block}@media(min-width:760px){.article-body table{display:table}}.article-body th,.article-body td{padding:10px 14px;border:1px solid var(--line);text-align:left}.article-body th{background:var(--soft);font-weight:700;white-space:nowrap}
 .article-body ol{padding-left:22px}.article-body ol li{padding:4px 0;margin-top:8px}.article-body h3{font-size:1.2rem;margin:28px 0 10px}
 .article-body .tip{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:18px 0}.article-body .tip strong{color:var(--acc)}
+
+/* ── /herramienta (Fase 2 MVP) ───────────────────────────────── */
+.tool-page{padding:40px 0 64px}
+.tool-header{max-width:640px;margin:0 auto 28px;text-align:center}
+.tool-header h1{margin-top:14px;font-size:1.8rem}
+.tool-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;max-width:640px;margin:0 auto;box-shadow:0 18px 40px -22px rgba(33,22,63,.35)}
+.tool-card label{display:block;font-weight:600;font-size:.9rem;margin:14px 0 4px}
+.tool-card input,.tool-card select,.tool-card textarea{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tool-card textarea{min-height:88px;resize:vertical}
+.tool-card .btn{width:100%;margin-top:16px}
+.tool-error{color:#B3261E;font-weight:600;margin-top:12px}
+.tool-questions{margin-top:10px;display:flex;flex-direction:column;gap:14px}
+.tool-question{border-top:1px solid var(--line);padding-top:12px}
+.tool-question p{margin-bottom:6px}
+.tool-question small{color:var(--mute)}
