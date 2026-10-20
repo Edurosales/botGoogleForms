@@ -32,9 +32,23 @@ const DEFAULT_SETTINGS: AppSettings = {
   updated_at: new Date(0).toISOString(),
 };
 
+/**
+ * Nunca lanza: si Supabase no está configurado todavía (p.ej. recién
+ * desplegado, antes de poner las env vars) o hay un error de red, cae a
+ * DEFAULT_SETTINGS en vez de reventar la página o el build. Sin este
+ * try/catch, `db()` lanza de forma SÍNCRONA cuando faltan las env vars,
+ * y eso no es algo que Next pueda diferir detrás de un <Suspense> — rompe
+ * el build entero (visto en vivo: build de Vercel falló en
+ * /comprar-creditos antes de configurar SUPABASE_URL/SERVICE_KEY).
+ */
 export async function getAppSettings(): Promise<AppSettings> {
-  const { data } = await db().from("app_settings").select("*").eq("id", 1).maybeSingle<AppSettings>();
-  return data ?? DEFAULT_SETTINGS;
+  try {
+    const { data } = await db().from("app_settings").select("*").eq("id", 1).maybeSingle<AppSettings>();
+    return data ?? DEFAULT_SETTINGS;
+  } catch (e) {
+    console.error("[appSettings] no se pudo leer la configuración, usando defaults:", e);
+    return DEFAULT_SETTINGS;
+  }
 }
 
 export async function updateAppSettings(patch: Partial<Omit<AppSettings, "id" | "updated_at">>): Promise<AppSettings> {
