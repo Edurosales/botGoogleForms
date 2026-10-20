@@ -178,7 +178,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       const data = await res.json();
       if (!data.ok) {
         if (data.needsCredits) {
-          setMessage(`${data.reason} — compra créditos para enviar más de ${FREE_MAX} respuestas.`);
+          setMessage(`${data.reason} Compra créditos para enviar más de ${FREE_MAX} respuestas.`);
           setStep("error");
           return;
         }
@@ -231,97 +231,104 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
 
   if (step === "input") {
     return (
-      <>
+      <div className="tool-card">
         {stepIndicator}
-        <div className="tool-card">
-          <span className="tool-eyebrow">Paso 1 de 4</span>
-          <h2>Pega el link de tu formulario</h2>
-          <div className="tool-warning">
-            Tu formulario debe ser <b>público</b> (cualquiera con el link puede verlo, sin pedir
-            cuenta). No lo usamos para concursos, sorteos, votaciones ni nada ilegal — lo rechazamos
-            automáticamente. Servicio en fase de pruebas: no garantizamos disponibilidad continua.
-          </div>
-          <label htmlFor="form-url">Link de tu Google Form</label>
-          <input
-            id="form-url"
-            type="url"
-            placeholder="https://docs.google.com/forms/d/e/.../viewform"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button className="btn wa" onClick={handleAnalyzeClick} disabled={!url.trim()}>
-            Probar mi formulario →
-          </button>
-          {message && <p className="tool-error">{message}</p>}
+        <h2>Pega el link de tu formulario</h2>
+        <div className="tool-warning">
+          Tiene que ser público: cualquiera con el link puede verlo sin iniciar sesión. No
+          procesamos concursos, sorteos ni votaciones — los rechazamos automáticamente. Este
+          servicio todavía está en pruebas, puede no estar disponible en todo momento.
         </div>
-      </>
+        <label htmlFor="form-url">Link de tu Google Form</label>
+        <input
+          id="form-url"
+          type="url"
+          placeholder="https://docs.google.com/forms/d/e/.../viewform"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button className="btn wa" onClick={handleAnalyzeClick} disabled={!url.trim()}>
+          Probar mi formulario
+        </button>
+        {message && <p className="tool-error">{message}</p>}
+      </div>
     );
   }
 
   if (step === "blocked" || step === "error") {
     return (
-      <>
+      <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
-        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
-          <span className="tool-status-icon">{step === "blocked" ? "🚫" : "⚠️"}</span>
-          <h2>{step === "blocked" ? "No podemos procesar este formulario" : "Algo salió mal"}</h2>
-          <p className="tool-error">{message}</p>
-          <button className="btn wa" onClick={reset}>
-            Probar con otro link
-          </button>
-        </div>
-      </>
+        <span className="tool-status-icon">{step === "blocked" ? "🚫" : "⚠️"}</span>
+        <h2>{step === "blocked" ? "No podemos procesar este formulario" : "Algo salió mal"}</h2>
+        <p className="tool-error">{message}</p>
+        <button className="btn wa" onClick={reset}>
+          Probar con otro link
+        </button>
+      </div>
     );
   }
 
   if (step === "preview" && form) {
     return (
-      <>
+      <div className="tool-card">
         {stepIndicator}
-        <div className="tool-card">
-          <span className="tool-eyebrow">Paso 2 de 4 · {form.questions.length} preguntas detectadas</span>
-          <h2>{form.title}</h2>
+        <h2>{form.title}</h2>
+        <p className="tool-sub">Detectamos {form.questions.length} preguntas. Revisa cómo las vamos a responder.</p>
 
-          <h3>Configuración general</h3>
-          <label htmlFor="lang">Idioma de las respuestas</label>
-          <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
-            {SUPPORTED_LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-
-          <label htmlFor="total">Cantidad de respuestas</label>
-          <input
-            id="total"
-            type="number"
-            min={1}
-            max={500}
-            value={total}
-            onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
-          />
+        <div className="tool-section">
+          <h3>Idioma y cantidad</h3>
+          <div className="tool-row">
+            <div>
+              <label htmlFor="lang">Idioma de las respuestas</label>
+              <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="total">Cantidad de respuestas</label>
+              <input
+                id="total"
+                type="number"
+                min={1}
+                max={500}
+                value={total}
+                onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+              />
+            </div>
+          </div>
           {total > FREE_MAX && (
             <p className="tool-hint">
-              Más de {FREE_MAX} respuestas requiere créditos ({total} créditos para este envío).
+              Más de {FREE_MAX} respuestas requiere créditos: este envío usaría {total} créditos.
             </p>
           )}
+        </div>
 
-          <label htmlFor="persona">Instrucciones / perfil (opcional)</label>
+        <div className="tool-section">
+          <h3>Perfil de quien responde</h3>
+          <p className="tool-section-hint">Opcional. Describe quién responde para que la IA mantenga un estilo coherente.</p>
           <textarea
             id="persona"
-            placeholder='Ej: "Actúa como estudiante universitario de 20 años"'
+            placeholder='Ej: estudiante universitario de 20 años'
             value={customInstructions}
             onChange={(e) => setCustomInstructions(e.target.value)}
           />
+        </div>
 
-          <h3>Configurar por pregunta</h3>
+        <div className="tool-section">
+          <h3>Respuesta por pregunta</h3>
+          <p className="tool-section-hint">IA genera una respuesta natural; aleatorio elige entre las opciones; fijo usa siempre el mismo valor.</p>
           <div className="tool-questions">
             {form.questions.map((q) => (
               <div className="tool-question" key={q.entry}>
-                <p>
-                  <b>{q.title}</b> <small>({q.typeName})</small>
-                </p>
+                <div className="tool-question-title">
+                  <b>{q.title}</b>
+                  <small>{q.typeName}</small>
+                </div>
                 <select
                   value={qConfig[q.entry]?.mode ?? "ai"}
                   onChange={(e) =>
@@ -331,9 +338,9 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
                     }))
                   }
                 >
-                  <option value="ai">🤖 IA</option>
-                  <option value="random">🎲 Aleatorio</option>
-                  <option value="fixed">📌 Fijo</option>
+                  <option value="ai">IA</option>
+                  <option value="random">Aleatorio</option>
+                  <option value="fixed">Fijo</option>
                 </select>
                 {qConfig[q.entry]?.mode === "fixed" && (
                   <input
@@ -348,117 +355,109 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
               </div>
             ))}
           </div>
+        </div>
 
-          <h3>Confirmar y enviar</h3>
+        <div className="tool-section">
           <label className="tool-check">
             <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
             <span>
               Acepto los{" "}
               <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
                 términos del servicio
-              </a>{" "}
-              — el formulario es público, no es concurso ni actividad ilegal, y soy responsable de su
-              uso.
+              </a>
+              : el formulario es público, no es concurso ni actividad ilegal, y soy responsable de su uso.
             </span>
           </label>
 
           {userChecked && !user && (
-            <p className="tool-hint">
-              Para enviar necesitas iniciar sesión con Google (no pedimos contraseña, solo tu cuenta).
-            </p>
+            <p className="tool-hint">Para enviar necesitas iniciar sesión con Google. No pedimos contraseña.</p>
           )}
 
           <button className="btn wa" onClick={handleSend} disabled={!acceptedTerms}>
-            {user ? `Generar y enviar ${total} respuesta(s) →` : "Iniciar sesión con Google y enviar"}
+            {user ? `Generar y enviar ${total} respuestas` : "Iniciar sesión con Google y enviar"}
           </button>
           <button className="btn ghost-link" onClick={reset}>
             Cancelar y probar otro link
           </button>
           {message && <p className="tool-error">{message}</p>}
         </div>
-      </>
+      </div>
     );
   }
 
   if (step === "queued") {
     return (
-      <>
+      <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
-        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
-          <span className="tool-status-icon">⏳</span>
-          <h2>En espera</h2>
-          <p className="lead">
-            {progress.isPaid
-              ? "Tu envío pagado tiene prioridad — ya está en la fila de créditos, empezará apenas haya un cupo libre."
-              : `El servidor está lleno por ahora. Posición en la cola: ${progress.queuePosition || "calculando…"}.`}
-          </p>
-          <p className="tool-hint">Esta pestaña se actualiza sola — puedes dejarla abierta o volver luego.</p>
-          {!progress.isPaid && (
-            <div className="tool-wait-options">
-              <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
-                Comprar créditos (pasas al frente)
-              </a>
-              <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
-                Mejor que lo llenen por mí (WhatsApp)
-              </a>
-              <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-                Comprar el software completo
-              </a>
-            </div>
-          )}
-        </div>
-      </>
+        <span className="tool-status-icon">⏳</span>
+        <h2>En espera</h2>
+        <p className="tool-sub">
+          {progress.isPaid
+            ? "Tu envío pagado tiene prioridad: ya está en la fila de créditos y empezará apenas haya un cupo libre."
+            : `El servidor está lleno por ahora. Posición en la cola: ${progress.queuePosition || "calculando"}.`}
+        </p>
+        <p className="tool-hint">Esta pestaña se actualiza sola. Puedes dejarla abierta o volver luego.</p>
+        {!progress.isPaid && (
+          <div className="tool-wait-options">
+            <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
+              Comprar créditos y pasar al frente
+            </a>
+            <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
+              Prefiero que lo llenen por mí (WhatsApp)
+            </a>
+            <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
+              Comprar el software completo
+            </a>
+          </div>
+        )}
+      </div>
     );
   }
 
   if (step === "processing") {
     const pct = progress.total > 0 ? Math.round(((progress.sent + progress.failed) / progress.total) * 100) : 0;
     return (
-      <>
+      <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
-        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
-          <span className="tool-status-icon">🤖</span>
-          <h2>Generando y enviando…</h2>
-          <p className="lead">
-            {progress.sent + progress.failed} / {progress.total} respuestas procesadas.
-          </p>
-          <div className="tool-progress">
-            <span style={{ width: `${pct}%` }} />
-          </div>
+        <span className="tool-status-icon">🤖</span>
+        <h2>Generando y enviando</h2>
+        <p className="tool-sub">
+          {progress.sent + progress.failed} de {progress.total} respuestas procesadas.
+        </p>
+        <div className="tool-progress">
+          <span style={{ width: `${pct}%` }} />
         </div>
-      </>
+      </div>
     );
   }
 
   if (step === "done") {
     return (
-      <>
+      <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
-        <div className="tool-card tool-card-flat" style={{ textAlign: "center" }}>
-          <span className="tool-status-icon">✅</span>
-          <h2>Enviado</h2>
-          <p className="lead">
-            {progress.sent} de {progress.total} respuestas enviadas correctamente
-            {progress.failed > 0 ? ` (${progress.failed} fallaron)` : ""}.
-          </p>
-          <div className="tool-ad-slot" aria-label="Publicidad">
-            <div className="ad-slot">
-              <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
-            </div>
+        <span className="tool-status-icon">✅</span>
+        <h2>Enviado</h2>
+        <p className="tool-sub">
+          {progress.sent} de {progress.total} respuestas enviadas correctamente
+          {progress.failed > 0 ? `, ${progress.failed} fallaron` : ""}.
+        </p>
+        <div className="tool-ad-slot" aria-label="Publicidad">
+          <div className="ad-slot">
+            <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
           </div>
-          <div className="tool-wait-options">
-            <a className="btn wa" href="/comprar-creditos">
-              Comprar créditos para más respuestas
-            </a>
-            <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-              O compra el software (pago único)
-            </a>
-          </div>
-          <button className="btn ghost-link" onClick={reset}>
-            Probar otro formulario
-          </button>
         </div>
-      </>
+        <div className="tool-wait-options">
+          <a className="btn wa" href="/comprar-creditos">
+            Comprar créditos para más respuestas
+          </a>
+          <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
+            O compra el software, pago único
+          </a>
+        </div>
+        <button className="btn ghost-link" onClick={reset}>
+          Probar otro formulario
+        </button>
+      </div>
     );
   }
 
