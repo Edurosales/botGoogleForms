@@ -85,11 +85,20 @@ body:has(.bar-m) .cookie{bottom:86px}
   color-scheme:light;background:#fff;color:#21163F;padding:48px 0 80px
 }
 .tool-page .w{max-width:620px}
+.tool-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;min-height:36px}
+.tool-topbar .logo{font-size:1.1rem}
 .tool-header{margin:0 auto 32px}
-.tool-header .logo{display:inline-block;margin-bottom:28px;font-size:1.1rem}
+.tool-header .logo{display:none}
 .tool-header h1{margin-top:0;font-size:clamp(1.9rem,5vw,2.5rem);max-width:18ch}
 .tool-header .lead{margin:12px 0 0;max-width:46ch;font-size:1.05rem}
 .tool-header .lead a{font-weight:700;color:var(--acc)}
+
+.account-bar{display:flex;align-items:center;gap:14px}
+.account-credits{font-size:.88rem;font-weight:700;color:var(--acc)}
+.account-link{font-size:.9rem;font-weight:600;color:var(--mute);text-decoration:none}
+.account-link:hover{color:var(--ink)}
+.account-avatar{width:34px;height:34px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;text-decoration:none}
+.account-login{min-height:40px;padding:0 18px;font-size:.9rem}
 
 /* Indicador de avance: puntos simples, sin texto encima (cada pantalla
    ya dice en qué paso está en su propio encabezado) */

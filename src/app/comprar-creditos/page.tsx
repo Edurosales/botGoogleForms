@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getAppSettings } from "@/lib/appSettings";
 import ComprarCreditosClient from "./ComprarCreditosClient";
+import AccountBar from "../AccountBar";
 
 export const metadata: Metadata = {
   title: "Comprar créditos",
@@ -18,10 +19,13 @@ export default function ComprarCreditosPage() {
   return (
     <main className="tool-page">
       <div className="w">
-        <header className="tool-header">
+        <div className="tool-topbar">
           <Link className="logo" href="/">
             Forms<b>Bot</b>
           </Link>
+          <AccountBar />
+        </div>
+        <header className="tool-header">
           <h1>Comprar créditos</h1>
           <p className="lead">1 crédito = 1 respuesta. Los créditos tienen prioridad: nunca esperan detrás de la cola gratis.</p>
         </header>

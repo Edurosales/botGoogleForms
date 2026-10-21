@@ -163,8 +163,15 @@ export async function submitOne(form: ParsedForm, profile: Record<string, string
     });
 
     const ok = postRes.status === 200 || postRes.status === 302 || postRes.status === 303;
+    if (!ok) {
+      const snippet = await postRes.text().catch(() => "");
+      console.error(
+        `[submitOne] fallo HTTP ${postRes.status} enviando a ${form.submitUrl} — cookies=${cookieHeader ? "sí" : "no"} — respuesta: ${snippet.slice(0, 300)}`
+      );
+    }
     return { ok, status: postRes.status };
-  } catch {
+  } catch (e) {
+    console.error(`[submitOne] excepción enviando a ${form.submitUrl}:`, e instanceof Error ? e.message : e);
     return { ok: false, status: 0 };
   }
 }

@@ -138,10 +138,35 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
 
   const startPolling = useCallback((id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
+    let failStreak = 0;
     pollRef.current = setInterval(async () => {
-      const res = await fetch(`/api/web/jobs/${id}/tick`, { method: "POST" });
-      const data = await res.json();
-      if (!data.ok) return;
+      let data: {
+        ok?: boolean;
+        error?: string;
+        reason?: string;
+        status?: string;
+        sent?: number;
+        failed?: number;
+        total?: number;
+        queuePosition?: number;
+      };
+      try {
+        const res = await fetch(`/api/web/jobs/${id}/tick`, { method: "POST" });
+        data = await res.json();
+      } catch {
+        data = { ok: false };
+      }
+      if (!data.ok) {
+        failStreak++;
+        // Tolera un par de fallos transitorios (red, cold start) antes de rendirse.
+        if (failStreak >= 3) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setMessage(data.reason || data.error || "No se pudo completar el envío. Intenta de nuevo.");
+          setStep("error");
+        }
+        return;
+      }
+      failStreak = 0;
       setProgress((prev) => ({
         ...prev,
         sent: data.sent ?? 0,
@@ -437,20 +462,24 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
   }
 
   if (step === "done") {
+    const allFailed = progress.sent === 0 && progress.failed > 0;
     return (
       <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
-        <span className="tool-status-icon">✅</span>
-        <h2>Enviado</h2>
+        <span className="tool-status-icon">{allFailed ? "⚠️" : "✅"}</span>
+        <h2>{allFailed ? "No se pudo enviar ninguna respuesta" : "Enviado"}</h2>
         <p className="tool-sub">
-          {progress.sent} de {progress.total} respuestas enviadas correctamente
-          {progress.failed > 0 ? `, ${progress.failed} fallaron` : ""}.
+          {allFailed
+            ? "Google rechazó los envíos. Puede ser que el formulario cambió, dejó de ser público, o hubo un problema temporal. Vuelve a intentarlo o revisa el link."
+            : `${progress.sent} de ${progress.total} respuestas enviadas correctamente${progress.failed > 0 ? `, ${progress.failed} fallaron` : ""}.`}
         </p>
-        <div className="tool-ad-slot" aria-label="Publicidad">
-          <div className="ad-slot">
-            <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
+        {!allFailed && (
+          <div className="tool-ad-slot" aria-label="Publicidad">
+            <div className="ad-slot">
+              <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
+            </div>
           </div>
-        </div>
+        )}
         <div className="tool-wait-options">
           <a className="btn wa" href="/comprar-creditos">
             Comprar créditos para más respuestas

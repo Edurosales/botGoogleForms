@@ -7,13 +7,13 @@ export const metadata: Metadata = {
     "Bot que rellena Google Forms con respuestas reales usando IA. 50 respuestas en menos de 2 minutos. Servicio desde S/25 o software por S/300. Lima, Perú.",
   keywords:
     "rellenar google forms automaticamente, bot google forms, llenar formularios con IA, google forms bot peru",
-  alternates: { canonical: "https://bot-google-forms.vercel.app/sobre" },
+  alternates: { canonical: "https://bot-google-forms-servicio.vercel.app/sobre" },
   openGraph: {
     type: "website",
     title: "FormsBot — Google Forms Bot con IA",
     description: "Rellena tu Google Form en segundos con IA. Respuestas reales, no genéricas.",
-    url: "https://bot-google-forms.vercel.app/sobre",
-    images: ["https://bot-google-forms.vercel.app/soft.png"],
+    url: "https://bot-google-forms-servicio.vercel.app/sobre",
+    images: ["https://bot-google-forms-servicio.vercel.app/soft.png"],
   },
 };
 
