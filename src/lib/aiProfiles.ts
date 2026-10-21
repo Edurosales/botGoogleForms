@@ -13,12 +13,23 @@
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { createNameState, smartRandom, isNameField, isEmailField, conformToValidation, type NameState } from "./dataGen";
 
-export type QuestionMode = "ai" | "random" | "fixed";
+export type QuestionMode = "ai" | "random" | "fixed" | "weighted" | "list";
 
 export interface QuestionConfig {
   mode?: QuestionMode;
   value?: string;
   prompt?: string;
+  /** Modo "weighted": % por opción, alineado con `question.options`. */
+  weights?: number[];
+  /** Modo "list": usar las líneas en orden (respuesta 1 → línea 1…) o al azar. */
+  order?: "random" | "sequential";
+}
+
+/** Líneas de una lista pegada (una respuesta por línea; también acepta `|`). */
+export function listLines(value: string | undefined): string[] {
+  const raw = value ?? "";
+  const parts = raw.includes("\n") ? raw.split(/\r?\n/) : raw.split("|");
+  return parts.map((s) => s.trim()).filter(Boolean);
 }
 
 export type QuestionConfigMap = Record<string, QuestionConfig>;
@@ -111,6 +122,8 @@ function parseFixedOptions(value: string): string[] | null {
 function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
   const mode: QuestionMode = cfg.mode ?? "ai";
   if (mode === "fixed") return Boolean((cfg.value ?? "").trim());
+  if (mode === "list") return listLines(cfg.value).length > 0;
+  if (mode === "weighted") return q.options.length > 0;
   // "random" siempre se resuelve local: con opciones, se elige una; sin
   // opciones (texto libre), smartRandom() detecta nombre/correo/edad/etc.
   // por el título — ver dataGen.ts.
@@ -129,14 +142,50 @@ export function needsAi(questions: ParsedQuestion[], qConfig: QuestionConfigMap)
  * coherentes entre sí dentro del mismo perfil (igual que el bot de
  * escritorio): si hay una pregunta de nombre, se resuelve primero y su
  * valor alimenta la generación del correo. */
-function resolveLocalPart(questions: ParsedQuestion[], qConfig: QuestionConfigMap, state: NameState): Record<string, string> {
+/** Elige según porcentajes. Opción única: una opción ponderada. Casillas:
+ * cada opción se marca con su % de probabilidad (al menos una). */
+function pickWeighted(q: ParsedQuestion, weights: number[] | undefined): string {
+  const w = q.options.map((_, i) => Math.max(0, Number(weights?.[i]) || 0));
+  const sum = w.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return q.options[Math.floor(Math.random() * q.options.length)];
+  if (q.type === 4 || q.type === 13) {
+    const chosen = q.options.filter((_, i) => Math.random() * 100 < w[i]);
+    if (chosen.length) return chosen.join("|");
+    return q.options[w.indexOf(Math.max(...w))];
+  }
+  let r = Math.random() * sum;
+  for (let i = 0; i < w.length; i++) {
+    r -= w[i];
+    if (r < 0) return q.options[i];
+  }
+  return q.options[q.options.length - 1];
+}
+
+function resolveLocalPart(
+  questions: ParsedQuestion[],
+  qConfig: QuestionConfigMap,
+  state: NameState,
+  index: number
+): Record<string, string> {
   const part: Record<string, string> = {};
   let resolvedName: string | undefined;
 
   for (const q of questions) {
     const cfg = qConfig[q.entry] ?? {};
+    if (cfg.mode === "list") {
+      const lines = listLines(cfg.value);
+      part[q.entry] =
+        cfg.order === "sequential" ? lines[index % lines.length] : lines[Math.floor(Math.random() * lines.length)];
+      if (isNameField(q) && !q.options.length) resolvedName = part[q.entry];
+    } else if (cfg.mode === "weighted") {
+      part[q.entry] = pickWeighted(q, cfg.weights);
+    }
+  }
+
+  for (const q of questions) {
+    const cfg = qConfig[q.entry] ?? {};
     const mode: QuestionMode = cfg.mode ?? "ai";
-    if (mode === "random" && !q.options.length && isNameField(q)) {
+    if (part[q.entry] === undefined && mode === "random" && !q.options.length && isNameField(q)) {
       resolvedName = smartRandom(q, state);
       part[q.entry] = resolvedName;
     }
@@ -382,6 +431,8 @@ export interface GenerateProfilesOptions {
   customInstructions?: string;
   qConfig?: QuestionConfigMap;
   language?: string;
+  /** Índice global de la primera respuesta de este lote (para listas "en orden"). */
+  startIndex?: number;
 }
 
 /** Retorna perfiles como Record<entry, respuesta>, uno por respuesta a enviar. */
@@ -401,11 +452,13 @@ export async function generateProfiles(
   const localQuestions = form.questions.filter((q) => isLocallyResolvable(q, qConfig[q.entry] ?? {}));
   // Un solo estado (pools de nombres/apellidos/correos sin repetir) para
   // toda la tanda, igual que el bot de escritorio.
-  const nameState: NameState = createNameState();
-  const buildLocalPart = (): Record<string, string> => resolveLocalPart(localQuestions, qConfig, nameState);
+  const nameState: NameState = createNameState(language);
+  const start = opts.startIndex ?? 0;
+  const buildLocalPart = (i: number): Record<string, string> =>
+    resolveLocalPart(localQuestions, qConfig, nameState, start + i);
 
   if (aiQuestions.length === 0) {
-    return Array.from({ length: n }, buildLocalPart);
+    return Array.from({ length: n }, (_, i) => buildLocalPart(i));
   }
 
   const prompt = buildPrompt(form.title, aiQuestions, n, opts.customInstructions ?? "", qConfig, language);
@@ -430,9 +483,9 @@ export async function generateProfiles(
 
   const rawProfiles = cleanAndParseJson(text);
 
-  return rawProfiles.map((raw) => {
+  return rawProfiles.map((raw, pIdx) => {
     const r = raw as Record<string, unknown>;
-    const profile: Record<string, string> = buildLocalPart();
+    const profile: Record<string, string> = buildLocalPart(pIdx);
     aiQuestions.forEach((q: ParsedQuestion, idx) => {
       const i = idx + 1;
       let answer = String(r[`P${i}`] ?? r[`p${i}`] ?? "").trim();

@@ -30,10 +30,18 @@ function sanitizeQConfig(raw: unknown): QuestionConfigMap {
   for (const [entry, cfg] of Object.entries(raw as Record<string, unknown>).slice(0, 300)) {
     if (!/^entry\.\d{1,20}$/.test(entry) || !cfg || typeof cfg !== "object") continue;
     const c = cfg as Record<string, unknown>;
+    const mode =
+      c.mode === "ai" || c.mode === "fixed" || c.mode === "weighted" || c.mode === "list" ? c.mode : "random";
+    // Una lista pegada puede ser larga (hasta 1000 líneas); el resto de valores, corto.
+    const maxValue = mode === "list" ? 20_000 : 300;
     out[entry] = {
-      mode: c.mode === "ai" || c.mode === "fixed" ? c.mode : "random",
-      value: typeof c.value === "string" ? c.value.slice(0, 300) : "",
+      mode,
+      value: typeof c.value === "string" ? c.value.slice(0, maxValue) : "",
       prompt: typeof c.prompt === "string" ? c.prompt.slice(0, 300) : "",
+      ...(mode === "weighted" && Array.isArray(c.weights)
+        ? { weights: c.weights.slice(0, 60).map((w) => Math.min(100, Math.max(0, Math.round(Number(w) || 0)))) }
+        : {}),
+      ...(mode === "list" ? { order: c.order === "sequential" ? ("sequential" as const) : ("random" as const) } : {}),
     };
   }
   return out;

@@ -6,9 +6,135 @@ import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { SignInCard } from "./SignIn";
 import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink } from "./clientData";
 
-type Mode = "ai" | "random" | "fixed";
-type QConf = { mode: Mode; value: string; prompt?: string };
+type Mode = "ai" | "random" | "fixed" | "weighted" | "list";
+type QConf = {
+  mode: Mode;
+  value: string;
+  prompt?: string;
+  /** "weighted": % por opción, alineado con question.options. */
+  weights?: number[];
+  /** "list": usar las líneas en orden o al azar. */
+  order?: "random" | "sequential";
+};
 type QConfMap = Record<string, QConf>;
+
+function evenWeights(n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(100 / n);
+  return Array.from({ length: n }, (_, i) => (i < 100 - base * n ? base + 1 : base));
+}
+
+function WeightsEditor({
+  question,
+  weights,
+  onChange,
+}: {
+  question: { entry: string; type: number; options: string[] };
+  weights: number[];
+  onChange: (w: number[]) => void;
+}) {
+  const multi = question.type === 4 || question.type === 13;
+  const sum = weights.reduce((a, b) => a + (Number(b) || 0), 0);
+  return (
+    <div className="weights">
+      <p className="q-hint">
+        {multi
+          ? "Probabilidad de que se marque cada opción en cada respuesta."
+          : "Qué porcentaje de las respuestas elige cada opción."}
+      </p>
+      <ul>
+        {question.options.map((opt, idx) => {
+          const id = `w-${question.entry}-${idx}`;
+          return (
+            <li key={idx}>
+              <label htmlFor={id}>{opt}</label>
+              <span className="weights-input">
+                <input
+                  id={id}
+                  type="number"
+                  min={0}
+                  max={100}
+                  inputMode="numeric"
+                  value={weights[idx] ?? 0}
+                  onChange={(e) => {
+                    const next = [...weights];
+                    next[idx] = Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0)));
+                    onChange(next);
+                  }}
+                />
+                %
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="weights-foot">
+        {!multi && (
+          <span className={sum === 100 ? "weights-sum ok" : "weights-sum"}>
+            Total: {sum}%{sum !== 100 ? " — se ajusta en proporción al enviar" : ""}
+          </span>
+        )}
+        <button type="button" className="link-btn" onClick={() => onChange(evenWeights(question.options.length))}>
+          Repartir parejo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ListEditor({
+  id,
+  label,
+  value,
+  order,
+  total,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  order: "random" | "sequential";
+  total: number;
+  onChange: (patch: Partial<QConf>) => void;
+}) {
+  const lines = value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  return (
+    <div className="listed">
+      <label className="sr" htmlFor={id}>
+        {label}
+      </label>
+      <textarea
+        id={id}
+        rows={4}
+        maxLength={20000}
+        placeholder={"Una respuesta por línea\nMaría Torres\nCarlos Rivas\n…"}
+        value={value}
+        onChange={(e) => onChange({ value: e.target.value })}
+      />
+      <div className="listed-foot">
+        <span className="q-hint">
+          {lines.length} {lines.length === 1 ? "respuesta" : "respuestas"}
+          {order === "sequential" && lines.length > 0 && lines.length < total
+            ? ` — al acabarse, vuelve a empezar desde la primera`
+            : ""}
+        </span>
+        <span className="seg" role="radiogroup" aria-label="Orden de uso">
+          <button type="button" role="radio" aria-checked={order === "random"} onClick={() => onChange({ order: "random" })}>
+            Al azar
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={order === "sequential"}
+            onClick={() => onChange({ order: "sequential" })}
+          >
+            En orden
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+}
 
 type Validation = {
   kind?: string;
@@ -162,6 +288,16 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoppedRef = useRef(false);
   const restoredRef = useRef(false);
+  const prevStepRef = useRef(step);
+
+  // Al cambiar de paso la tarjeta se acorta y la página quedaba desplazada
+  // abajo (sobre los anuncios). Se lleva la tarjeta a la vista.
+  useEffect(() => {
+    if (prevStepRef.current === step) return;
+    prevStepRef.current = step;
+    const sheet = document.querySelector(".tool-page .sheet");
+    if (sheet && sheet.getBoundingClientRect().top < 0) sheet.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [step]);
 
   const aiAllowed = !!me && me.credits >= total;
   const maxFreeQuestions = parsedMaxFree ?? settings.maxFreeQuestions;
@@ -701,9 +837,20 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                       <label className="sr" htmlFor={selectId}>
                         Modo para la pregunta {i + 1}
                       </label>
-                      <select id={selectId} value={conf.mode} onChange={(e) => setQ(q.entry, { mode: e.target.value as Mode })}>
+                      <select
+                        id={selectId}
+                        value={conf.mode}
+                        onChange={(e) => {
+                          const mode = e.target.value as Mode;
+                          // Al pasar a porcentajes se parte de un reparto parejo.
+                          if (mode === "weighted" && !conf.weights?.length) setQ(q.entry, { mode, weights: evenWeights(q.options.length) });
+                          else setQ(q.entry, { mode });
+                        }}
+                      >
                         <option value="random">Aleatorio</option>
-                        <option value="fixed">Fijo o lista</option>
+                        {q.options.length > 0 && <option value="weighted">Porcentajes</option>}
+                        <option value="list">Lista pegada</option>
+                        <option value="fixed">Fijo o rango</option>
                         <option value="ai" disabled={!aiAllowed}>
                           {aiAllowed ? "IA" : "IA (necesita créditos)"}
                         </option>
@@ -736,6 +883,23 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                     </div>
                     {conf.mode === "fixed" && (
                       <p className="q-hint">Un valor, varios separados por | (se elige uno por respuesta) o un rango como 18-65.</p>
+                    )}
+                    {conf.mode === "weighted" && (
+                      <WeightsEditor
+                        question={q}
+                        weights={conf.weights ?? evenWeights(q.options.length)}
+                        onChange={(weights) => setQ(q.entry, { weights })}
+                      />
+                    )}
+                    {conf.mode === "list" && (
+                      <ListEditor
+                        id={`list-${q.entry}`}
+                        label={`Respuestas para la pregunta ${i + 1}`}
+                        value={conf.value}
+                        order={conf.order ?? "random"}
+                        total={total}
+                        onChange={(patch) => setQ(q.entry, patch)}
+                      />
                     )}
                     {vHint && <p className="q-hint q-hint-strong">{vHint}</p>}
                     {rec?.reason && <p className="q-hint">Recomendado: {rec.reason}</p>}

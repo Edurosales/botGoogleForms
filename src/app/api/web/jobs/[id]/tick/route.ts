@@ -139,6 +139,7 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
         qConfig: job.q_config,
         language: job.language,
         customInstructions: job.custom_instructions,
+        startIndex: generatedSoFar.length,
       });
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Fallo generando respuestas";

@@ -195,10 +195,34 @@ class UniquePool {
   }
 }
 
+const NAMES_EN = [
+  "James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles",
+  "Christopher", "Daniel", "Matthew", "Anthony", "Mark", "Steven", "Paul", "Andrew", "Joshua", "Kevin",
+  "Brian", "Ryan", "Jacob", "Nicholas", "Tyler", "Brandon", "Ethan", "Noah", "Liam", "Lucas",
+  "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+  "Emily", "Ashley", "Michelle", "Amanda", "Stephanie", "Rebecca", "Laura", "Hannah", "Olivia", "Emma",
+  "Sophia", "Ava", "Isabella", "Mia", "Abigail", "Madison", "Chloe", "Grace", "Lily", "Natalie",
+];
+
+const SURNAMES_EN = [
+  "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor",
+  "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson", "White", "Harris", "Clark", "Lewis",
+  "Robinson", "Walker", "Young", "Allen", "King", "Wright", "Scott", "Hill", "Green", "Adams",
+  "Baker", "Nelson", "Carter", "Mitchell", "Roberts", "Turner", "Phillips", "Campbell", "Parker", "Evans",
+  "Edwards", "Collins", "Stewart", "Morris", "Murphy", "Cook", "Rogers", "Morgan", "Cooper", "Peterson",
+  "Bailey", "Reed", "Kelly", "Howard", "Cox", "Ward", "Richardson", "Watson", "Brooks", "Bennett",
+];
+
+/** "inglés" usa nombres y apellidos en inglés (Nombre + 1 apellido); el resto, la base hispana (Nombre + 2 apellidos). */
+function isEnglish(language?: string): boolean {
+  return /^(ingl[eé]s|english|en)$/i.test((language ?? "").trim());
+}
+
 /** Crea pools nuevos para una tanda de generación (sin repetir nombres/apellidos dentro de ella). */
-export function createNameState() {
-  const poolNombres = new UniquePool(NOMBRES);
-  const poolApellidos = new UniquePool(APELLIDOS);
+export function createNameState(language?: string) {
+  const english = isEnglish(language);
+  const poolNombres = new UniquePool(english ? NAMES_EN : NOMBRES);
+  const poolApellidos = new UniquePool(english ? SURNAMES_EN : APELLIDOS);
   const usedSurnames = new Set<string>();
   const emailsSeen = new Set<string>();
 
@@ -211,6 +235,7 @@ export function createNameState() {
   }
 
   function dosApellidos(): string {
+    if (english) return pickSurname();
     const a1 = pickSurname();
     let a2 = pickSurname();
     let guard = 0;
