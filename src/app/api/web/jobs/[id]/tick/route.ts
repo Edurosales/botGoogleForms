@@ -16,6 +16,12 @@ import type { ParsedForm, ParsedQuestion } from "@/lib/formParser";
 // 2) el lote de envío por tick se redujo a 2.
 export const maxDuration = 60;
 const BATCH_SIZE = 2; // respuestas enviadas por cada llamada a /tick
+// Groq cobra por "tokens por minuto" (TPM) sobre prompt + max_tokens
+// RESERVADOS, no sobre lo que realmente se usa — pedir las 30 de una
+// sola llamada reservaba ~9700 tokens contra un límite de 8000 y Groq
+// rechazaba la solicitud entera (413) antes de generar nada. Generar en
+// lotes chicos mantiene cada llamada bien debajo del límite.
+const GEN_CHUNK = 6; // perfiles generados por cada llamada a Groq
 
 function jobToForm(job: WebJob): ParsedForm {
   return {
@@ -60,11 +66,14 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
 
   const form = jobToForm(job);
 
-  if (!job.profiles) {
-    let profiles;
+  const generatedSoFar = job.profiles ?? [];
+  if (generatedSoFar.length < job.total) {
+    const remaining = job.total - generatedSoFar.length;
+    const chunkSize = Math.min(GEN_CHUNK, remaining);
+    let chunk;
     try {
-      profiles = await generateProfiles(form, {
-        nProfiles: job.total,
+      chunk = await generateProfiles(form, {
+        nProfiles: chunkSize,
         qConfig: job.q_config,
         language: job.language,
         customInstructions: job.custom_instructions,
@@ -78,13 +87,15 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
         .eq("id", job.id);
       return NextResponse.json({ ok: false, error: "No se pudieron generar las respuestas.", reason }, { status: 502 });
     }
+    const profiles = [...generatedSoFar, ...chunk];
     await supa.from("web_jobs").update({ profiles }).eq("id", job.id);
-    // Este tick solo generó: el envío empieza en el siguiente, para no
-    // acumular la llamada lenta a la IA + envíos en una sola invocación.
+    // Este tick solo generó un lote: el envío empieza una vez estén
+    // los `job.total` perfiles completos, para no acumular la llamada a
+    // la IA + envíos en una sola invocación.
     return NextResponse.json({ ok: true, status: "processing", sent: job.sent, failed: job.failed, total: job.total, queuePosition: 0 });
   }
 
-  const profiles = job.profiles;
+  const profiles = generatedSoFar;
   const alreadyDone = job.sent + job.failed;
   const batch = profiles.slice(alreadyDone, alreadyDone + BATCH_SIZE);
 
