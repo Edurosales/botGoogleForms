@@ -46,11 +46,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
           crossOrigin="anonymous"
         />
-        {/* Adsterra — formatos que se auto-inyectan en toda la página (social bar / popunder), sin contenedor visible propio */}
-        <Script data-cfasync="false" src="https://abscloud.org/1/770fcdedbf509655ee3f79ef54b4fcf4" strategy="afterInteractive" />
-        <Script data-cfasync="false" src="https://araplhn.org/4/f27d369c54209201b87740f437af60e0" strategy="afterInteractive" />
-        <Script data-cfasync="false" src="https://bauval.org/14/f1105401dd8a7839c4a36856f913ea72" strategy="afterInteractive" />
-
+        {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el
+            layout global: probado en vivo, el popunder abre una pestaña de
+            publicidad en el primer clic (el campo del link, "Leer formulario") y
+            la herramienta parece no responder; el social bar además cambia el
+            título de la pestaña a "(1) New Message!". Siguen en /sobre. */}
         {children}
 
         {/* Adsterra — banner nativo con contenedor visible */}
