@@ -47,7 +47,15 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
   }
 
   if (job.status !== "processing") {
-    return NextResponse.json({ ok: true, status: job.status, sent: job.sent, failed: job.failed, total: job.total, queuePosition: 0 });
+    return NextResponse.json({
+      ok: true,
+      status: job.status,
+      sent: job.sent,
+      failed: job.failed,
+      total: job.total,
+      queuePosition: 0,
+      reason: job.moderation_reason || undefined,
+    });
   }
 
   const form = jobToForm(job);

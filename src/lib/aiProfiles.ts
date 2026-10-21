@@ -287,8 +287,10 @@ export async function generateProfiles(
     0.8,
     // Modelo de razonamiento: gasta tokens pensando antes de escribir el
     // JSON final. Con 30 perfiles y varias preguntas, 4096 se quedaba
-    // corto y la respuesta llegaba truncada (JSON inválido).
-    16000
+    // corto. 16000 causó un rechazo inmediato de la API (probablemente
+    // por encima del máximo que Groq permite para este modelo) — 8192
+    // es un valor ampliamente soportado y sigue siendo el doble.
+    8192
   );
 
   const rawProfiles = cleanAndParseJson(text);

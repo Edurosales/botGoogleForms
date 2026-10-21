@@ -176,8 +176,14 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       }));
       if (data.status === "queued") setStep("queued");
       else if (data.status === "processing") setStep("processing");
-      else if (data.status === "done" || data.status === "failed") {
+      else if (data.status === "done") {
         setStep("done");
+        if (pollRef.current) clearInterval(pollRef.current);
+      } else if (data.status === "failed") {
+        // Falló de verdad (ej. la IA no pudo generar las respuestas) —
+        // antes esto se mostraba igual que un envío exitoso con 0/30.
+        setMessage(data.reason || "No se pudo completar el envío.");
+        setStep("error");
         if (pollRef.current) clearInterval(pollRef.current);
       }
     }, 2500);
