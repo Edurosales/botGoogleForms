@@ -446,6 +446,30 @@ export function smartRandom(q: ParsedQuestion, state: NameState): string {
   if (matches(t, KW.pais)) return PAISES[Math.floor(Math.random() * PAISES.length)];
   if (matches(t, KW.ocupacion)) return OCUPACIONES[Math.floor(Math.random() * OCUPACIONES.length)];
 
+  // Preguntas de texto que en realidad piden un número: antes caían en el
+  // fallback ("Estoy de acuerdo") y Google las rechaza si validan número.
+  if (/\b(ingreso|sueldo|salario|gasto|precio|costo|monto|presupuesto|pago)s?\b|s\/|\$/.test(t)) {
+    return String(randInt(8, 60) * 50);
+  }
+  if (/\b(porcentaje|%)/.test(t)) return String(randInt(0, 100));
+  if (/\b(hora|horas)\b/.test(t)) return String(randInt(1, 12));
+  if (/\b(anos de|años de|experiencia)\b/.test(t)) return String(randInt(0, 20));
+  if (/\b(hijos|hermanos|integrantes|personas|miembros|veces|dias|cantidad|numero de|cuantos|cuantas)\b/.test(t)) {
+    return String(randInt(0, 6));
+  }
+  if (/\b(nota|puntaje|calificacion|puntuacion)\b/.test(t)) return String(randInt(11, 20));
+  if (/\b(codigo|matricula|id)\b/.test(t)) return `${new Date().getFullYear() - randInt(0, 5)}${randomDigits(5)}`;
+  if (/\b(comentario|comentarios|opinion|sugerencia|sugerencias|por que|porque|explica|describe|observacion)\b/.test(t)) {
+    const notes = [
+      "Me parece una buena iniciativa.",
+      "En general estoy de acuerdo, aunque se puede mejorar.",
+      "No tengo comentarios adicionales.",
+      "Sería bueno tener más información sobre el tema.",
+      "Me pareció claro y fácil de responder.",
+      "Creo que es un tema importante y vale la pena seguirlo estudiando.",
+    ];
+    return notes[Math.floor(Math.random() * notes.length)];
+  }
 
   const fallback = [
     "Sí", "No", "Tal vez", "A veces", "Siempre", "Nunca",

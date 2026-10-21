@@ -126,7 +126,9 @@ function parseFixedOptions(value: string): string[] | null {
  * gastada). Ahora esos casos incompletos se llenan como Aleatorio.
  */
 function effectiveMode(q: ParsedQuestion, cfg: QuestionConfig): QuestionMode {
-  const mode: QuestionMode = cfg.mode ?? "ai";
+  // Solo es IA lo que dice explícitamente "ai": una pregunta sin config o con
+  // un modo desconocido nunca debe terminar gastando Groq.
+  const mode = cfg.mode;
   if (mode === "ai") return "ai";
   if (mode === "fixed") return (cfg.value ?? "").trim() ? "fixed" : "random";
   if (mode === "list") return listLines(cfg.value).length ? "list" : "random";
