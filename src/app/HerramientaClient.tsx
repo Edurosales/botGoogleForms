@@ -478,25 +478,43 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       <div className="tool-card" style={{ textAlign: "center" }}>
         {stepIndicator}
         <span className="tool-status-icon">⏳</span>
-        <h2>En espera</h2>
+        <h2>
+          {progress.isPaid
+            ? "Tienes prioridad"
+            : progress.queuePosition
+              ? `Eres el número ${progress.queuePosition} en la fila`
+              : "Calculando tu lugar en la fila…"}
+        </h2>
         <p className="tool-sub">
           {progress.isPaid
-            ? "Tu envío pagado tiene prioridad: ya está en la fila de créditos y empezará apenas haya un cupo libre."
-            : `El servidor está lleno por ahora. Posición en la cola: ${progress.queuePosition || "calculando"}.`}
+            ? "Tu envío con créditos empieza apenas se libere un cupo, antes que la fila gratuita."
+            : "Cuando termine el envío que está delante de ti, el tuyo empieza solo. No tienes que hacer nada."}
         </p>
         <p className="tool-hint">Esta pestaña se actualiza sola. Puedes dejarla abierta o volver luego.</p>
         {!progress.isPaid && (
-          <div className="tool-wait-options">
-            <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
-              Comprar créditos y pasar al frente
-            </a>
-            <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
-              Prefiero que lo llenen por mí (WhatsApp)
-            </a>
-            <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-              Comprar el software completo
-            </a>
-          </div>
+          <>
+            <div className="tool-wait-options">
+              <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
+                Comprar créditos y pasar al frente
+              </a>
+              <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
+                Comprar el software completo
+              </a>
+            </div>
+            <div className="tool-concierge">
+              <h3>¿Prefieres que lo llene yo por ti?</h3>
+              <p>Antes de escribirme, revisa que tu formulario cumpla esto:</p>
+              <ul>
+                <li>Es público: se abre sin iniciar sesión con Google.</li>
+                <li>No tiene activada la recolección de correo verificado.</li>
+                <li>No pide subir archivos.</li>
+                <li>No tiene captcha ni preguntas que cambien según la persona.</li>
+              </ul>
+              <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
+                Escribirme por WhatsApp (+51 935 372 306)
+              </a>
+            </div>
+          </>
         )}
       </div>
     );

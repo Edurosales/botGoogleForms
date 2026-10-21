@@ -149,6 +149,11 @@ body:has(.bar-m) .cookie{bottom:86px}
 .tool-progress span{display:block;height:100%;background:var(--acc);transition:width .4s}
 .tool-wait-options{display:flex;flex-direction:column;gap:10px;margin-top:24px}
 .tool-wait-options .btn{width:100%;margin-top:0}
+.tool-concierge{margin-top:28px;padding-top:24px;border-top:1px solid var(--line);text-align:left}
+.tool-concierge h3{font-size:1.05rem;margin:0 0 6px}
+.tool-concierge p{color:var(--mute);font-size:.92rem;margin:0 0 10px}
+.tool-concierge ul{margin:0 0 16px;padding-left:20px;font-size:.92rem;line-height:1.6}
+.tool-concierge .btn{width:100%}
 .tool-ad-slot{margin-top:24px;padding-top:24px;border-top:1px solid var(--line);text-align:center}
 
 .hero-tool-form{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
