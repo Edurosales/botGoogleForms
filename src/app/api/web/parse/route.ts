@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
-import { moderateFormSafe } from "@/lib/aiProfiles";
+import { heuristicModeration, moderateFormSafe } from "@/lib/aiProfiles";
 import { heuristicRecommendations } from "@/lib/recommend";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { getWebUser } from "@/lib/googleAuth";
@@ -39,7 +39,11 @@ export async function POST(request: Request) {
 
   if (form.collectsEmail) return err("COLLECTS_EMAIL", FORM_ERROR_MESSAGES.COLLECTS_EMAIL, 400, { blocked: true });
 
-  const moderation = await moderateFormSafe(form);
+  // Sin sesión, solo la revisión local por palabras clave: si no, cualquiera
+  // podría repetir lecturas anónimas y agotar la cuota diaria de Groq que
+  // usan los clientes que pagan. La revisión con IA se repite igual al crear
+  // el envío (con sesión y con su propio límite).
+  const moderation = user ? await moderateFormSafe(form) : heuristicModeration(form);
   if (!moderation.allowed) {
     return err(
       "BLOCKED_CONTENT",

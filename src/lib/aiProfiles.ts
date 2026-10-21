@@ -561,7 +561,7 @@ const BLOCKED_KEYWORDS = [
 ];
 
 /** Revisión local por palabras clave — solo se usa si Groq no responde. */
-function heuristicModeration(form: ParsedForm): ModerationResult {
+export function heuristicModeration(form: ParsedForm): ModerationResult {
   const text = [form.title, form.description, ...form.questions.map((q) => q.title)].join(" \n ").toLowerCase();
   const hit = BLOCKED_KEYWORDS.find((k) => new RegExp(`(^|[^a-záéíóúñ])${k}([^a-záéíóúñ]|$)`).test(text));
   return hit
