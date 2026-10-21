@@ -1,55 +1,66 @@
 import { NextResponse } from "next/server";
-import { parseForm, FormParseError } from "@/lib/formParser";
-import { moderateForm } from "@/lib/aiProfiles";
+import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
+import { moderateFormSafe } from "@/lib/aiProfiles";
+import { heuristicRecommendations } from "@/lib/recommend";
+import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { getWebUser } from "@/lib/googleAuth";
+import { MAX_FREE_QUESTIONS } from "@/lib/webConfig";
+
+function err(code: string, reason: string, status = 400, extra: Record<string, unknown> = {}) {
+  // `error` se mantiene por compatibilidad con la UI anterior.
+  return NextResponse.json({ ok: false, code, reason, error: reason, ...extra }, { status });
+}
 
 export async function POST(request: Request) {
-  let body: { url?: string };
+  const user = await getWebUser().catch(() => null);
+  const who = user ? `u:${user.id}` : `ip:${clientIp(request)}`;
+  if (!rateLimit(`web-parse:${who}`, 20, 10 * 60_000)) {
+    return err("RATE_LIMITED", "Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.", 429);
+  }
+
+  let body: { url?: unknown };
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Solicitud inválida." }, { status: 400 });
+    return err("INVALID_URL", "Solicitud inválida.");
   }
 
-  const url = (body.url ?? "").trim();
-  if (!url) {
-    return NextResponse.json({ ok: false, error: "Pega el link de tu Google Form." }, { status: 400 });
-  }
+  const url = typeof body.url === "string" ? body.url.trim().slice(0, 500) : "";
+  if (!url) return err("INVALID_URL", "Pega el link de tu Google Form.");
 
   let form;
   try {
     form = await parseForm(url);
   } catch (e) {
-    const message = e instanceof FormParseError ? e.message : "No se pudo leer el formulario.";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    if (e instanceof FormParseError) return err(e.code, e.message);
+    console.error("[parse] error inesperado:", e);
+    return err("FETCH_FAILED", FORM_ERROR_MESSAGES.FETCH_FAILED, 502);
   }
 
-  if (form.collectsEmail) {
-    return NextResponse.json({
-      ok: false,
-      blocked: true,
-      reason:
-        "Este formulario exige una cuenta de Google con sesión iniciada para recolectar el correo verificado del encuestado. Ese dato no se puede simular: desactiva la recolección de correo en tu formulario (Configuración → Respuestas) para poder usarlo aquí.",
-    });
-  }
+  if (form.collectsEmail) return err("COLLECTS_EMAIL", FORM_ERROR_MESSAGES.COLLECTS_EMAIL, 400, { blocked: true });
 
-  let moderation;
-  try {
-    moderation = await moderateForm(form);
-  } catch {
-    return NextResponse.json({
-      ok: false,
-      blocked: true,
-      reason: "No se pudo verificar el contenido del formulario en este momento. Intenta de nuevo en un momento.",
-    });
-  }
-
+  const moderation = await moderateFormSafe(form);
   if (!moderation.allowed) {
-    return NextResponse.json({
-      ok: false,
-      blocked: true,
-      reason:
-        moderation.reason ||
-        "Este formulario parece ser un concurso, sorteo, votación u otra actividad que no podemos procesar.",
+    return err(
+      "BLOCKED_CONTENT",
+      moderation.reason || "Este formulario parece ser un concurso, sorteo, votación u otra actividad que no podemos procesar.",
+      400,
+      { blocked: true }
+    );
+  }
+
+  const warnings: { code: string; message: string }[] = [];
+  if (form.questions.length > MAX_FREE_QUESTIONS) {
+    warnings.push({
+      code: "TOO_MANY_QUESTIONS_FREE",
+      message: `Tu formulario tiene ${form.questions.length} preguntas. Con respuestas gratis el máximo es ${MAX_FREE_QUESTIONS}: para enviarlo necesitas créditos comprados.`,
+    });
+  }
+  const required = form.questions.filter((q) => q.required).length;
+  if (form.numSections > 1) {
+    warnings.push({
+      code: "MULTI_SECTION",
+      message: `Tu formulario tiene ${form.numSections} secciones. Si alguna sección se salta según una respuesta, configura esa pregunta como Fijo para que todas las respuestas sigan el mismo camino.`,
     });
   }
 
@@ -59,6 +70,7 @@ export async function POST(request: Request) {
       title: form.title,
       description: form.description,
       numSections: form.numSections,
+      requiredCount: required,
       questions: form.questions.map((q) => ({
         entry: q.entry,
         title: q.title,
@@ -66,7 +78,11 @@ export async function POST(request: Request) {
         typeName: q.typeName,
         options: q.options,
         required: q.required,
+        validation: q.validation ?? null,
       })),
     },
+    warnings,
+    recommendations: heuristicRecommendations(form),
+    limits: { maxFreeQuestions: MAX_FREE_QUESTIONS },
   });
 }

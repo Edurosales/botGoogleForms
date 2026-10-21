@@ -6,6 +6,18 @@
 
 export type QuestionType = 0 | 1 | 2 | 3 | 4 | 5 | 7 | 8 | 9 | 10 | 13 | number;
 
+/**
+ * Regla de validación que el dueño puso en Google Forms (si se pudo leer).
+ * Se usa para generar valores locales que la pasen y para explicar fallos.
+ */
+export type QuestionValidation =
+  | { kind: "number"; min?: number; max?: number; integer?: boolean; message?: string }
+  | { kind: "email"; message?: string }
+  | { kind: "url"; message?: string }
+  | { kind: "length"; min?: number; max?: number; message?: string }
+  | { kind: "regex"; pattern: string; message?: string }
+  | { kind: "contains"; text: string; negate?: boolean; message?: string };
+
 export interface ParsedQuestion {
   id: number;
   entry: string;
@@ -14,6 +26,7 @@ export interface ParsedQuestion {
   typeName: string;
   options: string[];
   required: boolean;
+  validation?: QuestionValidation;
 }
 
 export interface ParsedForm {
@@ -47,7 +60,48 @@ const BROWSER_HEADERS = {
   Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
 };
 
-export class FormParseError extends Error {}
+export type FormErrorCode =
+  | "INVALID_URL"
+  | "NOT_GOOGLE_FORM"
+  | "NOT_PUBLIC"
+  | "CLOSED"
+  | "NOT_FOUND"
+  | "COLLECTS_EMAIL"
+  | "FILE_UPLOAD"
+  | "NO_QUESTIONS"
+  | "FETCH_FAILED";
+
+export class FormParseError extends Error {
+  code: FormErrorCode;
+  constructor(message: string, code: FormErrorCode = "FETCH_FAILED") {
+    super(message);
+    this.code = code;
+  }
+}
+
+export const FORM_ERROR_MESSAGES: Record<FormErrorCode, string> = {
+  INVALID_URL:
+    'Eso no parece un link válido. Copia el link desde el botón "Enviar" de tu Google Form (ícono de cadena) y pégalo aquí.',
+  NOT_GOOGLE_FORM:
+    'Solo funciona con links de Google Forms (docs.google.com/forms/... o forms.gle/...). Copia el link desde el botón "Enviar" de tu formulario.',
+  NOT_PUBLIC:
+    'Tu formulario pide iniciar sesión con Google para responder, así que no es público. En Google Forms ve a Configuración → Respuestas y desactiva "Restringir a usuarios de tu organización" y "Limitar a 1 respuesta". Si tiene una pregunta de subir archivo, quítala: obliga a iniciar sesión.',
+  CLOSED:
+    'Tu formulario no está aceptando respuestas. En Google Forms abre la pestaña Respuestas y activa "Se aceptan respuestas".',
+  NOT_FOUND:
+    'No encontramos ese formulario. Puede que se haya borrado o que el link esté incompleto: cópialo de nuevo desde el botón "Enviar".',
+  COLLECTS_EMAIL:
+    'Tu formulario recolecta correos verificados, y eso exige que cada persona inicie sesión con su cuenta de Google — no se puede simular. En Google Forms ve a Configuración → Respuestas → Recopilar direcciones de correo electrónico y elige "No recopilar" (o "Respuesta del usuario").',
+  FILE_UPLOAD:
+    "Tu formulario tiene una pregunta de subir archivo. Google obliga a iniciar sesión para responderla, así que no se puede llenar automáticamente. Quita esa pregunta o pásala a otro formulario.",
+  NO_QUESTIONS:
+    "No encontramos preguntas en el formulario. Revisa que tenga preguntas visibles y que esté publicado.",
+  FETCH_FAILED: "No pudimos abrir el formulario en este momento. Revisa el link e inténtalo de nuevo en un minuto.",
+};
+
+function fail(code: FormErrorCode, detail?: string): never {
+  throw new FormParseError(detail ?? FORM_ERROR_MESSAGES[code], code);
+}
 
 const ALLOWED_HOSTS = new Set(["docs.google.com", "forms.gle", "forms.google.com"]);
 
@@ -63,11 +117,69 @@ function assertAllowedFormHost(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new FormParseError("El link del formulario no es una URL válida.");
+    fail("INVALID_URL");
   }
   if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) {
-    throw new FormParseError("Solo se admiten links de Google Forms (docs.google.com o forms.gle).");
+    fail("NOT_GOOGLE_FORM");
   }
+}
+
+function isLoginRedirect(url: URL): boolean {
+  return url.hostname.toLowerCase() === "accounts.google.com" || /servicelogin|\/signin\b/i.test(url.pathname);
+}
+
+/**
+ * Sigue redirecciones a mano validando CADA salto: con redirect:"follow"
+ * el fetch ya se habría hecho antes de poder revisar el host (SSRF vía
+ * redirección), y una redirección a accounts.google.com terminaría en un
+ * error engañoso en vez de "tu formulario no es público".
+ */
+async function fetchFormPage(startUrl: string): Promise<{ html: string; finalUrl: string }> {
+  let current = startUrl;
+  for (let hop = 0; hop < 6; hop++) {
+    assertAllowedFormHost(current);
+    let resp: Response;
+    try {
+      resp = await fetch(current, { headers: BROWSER_HEADERS, redirect: "manual", cache: "no-store" });
+    } catch {
+      fail("FETCH_FAILED");
+    }
+
+    if (resp.status >= 300 && resp.status < 400) {
+      const loc = resp.headers.get("location");
+      if (!loc) fail("FETCH_FAILED");
+      const next = new URL(loc, current);
+      if (isLoginRedirect(next)) fail("NOT_PUBLIC");
+      if (/\/closedform\b/.test(next.pathname)) fail("CLOSED");
+      current = next.toString();
+      continue;
+    }
+
+    if (resp.status === 404 || resp.status === 410) fail("NOT_FOUND");
+    if (resp.status === 401 || resp.status === 403) fail("NOT_PUBLIC");
+    if (!resp.ok) {
+      fail("FETCH_FAILED", `No pudimos abrir el formulario (Google respondió ${resp.status}). Revisa el link e inténtalo de nuevo.`);
+    }
+
+    const html = await resp.text();
+    if (/\/closedform\b/.test(new URL(current).pathname)) fail("CLOSED");
+    return { html, finalUrl: current };
+  }
+  fail("FETCH_FAILED", "El link redirige demasiadas veces. Copia el link directo del formulario.");
+}
+
+function looksClosed(html: string): boolean {
+  const h = html.toLowerCase();
+  return (
+    h.includes("ya no acepta respuestas") ||
+    h.includes("no longer accepting responses") ||
+    h.includes("is no longer accepting")
+  );
+}
+
+function looksLikeLoginPage(html: string): boolean {
+  const h = html.toLowerCase();
+  return h.includes("accounts.google.com/servicelogin") && !h.includes("fb_public_load_data_");
 }
 
 // ── URL helpers ──────────────────────────────────────────────────
@@ -119,14 +231,15 @@ function extractRawJson(html: string): unknown {
 
   const idx = html.indexOf("FB_PUBLIC_LOAD_DATA_");
   if (idx === -1) {
-    throw new FormParseError(
-      "No se encontró el formulario en la página. Verifica que el link sea correcto y que el formulario sea público."
+    fail(
+      "NOT_PUBLIC",
+      "No pudimos leer las preguntas de esa página. Revisa que sea el link para RESPONDER el formulario (no el de edición) y que el formulario sea público."
     );
   }
 
   const start = html.indexOf("[", idx);
   if (start === -1) {
-    throw new FormParseError("No se pudo parsear el formulario.");
+    fail("FETCH_FAILED");
   }
 
   let depth = 0;
@@ -161,7 +274,7 @@ function extractRawJson(html: string): unknown {
   try {
     return JSON.parse(html.slice(start, end + 1));
   } catch (e) {
-    throw new FormParseError(`Error parseando datos del formulario: ${(e as Error).message}`);
+    fail("FETCH_FAILED", `No pudimos interpretar el formulario (${(e as Error).message}).`);
   }
 }
 
@@ -194,6 +307,72 @@ function firstString(opt: unknown[]): string {
   return "";
 }
 
+// ── Validación de respuestas (best-effort) ──────────────────────
+// En FB_PUBLIC_LOAD_DATA_ la validación de una pregunta vive en
+// qField[4] = [[tipo, operador, [args], "mensaje de error"]].
+// Códigos según ingeniería inversa de la comunidad (Google no lo
+// documenta); si no calza con nada conocido se ignora en silencio.
+//   tipo 1 = Número   op: 1 >, 2 >=, 3 <, 4 <=, 5 =, 7 entre, 10 entero
+//   tipo 2 = Texto    op: 100 contiene, 101 no contiene, 102 email, 103 URL
+//   tipo 4 = Regex    op: 299 contiene, 301 coincide
+//   tipo 6 = Longitud op: 202 máximo, 203 mínimo
+
+function num(v: unknown): number | undefined {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseValidation(qField: unknown[]): QuestionValidation | undefined {
+  const block = qField[4];
+  if (!Array.isArray(block) || !Array.isArray(block[0])) return undefined;
+  const rule = block[0] as unknown[];
+  const type = num(rule[0]);
+  const op = num(rule[1]);
+  const args = Array.isArray(rule[2]) ? (rule[2] as unknown[]) : [];
+  const message = typeof rule[3] === "string" && rule[3].trim() ? rule[3].trim() : undefined;
+  const a0 = num(args[0]);
+  const a1 = num(args[1]);
+
+  if (type === 1) {
+    switch (op) {
+      case 1: return { kind: "number", min: a0 !== undefined ? a0 + 1 : undefined, integer: true, message };
+      case 2: return { kind: "number", min: a0, message };
+      case 3: return { kind: "number", max: a0 !== undefined ? a0 - 1 : undefined, integer: true, message };
+      case 4: return { kind: "number", max: a0, message };
+      case 5: return { kind: "number", min: a0, max: a0, message };
+      case 7: return { kind: "number", min: a0, max: a1, message };
+      case 10: return { kind: "number", integer: true, message };
+      default: return { kind: "number", message };
+    }
+  }
+  if (type === 2) {
+    if (op === 102) return { kind: "email", message };
+    if (op === 103) return { kind: "url", message };
+    const text = typeof args[0] === "string" ? args[0] : "";
+    if (text && (op === 100 || op === 101)) return { kind: "contains", text, negate: op === 101, message };
+  }
+  if (type === 4 && (op === 301 || op === 299) && typeof args[0] === "string") {
+    return { kind: "regex", pattern: args[0], message };
+  }
+  if (type === 6) {
+    if (op === 202) return { kind: "length", max: a0, message };
+    if (op === 203) return { kind: "length", min: a0, message };
+  }
+  return undefined;
+}
+
+/**
+ * Pregunta de "subir archivo": en el JSON de Google es tipo 13 sin opciones
+ * (la cuadrícula de casillas, que este parser también etiqueta 13, siempre
+ * trae sus columnas como opciones). Normalmente Google ya redirige al login
+ * antes de llegar aquí, pero por si la página se sirve igual.
+ */
+function isFileUploadItem(item: unknown[]): boolean {
+  const qFields = Array.isArray(item[4]) ? (item[4] as unknown[]) : [];
+  if (!qFields.length) return true;
+  return qFields.every((qf) => !Array.isArray(qf) || !Array.isArray(qf[1]) || (qf[1] as unknown[]).length === 0);
+}
+
 function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections: number } {
   const questions: ParsedQuestion[] = [];
   let numSections = 0;
@@ -208,6 +387,7 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
       numSections++;
       continue;
     }
+    if (itemType === 13 && isFileUploadItem(item)) fail("FILE_UPLOAD");
     if (!itemTitle.trim()) continue;
 
     const qFields = Array.isArray(item[4]) ? (item[4] as unknown[]) : [];
@@ -246,15 +426,10 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
         }
       }
 
-      let required = false;
-      for (const reqIdx of [6, 5]) {
-        const v = item[reqIdx];
-        if ((typeof v === "boolean" || typeof v === "number") && !Array.isArray(v)) {
-          required = Boolean(v);
-          break;
-        }
-      }
+      // Obligatoria = qField[2] (verificado en vivo: [entryId, opciones, 1]).
+      const required = qField[2] === 1 || qField[2] === true;
 
+      const validation = parseValidation(qField);
       questions.push({
         id: entryId,
         entry: `entry.${entryId}`,
@@ -263,6 +438,7 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
         typeName: QUESTION_TYPES[Math.max(0, itemType)] ?? `Tipo ${itemType}`,
         options,
         required,
+        ...(validation ? { validation } : {}),
       });
     }
   }
@@ -321,29 +497,26 @@ function parseGrouped(groups: unknown[]): { questions: ParsedQuestion[]; numSect
 // ── Parser principal ─────────────────────────────────────────────
 
 export async function parseForm(inputUrl: string): Promise<ParsedForm> {
-  let { viewUrl, submitUrl } = normalizeUrls(inputUrl);
-  assertAllowedFormHost(viewUrl);
+  const input = inputUrl.trim();
+  if (!input) fail("INVALID_URL");
+  let { viewUrl, submitUrl } = normalizeUrls(input);
 
-  const resp = await fetch(viewUrl, { headers: BROWSER_HEADERS, redirect: "follow" });
-  if (!resp.ok) {
-    throw new FormParseError(`No se pudo descargar el formulario (HTTP ${resp.status}).`);
-  }
-
-  // Si hubo redirección (ej. enlace acortado forms.gle), actualizar view/submit URL
-  if (resp.url && resp.url !== viewUrl) {
-    assertAllowedFormHost(resp.url);
-    const norm = normalizeUrls(resp.url);
+  const { html, finalUrl } = await fetchFormPage(viewUrl);
+  if (finalUrl !== viewUrl) {
+    const norm = normalizeUrls(finalUrl);
     viewUrl = norm.viewUrl;
     submitUrl = norm.submitUrl;
+    assertAllowedFormHost(viewUrl);
   }
 
-  const html = await resp.text();
+  if (looksLikeLoginPage(html)) fail("NOT_PUBLIC");
+  if (looksClosed(html)) fail("CLOSED");
 
   // Extraer submit_url real desde el action= del formulario
   const actionM = html.match(/<form[^>]+action="([^"]*formResponse[^"]*)"/);
   if (actionM) {
     const rawAction = actionM[1].replace(/&amp;/g, "&").split("?")[0];
-    submitUrl = new URL(rawAction, resp.url || viewUrl).toString();
+    submitUrl = new URL(rawAction, finalUrl).toString();
     assertAllowedFormHost(submitUrl);
   }
 
@@ -351,13 +524,15 @@ export async function parseForm(inputUrl: string): Promise<ParsedForm> {
   const formBody = (raw as unknown[])[1] as unknown[] | undefined;
 
   let title = "";
-  for (const idx of [8, 0]) {
-    const v = formBody?.[idx];
+  // raw[1][8] = título visible; raw[3] = nombre del archivo del formulario.
+  // raw[1][0] es la DESCRIPCIÓN — solo como último recurso.
+  for (const v of [formBody?.[8], (raw as unknown[])[3], formBody?.[0]]) {
     if (typeof v === "string" && v.trim()) {
       title = v.trim();
       break;
     }
   }
+  if (title.length > 200) title = `${title.slice(0, 197)}…`;
 
   let description = "";
   const d = formBody?.[0];
@@ -378,9 +553,7 @@ export async function parseForm(inputUrl: string): Promise<ParsedForm> {
 
   const items = formBody?.[1];
   if (!Array.isArray(items) || items.length === 0) {
-    throw new FormParseError(
-      "No se encontraron preguntas. Asegúrate de que el formulario sea público y tenga preguntas visibles."
-    );
+    fail("NO_QUESTIONS");
   }
 
   const firstValid = items.find((x) => Array.isArray(x) && x.length);
@@ -398,9 +571,7 @@ export async function parseForm(inputUrl: string): Promise<ParsedForm> {
   }
 
   if (!questions.length) {
-    throw new FormParseError(
-      "No se encontraron preguntas en el formulario. El formulario puede estar vacío, ser privado o tener una estructura no reconocida."
-    );
+    fail("NO_QUESTIONS");
   }
 
   return {

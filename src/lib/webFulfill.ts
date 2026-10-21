@@ -6,6 +6,8 @@
  */
 import { db } from "./db";
 import type { IzipayAnswer } from "./izipay";
+import { addCredits } from "./credits";
+import { incrementCouponUse } from "./coupons";
 
 type CreditOrder = {
   id: string;
@@ -15,6 +17,7 @@ type CreditOrder = {
   amount_cents: number;
   currency: string;
   status: "pending" | "paid" | "failed" | "refunded";
+  coupon_code?: string;
 };
 
 export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok: boolean; orderId?: string; reason?: string }> {
@@ -32,6 +35,7 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
     return { ok: false, orderId, reason: `estado ${answer.orderStatus}` };
   }
 
+  // amount_cents guarda el monto FINAL cobrado (ya con el descuento del cupón).
   if (answer.orderDetails?.orderTotalAmount !== order.amount_cents || answer.orderDetails?.orderCurrency !== order.currency) {
     console.error("[izipay-web] monto/moneda no coinciden", orderId, answer.orderDetails);
     return { ok: false, orderId, reason: "monto no coincide" };
@@ -39,6 +43,7 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
 
   if (order.status === "paid") return { ok: true, orderId, reason: "ya procesada" };
 
+  // Claim atómico: el return del navegador y el IPN llegan casi juntos; solo uno acredita.
   const { data: claimed } = await supa
     .from("web_credit_orders")
     .update({
@@ -48,15 +53,16 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
       raw_answer: answer,
     })
     .eq("id", order.id)
-    .eq("status", "pending")
+    .in("status", ["pending", "failed"])
     .select()
     .maybeSingle<CreditOrder>();
 
   if (!claimed) return { ok: true, orderId, reason: "ya procesada" };
 
-  const { data: userRow } = await supa.from("web_users").select("credits").eq("id", claimed.user_id).single<{ credits: number }>();
-  const current = userRow?.credits ?? 0;
-  await supa.from("web_users").update({ credits: current + claimed.credits }).eq("id", claimed.user_id);
+  // Suma atómica en SQL (antes era leer-sumar-escribir y dos pagos casi
+  // simultáneos del mismo usuario podían pisarse y perder créditos).
+  await addCredits(claimed.user_id, claimed.credits);
+  if (claimed.coupon_code) await incrementCouponUse(claimed.coupon_code);
 
   return { ok: true, orderId };
 }

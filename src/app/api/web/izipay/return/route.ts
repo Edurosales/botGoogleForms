@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { IzipayAnswer, verifyIzipayHash } from "@/lib/izipay";
 import { processPaidCreditOrder } from "@/lib/webFulfill";
 import { siteUrl } from "@/lib/config";
+import { takeReturnTo, withQuery } from "@/lib/returnTo";
 
-/** Retorno del navegador tras el SmartForm. Redirige a /comprar-creditos con el resultado. */
+/**
+ * Retorno del navegador tras el SmartForm. Verifica la firma, acredita
+ * (idempotente con el IPN) y vuelve a donde estaba el usuario —
+ * normalmente la herramienta, con su formulario guardado — con ?pagado=.
+ */
 export async function POST(req: Request) {
   const site = siteUrl();
   const form = await req.formData().catch(() => null);
@@ -24,6 +29,9 @@ export async function POST(req: Request) {
   }
 
   const res = await processPaidCreditOrder(answer);
-  if (res.ok && res.orderId) return NextResponse.redirect(`${site}/comprar-creditos?pagado=${encodeURIComponent(res.orderId)}`, 303);
+  if (res.ok && res.orderId) {
+    const back = await takeReturnTo(res.orderId);
+    return NextResponse.redirect(`${site}${withQuery(back, "pagado", res.orderId)}`, 303);
+  }
   return NextResponse.redirect(`${site}/comprar-creditos?error=pago`, 303);
 }

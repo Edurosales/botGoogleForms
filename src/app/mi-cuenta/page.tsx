@@ -1,26 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import MiCuentaClient from "./MiCuentaClient";
-import AccountBar from "../AccountBar";
+import SiteNav from "../SiteNav";
 
 export const metadata: Metadata = {
   title: "Mi cuenta",
-  description: "Tu correo, tus créditos y tus envíos de FormsBot.",
+  description: "Tus créditos, cupones y envíos de FormsBot.",
+  robots: { index: false },
 };
 
 export default function MiCuentaPage() {
   return (
     <main className="tool-page">
-      <div className="w">
-        <div className="tool-topbar">
-          <Link className="logo" href="/">
-            Forms<b>Bot</b>
-          </Link>
-          <AccountBar />
-        </div>
-        <header className="tool-header">
+      <SiteNav />
+      <div className="tool-wrap">
+        <div className="intro">
           <h1>Mi cuenta</h1>
-        </header>
+        </div>
         <MiCuentaClient />
       </div>
     </main>

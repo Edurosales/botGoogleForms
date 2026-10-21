@@ -38,8 +38,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   free_concurrency: 2,
   paid_concurrency: 3,
   free_daily_cap: 30,
+  free_signup_credits: 30,
+  max_signups_per_ip: 1,
   updated_at: new Date(0).toISOString(),
 };
+
+function stripNulls<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined)) as Partial<T>;
+}
 
 /**
  * Nunca lanza: si Supabase no está configurado todavía (p.ej. recién
@@ -54,10 +60,12 @@ export async function getAppSettings(): Promise<AppSettings> {
   try {
     const { data } = await db().from("app_settings").select("*").eq("id", 1).maybeSingle<AppSettings>();
     if (!data) return DEFAULT_SETTINGS;
-    // Si la fila ya existe pero el admin aún no configuró paquetes
-    // (array vacío), usar los de ejemplo en vez de mostrar la página de
-    // compra sin nada — el admin los sobreescribe apenas entre.
-    return { ...data, credit_packages: data.credit_packages?.length ? data.credit_packages : DEFAULT_CREDIT_PACKAGES };
+    // Columnas nuevas que aún no existan en la BD (schema_web.sql sin
+    // re-ejecutar) toman su default; si el admin aún no configuró
+    // paquetes (array vacío) se muestran los de ejemplo.
+    const merged: AppSettings = { ...DEFAULT_SETTINGS, ...stripNulls(data) };
+    if (!merged.credit_packages?.length) merged.credit_packages = DEFAULT_CREDIT_PACKAGES;
+    return merged;
   } catch (e) {
     console.error("[appSettings] no se pudo leer la configuración, usando defaults:", e);
     return DEFAULT_SETTINGS;

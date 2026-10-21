@@ -1,141 +1,147 @@
 import { NextResponse } from "next/server";
 import { getWebUser } from "@/lib/googleAuth";
-import { parseForm, FormParseError } from "@/lib/formParser";
-import { moderateForm, type QuestionConfigMap } from "@/lib/aiProfiles";
-import { getAppSettings } from "@/lib/appSettings";
+import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
+import { moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
-import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
+import { spendCredits } from "@/lib/credits";
+import { rateLimit } from "@/lib/ratelimit";
+import { SUPPORTED_LANGUAGES, MAX_FREE_QUESTIONS, MAX_RESPONSES_PER_JOB } from "@/lib/webConfig";
 
 interface CreateJobBody {
-  formUrl?: string;
-  total?: number;
-  language?: string;
-  customInstructions?: string;
-  qConfig?: QuestionConfigMap;
-  acceptedTerms?: boolean;
+  formUrl?: unknown;
+  total?: unknown;
+  language?: unknown;
+  customInstructions?: unknown;
+  qConfig?: unknown;
+  acceptedTerms?: unknown;
 }
 
 const TERMS_VERSION = "2026-10-20";
-const MAX_QUESTIONS_FREE = 30;
+
+function fail(status: number, payload: Record<string, unknown>) {
+  const reason = (payload.reason ?? payload.error) as string | undefined;
+  return NextResponse.json({ ok: false, ...payload, reason, error: reason }, { status });
+}
+
+function sanitizeQConfig(raw: unknown): QuestionConfigMap {
+  const out: QuestionConfigMap = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [entry, cfg] of Object.entries(raw as Record<string, unknown>).slice(0, 300)) {
+    if (!/^entry\.\d{1,20}$/.test(entry) || !cfg || typeof cfg !== "object") continue;
+    const c = cfg as Record<string, unknown>;
+    out[entry] = {
+      mode: c.mode === "ai" || c.mode === "fixed" ? c.mode : "random",
+      value: typeof c.value === "string" ? c.value.slice(0, 300) : "",
+      prompt: typeof c.prompt === "string" ? c.prompt.slice(0, 300) : "",
+    };
+  }
+  return out;
+}
 
 export async function POST(request: Request) {
   const user = await getWebUser();
-  if (!user) return NextResponse.json({ ok: false, error: "Debes iniciar sesión con Google." }, { status: 401 });
+  if (!user) return fail(401, { code: "LOGIN_REQUIRED", reason: "Debes iniciar sesión con Google." });
+
+  if (!rateLimit(`web-jobs:${user.id}`, 6, 10 * 60_000)) {
+    return fail(429, { code: "RATE_LIMITED", reason: "Creaste varios envíos seguidos. Espera unos minutos." });
+  }
 
   let body: CreateJobBody;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Solicitud inválida." }, { status: 400 });
+    return fail(400, { code: "BAD_REQUEST", reason: "Solicitud inválida." });
   }
 
-  if (!body.acceptedTerms) {
-    return NextResponse.json({ ok: false, error: "Debes aceptar los términos del servicio." }, { status: 400 });
+  if (body.acceptedTerms !== true) {
+    return fail(400, { code: "TERMS_REQUIRED", reason: "Debes aceptar los términos del servicio." });
   }
 
-  const formUrl = (body.formUrl ?? "").trim().slice(0, 500);
-  if (!formUrl) return NextResponse.json({ ok: false, error: "Falta el link del formulario." }, { status: 400 });
+  const formUrl = typeof body.formUrl === "string" ? body.formUrl.trim().slice(0, 500) : "";
+  if (!formUrl) return fail(400, { code: "INVALID_URL", reason: "Falta el link del formulario." });
 
-  // Cualquier texto libre que el usuario escribe termina en el prompt de
-  // Groq o guardado en la BD — se acota el tamaño para que nadie pueda
-  // inflar el costo de IA o el almacenamiento con un payload gigante.
-  const customInstructions = (body.customInstructions ?? "").slice(0, 600);
-  const language = SUPPORTED_LANGUAGES.some((l) => l.code === body.language) ? body.language! : SUPPORTED_LANGUAGES[0].code;
-  const rawQConfig = body.qConfig || {};
-  const qConfig: QuestionConfigMap = {};
-  for (const [entry, cfg] of Object.entries(rawQConfig)) {
-    if (!cfg || typeof cfg !== "object") continue;
-    qConfig[entry] = {
-      mode: cfg.mode === "ai" || cfg.mode === "fixed" ? cfg.mode : "random",
-      value: typeof cfg.value === "string" ? cfg.value.slice(0, 300) : "",
-      prompt: typeof cfg.prompt === "string" ? cfg.prompt.slice(0, 300) : "",
-    };
-  }
+  // Todo texto libre termina en el prompt de Groq o en la BD: se acota.
+  const customInstructions = typeof body.customInstructions === "string" ? body.customInstructions.slice(0, 600) : "";
+  const language = SUPPORTED_LANGUAGES.some((l) => l.code === body.language)
+    ? (body.language as string)
+    : SUPPORTED_LANGUAGES[0].code;
+  const qConfig = sanitizeQConfig(body.qConfig);
+  const total = Math.min(MAX_RESPONSES_PER_JOB, Math.max(1, Math.floor(Number(body.total) || 1)));
 
-  const settings = await getAppSettings();
-  const maxFree = settings.free_daily_cap || 30;
-  const maxPaid = Math.max(...settings.credit_packages.map((p) => p.responses), maxFree, 500);
-  const total = Math.min(maxPaid, Math.max(1, Math.floor(body.total ?? maxFree)));
-  const isPaid = total > maxFree;
-
-  // Re-validar todo en el servidor: nunca confiar en el estado que manda el cliente.
+  // Re-validar todo en el servidor: nunca confiar en lo que manda el cliente.
   let form;
   try {
     form = await parseForm(formUrl);
   } catch (e) {
-    const message = e instanceof FormParseError ? e.message : "No se pudo leer el formulario.";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    if (e instanceof FormParseError) return fail(400, { code: e.code, reason: e.message });
+    return fail(502, { code: "FETCH_FAILED", reason: FORM_ERROR_MESSAGES.FETCH_FAILED });
   }
 
   if (form.collectsEmail) {
-    return NextResponse.json(
-      {
-        ok: false,
-        blocked: true,
-        reason:
-          "Este formulario exige una cuenta de Google con sesión iniciada para recolectar el correo verificado del encuestado. Ese dato no se puede simular: desactiva la recolección de correo en tu formulario (Configuración → Respuestas).",
-      },
-      { status: 400 }
-    );
+    return fail(400, { code: "COLLECTS_EMAIL", blocked: true, reason: FORM_ERROR_MESSAGES.COLLECTS_EMAIL });
   }
 
-  if (!isPaid && form.questions.length > MAX_QUESTIONS_FREE) {
-    return NextResponse.json(
-      {
-        ok: false,
-        needsCredits: true,
-        reason: `Este formulario tiene ${form.questions.length} preguntas. El máximo gratuito es ${MAX_QUESTIONS_FREE} preguntas — compra créditos para formularios más grandes.`,
-      },
-      { status: 402 }
-    );
-  }
-
-  const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "ai") === "ai");
-  if (!isPaid && usesAi) {
-    return NextResponse.json(
-      {
-        ok: false,
-        needsCredits: true,
-        reason:
-          'Las respuestas generadas con IA solo están disponibles con créditos. Cambia esas preguntas a "aleatorio" o "fijo", o compra créditos para esta tanda.',
-      },
-      { status: 402 }
-    );
-  }
-
-  const moderation = await moderateForm(form).catch(() => ({ allowed: false, reason: "" }));
+  const moderation = await moderateFormSafe(form);
   if (!moderation.allowed) {
-    return NextResponse.json(
-      { ok: false, blocked: true, reason: moderation.reason || "Este formulario no puede ser procesado por nuestras políticas de uso." },
-      { status: 400 }
-    );
+    return fail(400, {
+      code: "BLOCKED_CONTENT",
+      blocked: true,
+      reason: moderation.reason || "Este formulario no puede ser procesado por nuestras políticas de uso.",
+    });
+  }
+
+  // Toda pregunta sin configurar queda en "random": el generador trata la
+  // ausencia de modo como "ai", y así un envío gratis nunca gasta Groq.
+  for (const q of form.questions) {
+    if (!qConfig[q.entry]) qConfig[q.entry] = { mode: "random", value: "", prompt: "" };
+  }
+
+  // ── Cobro ─────────────────────────────────────────────────────────
+  // Gratis (créditos de bienvenida): solo aleatorio/fijo, hasta 30
+  // preguntas y si alcanzan los créditos gratis. Cualquier otra cosa se
+  // paga completa con créditos comprados (y va a la cola prioritaria).
+  const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
+  const tooManyQuestions = form.questions.length > MAX_FREE_QUESTIONS;
+  const isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
+  const balances = { credits: user.credits, freeCredits: user.freeCredits };
+
+  if (isPaid && user.credits < total) {
+    if (usesAi) {
+      return fail(402, {
+        code: "AI_REQUIRES_PAID",
+        ...balances,
+        reason: `Las respuestas con IA usan créditos comprados: este envío necesita ${total} y tienes ${user.credits}. Compra créditos o cambia esas preguntas a Aleatorio o Fijo.`,
+      });
+    }
+    if (tooManyQuestions) {
+      return fail(402, {
+        code: "TOO_MANY_QUESTIONS",
+        ...balances,
+        reason: `Tu formulario tiene ${form.questions.length} preguntas y el máximo con respuestas gratis es ${MAX_FREE_QUESTIONS}. Necesitas ${total} créditos comprados (tienes ${user.credits}).`,
+      });
+    }
+    return fail(402, {
+      code: "NO_CREDITS",
+      ...balances,
+      reason:
+        user.freeCredits > 0
+          ? `Te quedan ${user.freeCredits} respuestas gratis y pediste ${total}. Baja la cantidad a ${user.freeCredits} o compra créditos.`
+          : `Necesitas ${total} créditos y tienes ${user.credits}. Compra créditos para continuar.`,
+    });
+  }
+
+  const paidSpend = isPaid ? total : 0;
+  const freeSpend = isPaid ? 0 : total;
+  const spent = await spendCredits(user.id, paidSpend, freeSpend).catch((e) => {
+    console.error("[jobs] no se pudo descontar saldo:", e);
+    return null;
+  });
+  if (!spent) {
+    return fail(409, { code: "BALANCE_CHANGED", ...balances, reason: "Tu saldo cambió mientras enviabas. Recarga la página e intenta de nuevo." });
   }
 
   const supa = db();
-
-  if (isPaid) {
-    // Claim atómico de créditos: solo descuenta si el saldo sigue siendo el que leímos.
-    const { data: userRow } = await supa.from("web_users").select("credits").eq("id", user.id).single<{ credits: number }>();
-    const credits = userRow?.credits ?? 0;
-    if (credits < total) {
-      return NextResponse.json(
-        { ok: false, needsCredits: true, reason: `Necesitas ${total} créditos y tienes ${credits}. Compra créditos para continuar.` },
-        { status: 402 }
-      );
-    }
-    const { data: claimed } = await supa
-      .from("web_users")
-      .update({ credits: credits - total })
-      .eq("id", user.id)
-      .eq("credits", credits)
-      .select()
-      .maybeSingle();
-    if (!claimed) {
-      return NextResponse.json({ ok: false, error: "Tu saldo cambió, intenta de nuevo." }, { status: 409 });
-    }
-  }
-
   const { data: job, error } = await supa
     .from("web_jobs")
     .insert({
@@ -143,7 +149,7 @@ export async function POST(request: Request) {
       form_url: formUrl,
       view_url: form.viewUrl,
       submit_url: form.submitUrl,
-      title: form.title,
+      title: form.title.slice(0, 300),
       num_sections: form.numSections,
       questions: form.questions,
       total,
@@ -151,7 +157,8 @@ export async function POST(request: Request) {
       custom_instructions: customInstructions,
       q_config: qConfig,
       is_paid: isPaid,
-      credits_spent: isPaid ? total : 0,
+      credits_spent: paidSpend,
+      free_credits_spent: freeSpend,
       terms_version: TERMS_VERSION,
       terms_accepted_at: new Date().toISOString(),
     })
@@ -159,11 +166,35 @@ export async function POST(request: Request) {
     .single<WebJob>();
 
   if (error || !job) {
-    return NextResponse.json({ ok: false, error: error?.message || "No se pudo crear el trabajo." }, { status: 500 });
+    // Devolver lo cobrado: el envío nunca se creó.
+    await spendCredits(user.id, -paidSpend, -freeSpend).catch((e) => console.error("[jobs] reembolso fallido:", e));
+    console.error("[jobs] no se pudo crear el trabajo:", error?.message);
+    return fail(500, { code: "CREATE_FAILED", reason: "No se pudo crear el envío. No se te cobró nada; intenta de nuevo." });
   }
 
   const claimedJob = await claimSlot(job);
   const queuePosition = await getQueuePosition(claimedJob);
 
-  return NextResponse.json({ ok: true, jobId: claimedJob.id, status: claimedJob.status, queuePosition });
+  return NextResponse.json({
+    ok: true,
+    jobId: claimedJob.id,
+    status: claimedJob.status,
+    queuePosition,
+    isPaid,
+    credits: spent.credits,
+    freeCredits: spent.free_credits,
+  });
+}
+
+/** Últimos 20 envíos del usuario (para "Mi cuenta"). */
+export async function GET() {
+  const user = await getWebUser();
+  if (!user) return fail(401, { code: "LOGIN_REQUIRED", reason: "Debes iniciar sesión con Google." });
+  const { data } = await db()
+    .from("web_jobs")
+    .select("id,title,total,sent,failed,status,is_paid,created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  return NextResponse.json({ ok: true, jobs: data ?? [] });
 }

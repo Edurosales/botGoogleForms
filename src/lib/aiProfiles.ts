@@ -11,7 +11,7 @@
  */
 
 import type { ParsedForm, ParsedQuestion } from "./formParser";
-import { createNameState, smartRandom, isNameField, isEmailField, type NameState } from "./dataGen";
+import { createNameState, smartRandom, isNameField, isEmailField, conformToValidation, type NameState } from "./dataGen";
 
 export type QuestionMode = "ai" | "random" | "fixed";
 
@@ -433,6 +433,11 @@ export async function generateProfiles(
       if (q.options.length && !q.options.includes(answer)) {
         const match = q.options.find((opt) => opt.trim().toLowerCase() === answer.toLowerCase());
         answer = match ?? q.options[Math.floor(Math.random() * q.options.length)];
+      } else if (!q.options.length) {
+        // La IA a veces escribe "veinticinco" o "25 años": si el dueño puso
+        // una validación (número en rango, correo), se corrige aquí antes de
+        // que Google rechace el envío entero.
+        answer = conformToValidation(q, answer, nameState);
       }
       profile[q.entry] = answer;
     });
@@ -485,7 +490,49 @@ export async function moderateForm(form: ParsedForm): Promise<ModerationResult> 
       return { allowed: parsed.allowed, reason: parsed.reason ?? "" };
     }
   } catch {
-    // si la moderación no se puede interpretar, se rechaza por seguridad
+    // respuesta ilegible: se decide con la revisión local
   }
-  return { allowed: false, reason: "No se pudo verificar el contenido del formulario." };
+  return heuristicModeration(form);
+}
+
+const BLOCKED_KEYWORDS = [
+  "sorteo", "rifa", "concurso", "giveaway", "premio", "ganador", "ganadora",
+  "votacion", "votación", "vota por", "voto", "eleccion", "elección", "candidato", "candidata",
+  "apuesta", "casino",
+];
+
+/** Revisión local por palabras clave — solo se usa si Groq no responde. */
+function heuristicModeration(form: ParsedForm): ModerationResult {
+  const text = [form.title, form.description, ...form.questions.map((q) => q.title)].join(" \n ").toLowerCase();
+  const hit = BLOCKED_KEYWORDS.find((k) => new RegExp(`(^|[^a-záéíóúñ])${k}([^a-záéíóúñ]|$)`).test(text));
+  return hit
+    ? { allowed: false, reason: `Este formulario parece un concurso, sorteo o votación ("${hit}"), y eso no lo podemos procesar.` }
+    : { allowed: true, reason: "" };
+}
+
+/**
+ * Moderación que nunca bloquea al usuario por una caída de Groq (límite
+ * diario agotado, red): en ese caso cae a la revisión por palabras clave.
+ */
+export async function moderateFormSafe(form: ParsedForm): Promise<ModerationResult> {
+  try {
+    return await moderateForm(form);
+  } catch (e) {
+    console.error("[moderation] Groq no disponible, usando revisión local:", e instanceof Error ? e.message : e);
+    return heuristicModeration(form);
+  }
+}
+
+/** Llamada corta a Groq que debe devolver un objeto JSON (recomendaciones, etc.). */
+export async function callGroqJson(prompt: string, maxTokens: number): Promise<unknown> {
+  const text = await callGroq(
+    [
+      { role: "system", content: "Eres un experto en Google Forms. Responde siempre SOLO con JSON válido, sin markdown." },
+      { role: "user", content: prompt },
+    ],
+    MODERATION_MODEL,
+    0.2,
+    maxTokens
+  );
+  return cleanAndParseJson(text)[0];
 }

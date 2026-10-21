@@ -166,14 +166,22 @@ const KW: Record<string, string[]> = {
     "ocupacion", "profesion", "trabajo", "cargo", "puesto", "empleo",
     "ocupas", "a que te dedicas", "cual es tu profesion", "cual es tu ocupacion",
   ],
+  dni: ["dni", "documento de identidad", "numero de documento", "nro de documento", "cedula", "carnet de extranjeria"],
+  ruc: ["ruc"],
   telefono: [
     "telefono", "celular", "phone", "movil",
     "numero de telefono", "numero de celular", "numero telefonico",
   ],
 };
 
+// Claves cortas ("age", "mail", "name", "dni") van con borde de palabra:
+// sin eso "age" calzaba en "image"/"page" y "mail" en cualquier cosa.
 function matches(titleNorm: string, keys: string[]): boolean {
-  return keys.some((k) => titleNorm.includes(normalize(k)));
+  return keys.some((k) => {
+    const nk = normalize(k);
+    if (nk.length > 4 || nk.includes(" ")) return titleNorm.includes(nk);
+    return new RegExp(`(^|[^a-z0-9])${nk}([^a-z0-9]|$)`).test(titleNorm);
+  });
 }
 
 class UniquePool {
@@ -270,13 +278,21 @@ export function createNameState() {
 
 export type NameState = ReturnType<typeof createNameState>;
 
-function randomTelefono(): string {
-  const fmts = [
-    () => `${300 + Math.floor(Math.random() * 700)}-${100 + Math.floor(Math.random() * 900)}-${1000 + Math.floor(Math.random() * 9000)}`,
-    () => `+${1 + Math.floor(Math.random() * 999)} ${300 + Math.floor(Math.random() * 700)} ${100 + Math.floor(Math.random() * 900)} ${1000 + Math.floor(Math.random() * 9000)}`,
-    () => `0${10 + Math.floor(Math.random() * 90)}-${1000000 + Math.floor(Math.random() * 9000000)}`,
-  ];
-  return fmts[Math.floor(Math.random() * fmts.length)]();
+function randInt(min: number, max: number): number {
+  const lo = Math.ceil(Math.min(min, max));
+  const hi = Math.floor(Math.max(min, max));
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
+}
+
+function randomDigits(n: number, first?: string): string {
+  let out = first ?? String(randInt(1, 9));
+  while (out.length < n) out += String(randInt(0, 9));
+  return out;
+}
+
+/** Celular peruano: 9 dígitos empezando en 9, sin espacios ni guiones (pasa validaciones numéricas). */
+function randomCelular(): string {
+  return randomDigits(9, "9");
 }
 
 function randomFecha(): string {
@@ -290,6 +306,77 @@ function randomHora(): string {
   const hour = 7 + Math.floor(Math.random() * 16);
   const minute = [0, 15, 30, 45][Math.floor(Math.random() * 4)];
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** Rango razonable para una pregunta numérica sin rango explícito, según su título. */
+function defaultNumberRange(titleNorm: string): [number, number] {
+  if (matches(titleNorm, KW.edad)) return [18, 65];
+  if (matches(titleNorm, KW.dni)) return [10_000_000, 79_999_999];
+  if (matches(titleNorm, KW.ruc)) return [10_000_000_000, 20_999_999_999];
+  if (matches(titleNorm, KW.telefono)) return [900_000_000, 999_999_999];
+  return [1, 10];
+}
+
+/**
+ * Genera un valor que cumpla la validación que el dueño puso en Google
+ * Forms (número en rango, correo, largo). Devuelve null si no hay regla o
+ * no se puede satisfacer de forma genérica (ej. regex arbitraria).
+ */
+export function valueForValidation(q: ParsedQuestion, state: NameState): string | null {
+  const v = q.validation;
+  if (!v) return null;
+  const t = normalize(q.title);
+  if (v.kind === "number") {
+    const [dMin, dMax] = defaultNumberRange(t);
+    const min = v.min ?? (v.max !== undefined ? Math.min(dMin, v.max) : dMin);
+    const max = v.max ?? Math.max(min, v.min !== undefined ? Math.max(dMax, v.min + 50) : dMax);
+    return String(randInt(min, max));
+  }
+  if (v.kind === "email") return state.randomEmailFromName();
+  if (v.kind === "length") {
+    const base = smartRandom({ ...q, validation: undefined }, state);
+    if (v.max !== undefined && base.length > v.max) return base.slice(0, Math.max(1, v.max));
+    if (v.min !== undefined && base.length < v.min) return (base + " " + "x".repeat(v.min)).slice(0, Math.max(v.min, base.length));
+    return base;
+  }
+  return null;
+}
+
+/** true si `value` ya cumple la validación conocida de la pregunta. */
+export function satisfiesValidation(q: ParsedQuestion, value: string): boolean {
+  const v = q.validation;
+  if (!v) return true;
+  const val = value.trim();
+  switch (v.kind) {
+    case "number": {
+      if (!/^-?\d+(\.\d+)?$/.test(val)) return false;
+      const n = Number(val);
+      if (v.integer && !Number.isInteger(n)) return false;
+      if (v.min !== undefined && n < v.min) return false;
+      if (v.max !== undefined && n > v.max) return false;
+      return true;
+    }
+    case "email":
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    case "url":
+      return /^https?:\/\/\S+$/.test(val);
+    case "length":
+      return (v.min === undefined || val.length >= v.min) && (v.max === undefined || val.length <= v.max);
+    case "regex":
+      try {
+        return new RegExp(v.pattern).test(val);
+      } catch {
+        return true;
+      }
+    case "contains":
+      return v.negate ? !val.includes(v.text) : val.includes(v.text);
+  }
+}
+
+/** Si el valor no pasa la validación conocida y se puede generar uno que sí, lo reemplaza. */
+export function conformToValidation(q: ParsedQuestion, value: string, state: NameState): string {
+  if (satisfiesValidation(q, value)) return value;
+  return valueForValidation(q, state) ?? value;
 }
 
 export function isNameField(q: ParsedQuestion): boolean {
@@ -307,6 +394,8 @@ export function isEmailField(q: ParsedQuestion): boolean {
  * misma tanda para no repetir nombres/apellidos/correos dentro de ella.
  */
 export function smartRandom(q: ParsedQuestion, state: NameState): string {
+  const byRule = valueForValidation(q, state);
+  if (byRule !== null) return byRule;
   if (q.type === 9) return randomFecha();
   if (q.type === 10) return randomHora();
   // Cuadrícula/escala sin opciones parseadas (caso raro) — igual que el
@@ -323,12 +412,15 @@ export function smartRandom(q: ParsedQuestion, state: NameState): string {
   if (t.includes("primer apellido") || t.includes("1er apellido")) return state.pickSurname();
   if (t.includes("segundo apellido") || t.includes("2do apellido")) return state.pickSurname();
   if (matches(t, KW.apellido)) return state.dosApellidos();
-  if (matches(t, KW.edad)) return String(15 + Math.floor(Math.random() * 51));
+  if (matches(t, KW.dni)) return randomDigits(8);
+  if (matches(t, KW.ruc)) return `${Math.random() < 0.5 ? "10" : "20"}${randomDigits(9, String(randInt(0, 9)))}`;
+  if (matches(t, KW.telefono)) return randomCelular();
+  if (matches(t, KW.edad)) return String(randInt(18, 65));
   if (matches(t, KW.email)) return state.randomEmailFromName();
   if (matches(t, KW.ciudad)) return CIUDADES[Math.floor(Math.random() * CIUDADES.length)];
   if (matches(t, KW.pais)) return PAISES[Math.floor(Math.random() * PAISES.length)];
   if (matches(t, KW.ocupacion)) return OCUPACIONES[Math.floor(Math.random() * OCUPACIONES.length)];
-  if (matches(t, KW.telefono)) return randomTelefono();
+
 
   const fallback = [
     "Sí", "No", "Tal vez", "A veces", "Siempre", "Nunca",

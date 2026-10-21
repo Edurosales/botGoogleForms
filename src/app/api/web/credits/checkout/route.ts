@@ -7,6 +7,8 @@ import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { createPayment, izipayPublicKey, izipayStaticUrl } from "@/lib/izipay";
 import { siteUrl } from "@/lib/config";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
+import { applyDiscount, checkDiscountCoupon, normalizeCouponCode } from "@/lib/coupons";
+import { rememberReturnTo, safeReturnPath } from "@/lib/returnTo";
 
 /**
  * Crea la orden de créditos + formToken de Izipay.
@@ -22,7 +24,13 @@ export async function POST(req: Request) {
   const user = await getWebUser();
   if (!user) return NextResponse.json({ message: "Inicia sesión con Google para comprar." }, { status: 401 });
 
-  const body = (await req.json().catch(() => ({}))) as { responses?: number; checks?: string[] };
+  const body = (await req.json().catch(() => ({}))) as {
+    packageIndex?: unknown;
+    responses?: unknown;
+    checks?: unknown;
+    couponCode?: unknown;
+    returnTo?: unknown;
+  };
   const checks = Array.isArray(body.checks) ? body.checks : [];
   const missing = CREDIT_PURCHASE_CHECKS.filter((c) => !checks.includes(c.id));
   if (missing.length) {
@@ -30,8 +38,23 @@ export async function POST(req: Request) {
   }
 
   const settings = await getAppSettings();
-  const pkg = settings.credit_packages.find((p) => p.responses === body.responses);
+  // El precio SIEMPRE sale de app_settings (nunca del cliente).
+  const idx = Number(body.packageIndex);
+  const pkg = Number.isInteger(idx)
+    ? settings.credit_packages[idx]
+    : settings.credit_packages.find((p) => p.responses === Number(body.responses));
   if (!pkg) return NextResponse.json({ message: "Paquete de créditos no válido." }, { status: 400 });
+
+  let amountCents = pkg.priceCents;
+  let couponCode = "";
+  const rawCoupon = normalizeCouponCode(body.couponCode);
+  if (rawCoupon) {
+    const check = await checkDiscountCoupon(rawCoupon, user.email);
+    if (!check.ok) return NextResponse.json({ message: check.reason }, { status: 400 });
+    amountCents = applyDiscount(pkg.priceCents, check.discountPercent);
+    couponCode = check.coupon.code;
+  }
+  const returnTo = safeReturnPath(body.returnTo);
 
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -41,25 +64,32 @@ export async function POST(req: Request) {
     order_id: orderId,
     user_id: user.id,
     credits: pkg.responses,
-    amount_cents: pkg.priceCents,
+    amount_cents: amountCents,
     currency: "PEN",
     status: "pending",
+    coupon_code: couponCode,
+    discount_cents: pkg.priceCents - amountCents,
   });
   if (insertError) {
-    return NextResponse.json({ message: `No se pudo crear la orden: ${insertError.message}` }, { status: 500 });
+    console.error("[web-checkout] insert", insertError.message);
+    return NextResponse.json({ message: "No se pudo crear la orden. Intenta de nuevo en un momento." }, { status: 500 });
   }
 
   try {
     const formToken = await createPayment({
-      amountCents: pkg.priceCents,
+      amountCents,
       currency: "PEN",
       orderId,
       email: user.email,
       name: user.name || user.email,
       ipnUrl: `${siteUrl()}/api/web/izipay/ipn`,
     });
+    await rememberReturnTo(orderId, returnTo);
     return NextResponse.json({
       orderId,
+      amountCents,
+      originalCents: pkg.priceCents,
+      credits: pkg.responses,
       formToken,
       publicKey: izipayPublicKey(),
       staticUrl: izipayStaticUrl(),

@@ -1,9 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
+import { SignInCard } from "./SignIn";
+import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink } from "./clientData";
 
 type Mode = "ai" | "random" | "fixed";
+type QConf = { mode: Mode; value: string; prompt?: string };
+type QConfMap = Record<string, QConf>;
+
+type Validation = {
+  kind?: string;
+  type?: string;
+  min?: number | string;
+  max?: number | string;
+  pattern?: string;
+  message?: string;
+  description?: string;
+  text?: string;
+};
 
 interface QuestionView {
   entry: string;
@@ -12,6 +28,7 @@ interface QuestionView {
   typeName: string;
   options: string[];
   required: boolean;
+  validation?: Validation | null;
 }
 
 interface FormView {
@@ -21,552 +38,915 @@ interface FormView {
   questions: QuestionView[];
 }
 
-type Step = "input" | "blocked" | "preview" | "queued" | "processing" | "done" | "error";
+type Rec = { mode?: Mode; value?: string; reason?: string; prompt?: string };
+type Warning = { code: string; message: string };
+type Failure = { index?: number; status?: number; question?: string; message?: string; hint?: string };
+
+type Step = "input" | "parseError" | "preview" | "queued" | "processing" | "done" | "failed";
+
+type JobState = {
+  jobId: string;
+  sent: number;
+  failed: number;
+  total: number;
+  queuePosition: number;
+  isPaid: boolean;
+  failures: Failure[];
+  reason: string;
+};
 
 type SavedDraft = {
   url: string;
   total: number;
   language: string;
   customInstructions: string;
-  qConfig: Record<string, { mode: Mode; value: string }>;
+  qConfig: QConfMap;
 };
 
 const DRAFT_KEY = "formsbot_tool_draft";
-const FREE_MAX = 30;
-const MAX_QUESTIONS_FREE = 30;
+const POLL_MS = 2500;
 
-export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: string }) {
+/** Explicación y arreglo por cada motivo por el que un formulario no se puede leer. */
+const PARSE_HELP: Record<string, { title: string; fix: string }> = {
+  INVALID_URL: {
+    title: "Eso no parece un link de formulario",
+    fix: "En Google Forms pulsa Enviar, elige el ícono de enlace y copia el link completo.",
+  },
+  NOT_GOOGLE_FORM: {
+    title: "Solo aceptamos formularios de Google",
+    fix: "El link debe empezar con docs.google.com/forms o forms.gle.",
+  },
+  NOT_PUBLIC: {
+    title: "El formulario pide iniciar sesión",
+    fix: "En Google Forms ve a Configuración, Respuestas, y desactiva la opción que restringe a usuarios de tu organización o que obliga a iniciar sesión.",
+  },
+  CLOSED: {
+    title: "El formulario no está aceptando respuestas",
+    fix: "En la pestaña Respuestas de tu formulario activa Aceptar respuestas y vuelve a intentarlo.",
+  },
+  NOT_FOUND: {
+    title: "No encontramos ese formulario",
+    fix: "Puede que se haya borrado o que el link esté incompleto. Cópialo de nuevo desde Google Forms.",
+  },
+  COLLECTS_EMAIL: {
+    title: "El formulario recolecta correos verificados",
+    fix: "Ese dato exige una cuenta de Google real por respuesta. En Configuración, Respuestas, cambia Recopilar correos a No recopilar o a Respuesta del usuario.",
+  },
+  FILE_UPLOAD: {
+    title: "El formulario tiene una pregunta para subir archivos",
+    fix: "Las preguntas de subir archivo obligan a iniciar sesión con Google. Quítala o haz una copia del formulario sin ella.",
+  },
+  FETCH_FAILED: {
+    title: "Google no respondió",
+    fix: "Puede ser algo temporal. Espera unos segundos y vuelve a intentarlo.",
+  },
+};
+
+function validationHint(v: Validation | null | undefined): string {
+  if (!v) return "";
+  const text = v.description || v.message || v.text;
+  if (text) return text;
+  const hasMin = v.min !== undefined && v.min !== null && v.min !== "";
+  const hasMax = v.max !== undefined && v.max !== null && v.max !== "";
+  if (hasMin && hasMax) return `Google exige un valor entre ${v.min} y ${v.max}.`;
+  if (hasMin) return `Google exige un valor mínimo de ${v.min}.`;
+  if (hasMax) return `Google exige un valor máximo de ${v.max}.`;
+  if (v.pattern) return "Google valida el formato de esta respuesta.";
+  return "";
+}
+
+function sanitizeRecs(recs: Record<string, Rec>, questions: QuestionView[], aiAllowed: boolean): QConfMap {
+  const out: QConfMap = {};
+  for (const q of questions) {
+    const r = recs[q.entry];
+    let mode: Mode = r?.mode === "ai" || r?.mode === "fixed" || r?.mode === "random" ? r.mode : "random";
+    if (mode === "ai" && !aiAllowed) mode = "random";
+    if (mode === "fixed" && !(r?.value ?? "").trim()) mode = "random";
+    out[q.entry] = { mode, value: mode === "fixed" ? r?.value ?? "" : "", prompt: r?.prompt ?? "" };
+  }
+  return out;
+}
+
+function readDraft(): SavedDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as SavedDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: { initialUrl?: string; paidOrder?: string }) {
+  const { me } = useMe();
+  const settings = usePublicSettings();
+
   const [step, setStep] = useState<Step>("input");
   const [url, setUrl] = useState(initialUrl);
-  const [message, setMessage] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [parseError, setParseError] = useState<{ code: string; reason: string } | null>(null);
   const [form, setForm] = useState<FormView | null>(null);
+  const [warnings, setWarnings] = useState<Warning[]>([]);
+  const [recs, setRecs] = useState<Record<string, Rec>>({});
+  const [parsedMaxFree, setParsedMaxFree] = useState<number | null>(null);
   const [language, setLanguage] = useState<string>(SUPPORTED_LANGUAGES[0].code);
-  const [total, setTotal] = useState(FREE_MAX);
+  const [total, setTotal] = useState(10);
   const [customInstructions, setCustomInstructions] = useState("");
-  const [qConfig, setQConfig] = useState<Record<string, { mode: Mode; value: string }>>({});
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [user, setUser] = useState<{ email: string; name: string; credits: number } | null>(null);
-  const [userChecked, setUserChecked] = useState(false);
-  const [progress, setProgress] = useState({ sent: 0, failed: 0, total: 0, queuePosition: 0, isPaid: false });
+  const [qConfig, setQConfig] = useState<QConfMap>({});
+  const [confirmUse, setConfirmUse] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<{ code: string; reason: string } | null>(null);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [paidBanner, setPaidBanner] = useState(paidOrder);
+  const [job, setJob] = useState<JobState | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stoppedRef = useRef(false);
+  const restoredRef = useRef(false);
 
-  // ── Sesión + restaurar borrador tras volver del login de Google ──
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        setUser(d.user ?? null);
-        setUserChecked(true);
-        if (d.user) {
-          try {
-            const raw = localStorage.getItem(DRAFT_KEY);
-            if (raw) {
-              const draft: SavedDraft = JSON.parse(raw);
-              localStorage.removeItem(DRAFT_KEY);
-              setUrl(draft.url);
-              setTotal(draft.total);
-              setLanguage(draft.language);
-              setCustomInstructions(draft.customInstructions);
-              setQConfig(draft.qConfig);
-              if (draft.url) void analyze(draft.url);
-            }
-          } catch {
-            /* sin borrador guardado */
-          }
+  const aiAllowed = !!me && me.credits >= total;
+  const maxFreeQuestions = parsedMaxFree ?? settings.maxFreeQuestions;
+
+  const saveDraft = useCallback(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ url, total, language, customInstructions, qConfig } satisfies SavedDraft));
+    } catch {
+      /* sin localStorage: se pierde el borrador, aceptable */
+    }
+  }, [url, total, language, customInstructions, qConfig]);
+
+  // ── Leer un formulario ─────────────────────────────────────────
+  const analyze = useCallback(
+    async (targetUrl: string, keep: SavedDraft | null = null) => {
+      const clean = targetUrl.trim();
+      if (!clean) return;
+      setAnalyzing(true);
+      setParseError(null);
+      setNotice(null);
+      try {
+        const res = await fetch("/api/web/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: clean }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!data.ok || !data.form) {
+          setParseError({ code: String(data.code || ""), reason: String(data.reason || data.error || "") });
+          setStep("parseError");
+          return;
         }
-      })
-      .catch(() => setUserChecked(true));
-  }, []);
+        const f = data.form as FormView;
+        const nextRecs: Record<string, Rec> = data.recommendations && typeof data.recommendations === "object" ? data.recommendations : {};
+        setForm(f);
+        setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+        setRecs(nextRecs);
+        if (data.limits?.maxFreeQuestions) setParsedMaxFree(Number(data.limits.maxFreeQuestions));
+        if (keep) {
+          setUrl(keep.url);
+          setTotal(keep.total || 10);
+          setLanguage(keep.language || SUPPORTED_LANGUAGES[0].code);
+          setCustomInstructions(keep.customInstructions || "");
+        }
+        if (keep?.qConfig) {
+          const merged: QConfMap = {};
+          const fromRecs = sanitizeRecs(nextRecs, f.questions, true);
+          for (const q of f.questions) merged[q.entry] = keep.qConfig[q.entry] ?? fromRecs[q.entry];
+          setQConfig(merged);
+        } else {
+          setQConfig(sanitizeRecs(nextRecs, f.questions, aiAllowed));
+        }
+        setStep("preview");
+      } catch {
+        setParseError({ code: "FETCH_FAILED", reason: "" });
+        setStep("parseError");
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    [aiAllowed]
+  );
 
-  // ── Si llegó con ?url=... (desde /sobre o un link viejo /herramienta), auto-analizar ──
+  // ── Restaurar borrador (al volver de Google o de pagar) o leer ?url= ──
   useEffect(() => {
-    if (initialUrl) void analyze(initialUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (restoredRef.current || me === undefined) return;
+    restoredRef.current = true;
+    const draft = me ? readDraft() : null;
+    if (draft?.url) {
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* nada */
+      }
+      // analyze() restaura url, cantidad, idioma y configuración del borrador al terminar de leer.
+      queueMicrotask(() => void analyze(draft.url, draft));
+    } else if (initialUrl) {
+      queueMicrotask(() => void analyze(initialUrl));
+    }
+  }, [me, initialUrl, analyze]);
+
+  // ── Volvió de pagar: aviso, saldo nuevo, URL limpia ──
+  useEffect(() => {
+    if (!paidOrder) return;
+    announceBalanceChange();
+    try {
+      window.history.replaceState(null, "", "/");
+    } catch {
+      /* nada */
+    }
+  }, [paidOrder]);
 
   useEffect(() => {
     return () => {
+      stoppedRef.current = true;
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
 
-  async function analyze(targetUrl: string) {
-    setMessage("");
-    setStep("input");
-    try {
-      const res = await fetch("/api/web/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setMessage(data.reason || data.error || "No se pudo leer el formulario.");
-        setStep(data.blocked ? "blocked" : "error");
-        return;
-      }
-      setForm(data.form);
-      const initialConfig: Record<string, { mode: Mode; value: string }> = {};
-      for (const q of data.form.questions as QuestionView[]) {
-        // "IA" es un modo de pago (gasta créditos de Groq compartidos) —
-        // por defecto todo arranca en "aleatorio", sin costo.
-        initialConfig[q.entry] = { mode: "random", value: "" };
-      }
-      setQConfig((prev) => (Object.keys(prev).length ? prev : initialConfig));
-      setStep("preview");
-    } catch {
-      setMessage("No se pudo conectar con el servidor.");
-      setStep("error");
+  // ── Estado del envío ───────────────────────────────────────────
+  const applyJobData = useCallback((jobId: string, d: Record<string, unknown>) => {
+    setJob((prev) => ({
+      jobId,
+      sent: Number(d.sent ?? prev?.sent ?? 0),
+      failed: Number(d.failed ?? prev?.failed ?? 0),
+      total: Number(d.total ?? prev?.total ?? 0),
+      queuePosition: Number(d.queuePosition ?? 0),
+      isPaid: typeof d.isPaid === "boolean" ? d.isPaid : prev?.isPaid ?? false,
+      failures: Array.isArray(d.failures) ? (d.failures as Failure[]) : prev?.failures ?? [],
+      reason: typeof d.reason === "string" ? d.reason : prev?.reason ?? "",
+    }));
+    const status = String(d.status || "");
+    if (status === "queued") setStep("queued");
+    else if (status === "processing") setStep("processing");
+    else if (status === "done") {
+      setStep("done");
+      announceBalanceChange();
+      return true;
+    } else if (status === "failed" || status === "rejected") {
+      setStep("failed");
+      announceBalanceChange();
+      return true;
     }
-  }
-
-  function handleAnalyzeClick() {
-    void analyze(url);
-  }
-
-  function goLogin() {
-    try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({ url, total, language, customInstructions, qConfig } satisfies SavedDraft)
-      );
-    } catch {
-      /* localStorage no disponible, se pierde el borrador — aceptable */
-    }
-    // Navegación completa a propósito: dispara el flujo OAuth de Google,
-    // no es una ruta de página que el router de Next deba manejar.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/api/auth/google?next=/";
-  }
-
-  const startPolling = useCallback((id: string) => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    let failStreak = 0;
-    let stopped = false;
-
-    const tick = async () => {
-      if (stopped) return;
-      let data: {
-        ok?: boolean;
-        error?: string;
-        reason?: string;
-        status?: string;
-        sent?: number;
-        failed?: number;
-        total?: number;
-        queuePosition?: number;
-      };
-      try {
-        const res = await fetch(`/api/web/jobs/${id}/tick`, { method: "POST" });
-        data = await res.json();
-      } catch {
-        data = { ok: false };
-      }
-      if (stopped) return;
-      if (!data.ok) {
-        failStreak++;
-        // Tolera un par de fallos transitorios (red, cold start) antes de rendirse.
-        if (failStreak >= 3) {
-          stopped = true;
-          setMessage(data.reason || data.error || "No se pudo completar el envío. Intenta de nuevo.");
-          setStep("error");
-          return;
-        }
-        pollRef.current = setTimeout(tick, 2500);
-        return;
-      }
-      failStreak = 0;
-      setProgress((prev) => ({
-        ...prev,
-        sent: data.sent ?? 0,
-        failed: data.failed ?? 0,
-        total: data.total ?? 0,
-        queuePosition: data.queuePosition ?? 0,
-      }));
-      if (data.status === "queued") setStep("queued");
-      else if (data.status === "processing") setStep("processing");
-      else if (data.status === "done") {
-        setStep("done");
-        stopped = true;
-        return;
-      } else if (data.status === "failed") {
-        // Falló de verdad (ej. la IA no pudo generar las respuestas) —
-        // antes esto se mostraba igual que un envío exitoso con 0/30.
-        setMessage(data.reason || "No se pudo completar el envío.");
-        setStep("error");
-        stopped = true;
-        return;
-      }
-      // Solo se programa el siguiente tick cuando este terminó por
-      // completo — antes un setInterval fijo disparaba el siguiente
-      // tick aunque el anterior (generar con Groq) siguiera en vuelo,
-      // y las llamadas solapadas se pisaban entre sí sin avanzar nunca.
-      pollRef.current = setTimeout(tick, 2500);
-    };
-
-    tick();
+    return false;
   }, []);
 
-  async function handleSend() {
+  const startPolling = useCallback(
+    (jobId: string) => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      stoppedRef.current = false;
+      let failStreak = 0;
+
+      const tick = async () => {
+        if (stoppedRef.current) return;
+        let data: Record<string, unknown> = {};
+        try {
+          const res = await fetch(`/api/web/jobs/${jobId}/tick`, { method: "POST" });
+          data = await res.json();
+        } catch {
+          data = { ok: false };
+        }
+        if (stoppedRef.current) return;
+        if (!data.ok) {
+          failStreak++;
+          if (failStreak >= 3) {
+            stoppedRef.current = true;
+            setJob((prev) => (prev ? { ...prev, reason: String(data.reason || data.error || "No se pudo completar el envío.") } : prev));
+            setStep("failed");
+            return;
+          }
+          pollRef.current = setTimeout(tick, POLL_MS);
+          return;
+        }
+        failStreak = 0;
+        // El siguiente tick solo se programa cuando este terminó, para que nunca haya dos en vuelo.
+        if (applyJobData(jobId, data)) {
+          stoppedRef.current = true;
+          return;
+        }
+        pollRef.current = setTimeout(tick, POLL_MS);
+      };
+
+      void tick();
+    },
+    [applyJobData]
+  );
+
+  async function refreshJob() {
+    if (!job) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/web/jobs/${job.jobId}`, { cache: "no-store" });
+      const d = await res.json();
+      if (d?.ok) applyJobData(job.jobId, d);
+    } catch {
+      /* el polling sigue igual */
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // ── Configuración ──────────────────────────────────────────────
+  // Sin créditos comprados suficientes la IA no está disponible: esas preguntas
+  // se tratan como aleatorio (y vuelven a IA solas si luego compra créditos).
+  const effectiveQ = useMemo<QConfMap>(() => {
+    if (aiAllowed || me === undefined) return qConfig;
+    const next: QConfMap = {};
+    for (const [k, v] of Object.entries(qConfig)) next[k] = v.mode === "ai" ? { ...v, mode: "random" } : v;
+    return next;
+  }, [qConfig, aiAllowed, me]);
+  const usesAi = useMemo(() => Object.values(effectiveQ).some((c) => c.mode === "ai"), [effectiveQ]);
+  const tooManyQuestions = !!form && form.questions.length > maxFreeQuestions;
+  const needsPaid = usesAi || tooManyQuestions;
+  // El servidor no mezcla saldos: un envío sale entero de las respuestas
+  // gratis (si alcanzan y no requiere pago) o entero de los créditos.
+  const enough = me ? (!needsPaid && me.freeCredits >= total) || me.credits >= total : false;
+  const available = me ? (!needsPaid && me.freeCredits >= total ? me.freeCredits : me.credits) : 0;
+
+  function setQ(entry: string, patch: Partial<QConf>) {
+    setQConfig((prev) => {
+      const base: QConf = prev[entry] ?? { mode: "random", value: "" };
+      return { ...prev, [entry]: { ...base, ...patch } };
+    });
+  }
+
+  function applyRecommended() {
     if (!form) return;
-    if (!acceptedTerms) {
-      setMessage("Debes aceptar los términos para continuar.");
+    setQConfig(sanitizeRecs(recs, form.questions, aiAllowed));
+  }
+
+  async function suggestWithAi() {
+    if (!form) return;
+    setAiSuggesting(true);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/web/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formUrl: url }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok || !d.recommendations) {
+        setNotice({ code: String(d.code || "AI_SUGGEST_FAILED"), reason: String(d.reason || d.error || "No se pudieron generar sugerencias ahora.") });
+        return;
+      }
+      const merged = { ...recs, ...(d.recommendations as Record<string, Rec>) };
+      setRecs(merged);
+      setQConfig(sanitizeRecs(merged, form.questions, aiAllowed));
+    } catch {
+      setNotice({ code: "AI_SUGGEST_FAILED", reason: "No se pudo conectar con el servidor." });
+    } finally {
+      setAiSuggesting(false);
+    }
+  }
+
+  function goBuy() {
+    saveDraft();
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/comprar-creditos?volver=1";
+  }
+
+  function switchAiToRandom() {
+    setQConfig((prev) => {
+      const next: QConfMap = {};
+      for (const [k, v] of Object.entries(prev)) next[k] = v.mode === "ai" ? { ...v, mode: "random" } : v;
+      return next;
+    });
+    setNotice(null);
+  }
+
+  async function handleSend() {
+    if (!form || !me || sending) return;
+    if (!confirmUse) {
+      setNotice({ code: "CONFIRM", reason: "Marca la confirmación de uso para enviar." });
       return;
     }
-    if (!user) {
-      goLogin();
-      return;
-    }
-    setMessage("");
+    setSending(true);
+    setNotice(null);
     try {
       const res = await fetch("/api/web/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig, acceptedTerms }),
+        body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig: effectiveQ, acceptedTerms: true }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.ok) {
-        if (data.needsCredits) {
-          setMessage(data.reason || `Compra créditos para enviar más de ${FREE_MAX} respuestas.`);
-          setStep("error");
-          return;
-        }
-        setMessage(data.reason || data.error || "No se pudo crear el envío.");
-        setStep(data.blocked ? "blocked" : "error");
+        setNotice({
+          code: String(data.code || (data.needsCredits ? "NO_CREDITS" : "SEND_FAILED")),
+          reason: String(data.reason || data.error || "No se pudo crear el envío."),
+        });
         return;
       }
-      setProgress({ sent: 0, failed: 0, total, queuePosition: data.queuePosition ?? 0, isPaid: total > FREE_MAX });
+      announceBalanceChange();
+      setJob({
+        jobId: String(data.jobId),
+        sent: 0,
+        failed: 0,
+        total,
+        queuePosition: Number(data.queuePosition) || 0,
+        isPaid: typeof data.isPaid === "boolean" ? data.isPaid : needsPaid || me.freeCredits < total,
+        failures: [],
+        reason: "",
+      });
       setStep(data.status === "queued" ? "queued" : "processing");
-      startPolling(data.jobId);
+      startPolling(String(data.jobId));
     } catch {
-      setMessage("No se pudo conectar con el servidor.");
-      setStep("error");
+      setNotice({ code: "SEND_FAILED", reason: "No se pudo conectar con el servidor." });
+    } finally {
+      setSending(false);
     }
   }
 
-  function reset() {
+  function backToConfig() {
+    stoppedRef.current = true;
+    if (pollRef.current) clearTimeout(pollRef.current);
+    setNotice(null);
+    setStep(form ? "preview" : "input");
+  }
+
+  function startOver() {
+    stoppedRef.current = true;
+    if (pollRef.current) clearTimeout(pollRef.current);
     setStep("input");
     setUrl("");
     setForm(null);
-    setMessage("");
-    if (pollRef.current) clearTimeout(pollRef.current);
+    setJob(null);
+    setNotice(null);
+    setParseError(null);
   }
 
-  const whatsappHref = (() => {
-    const number = "51935372306"; // mismo número ya publicado en la landing
-    const msg = `Hola, quiero que me ayuden a llenar mi formulario: ${url} — ${total} respuestas`;
-    return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
-  })();
-
-  // ── Render ──────────────────────────────────────────────────────
-
-  const STEP_INDEX: Record<Step, number> = {
-    input: 0,
-    preview: 1,
-    queued: 2,
-    processing: 2,
-    done: 3,
-    blocked: 0,
-    error: 0,
-  };
-  const currentStepIndex = STEP_INDEX[step];
-  const stepIndicator = (
-    <div className="tool-steps" aria-hidden="true">
-      {[0, 1, 2, 3].map((i) => (
-        <span key={i} className={i < currentStepIndex ? "done" : i === currentStepIndex ? "now" : ""} />
-      ))}
-    </div>
+  const waHref = whatsappLink(
+    settings.whatsappNumber,
+    url ? `Hola, quiero que me ayuden a llenar mi formulario: ${url}. Necesito ${total} respuestas.` : "Hola, quiero que me ayuden a llenar mi formulario."
   );
 
+  // ── Render ─────────────────────────────────────────────────────
+  const stepIndex = step === "input" || step === "parseError" ? 0 : step === "preview" ? 1 : step === "queued" || step === "processing" ? 2 : 3;
+  const stepsBar = (
+    <ol className="stepper" aria-label="Pasos">
+      {["Link", "Configurar", "Envío", "Resultado"].map((label, i) => (
+        <li key={label} className={i < stepIndex ? "is-done" : i === stepIndex ? "is-now" : ""} aria-current={i === stepIndex ? "step" : undefined}>
+          <span className="stepper-n">{i + 1}</span>
+          <span className="stepper-l">{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+
+  const banner = paidBanner ? (
+    <div className="note note-ok" role="status">
+      <p>
+        <strong>Pago confirmado.</strong> Tus créditos ya están en tu cuenta y las respuestas con IA quedaron disponibles.
+      </p>
+      <button type="button" className="note-close" onClick={() => setPaidBanner("")} aria-label="Cerrar aviso">
+        ×
+      </button>
+    </div>
+  ) : null;
+
+  const softwarePitch = (
+    <aside className="pitch">
+      <Image src="/soft.png" alt="Ventana del programa FormsBot para escritorio llenando un Google Form" width={1245} height={847} sizes="(max-width: 700px) 100vw, 640px" />
+      <div className="pitch-body">
+        <h3>¿Lo usas seguido? Llévate el programa</h3>
+        <p>FormsBot para Windows llena formularios sin fila, sin límite de respuestas y con tu propia IA. Pago único.</p>
+        <a className="b b-ghost" href={settings.buySoftwareUrl} target="_blank" rel="noopener">
+          Ver el software
+        </a>
+      </div>
+    </aside>
+  );
+
+  const concierge = (
+    <section className="concierge" aria-labelledby="concierge-h">
+      <h3 id="concierge-h">¿Prefieres que lo llene yo?</h3>
+      <p>Mándame el link y la cantidad por WhatsApp. Antes, revisa que tu formulario cumpla esto:</p>
+      <ul>
+        <li>Se abre sin iniciar sesión con Google.</li>
+        <li>No recolecta correos verificados.</li>
+        <li>No tiene preguntas para subir archivos.</li>
+        <li>No es un concurso, sorteo ni votación.</li>
+      </ul>
+      <a className="b b-wa" href={waHref} target="_blank" rel="noopener">
+        Escribir por WhatsApp al {formatPhone(settings.whatsappNumber)}
+      </a>
+    </section>
+  );
+
+  // Paso 1 — link
   if (step === "input") {
     return (
-      <div className="tool-card">
-        {stepIndicator}
-        <h2>Pega el link de tu formulario</h2>
-        <div className="tool-warning">
-          Tiene que ser público: cualquiera con el link puede verlo sin iniciar sesión. No
-          procesamos concursos, sorteos ni votaciones — los rechazamos automáticamente. Este
-          servicio todavía está en pruebas, puede no estar disponible en todo momento.
-        </div>
-        <label htmlFor="form-url">Link de tu Google Form</label>
-        <input
-          id="form-url"
-          type="url"
-          placeholder="https://docs.google.com/forms/d/e/.../viewform"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button className="btn wa" onClick={handleAnalyzeClick} disabled={!url.trim()}>
-          Probar mi formulario
-        </button>
-        {message && <p className="tool-error">{message}</p>}
+      <div className="sheet">
+        {banner}
+        {stepsBar}
+        <form
+          className="sheet-body"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void analyze(url);
+          }}
+        >
+          <h2>Pega el link de tu formulario</h2>
+          <p className="sheet-lead">Tiene que abrirse sin iniciar sesión. Leemos las preguntas y te mostramos cómo vamos a responderlas antes de enviar nada.</p>
+          <div className="field">
+            <label htmlFor="form-url">Link de tu Google Form</label>
+            <input
+              id="form-url"
+              type="url"
+              inputMode="url"
+              autoComplete="off"
+              placeholder="https://docs.google.com/forms/d/e/…/viewform"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              maxLength={500}
+              required
+            />
+          </div>
+          <button className="b b-primary b-block" type="submit" disabled={!url.trim() || analyzing}>
+            {analyzing ? "Leyendo el formulario…" : "Leer formulario"}
+          </button>
+          <p className="fine">No procesamos concursos, sorteos ni votaciones.</p>
+        </form>
       </div>
     );
   }
 
-  if (step === "blocked" || step === "error") {
+  // Paso 1 — no se pudo leer
+  if (step === "parseError") {
+    const help = PARSE_HELP[parseError?.code ?? ""];
     return (
-      <div className="tool-card" style={{ textAlign: "center" }}>
-        {stepIndicator}
-        <span className="tool-status-icon">{step === "blocked" ? "🚫" : "⚠️"}</span>
-        <h2>{step === "blocked" ? "No podemos procesar este formulario" : "Algo salió mal"}</h2>
-        <p className="tool-error">{message}</p>
-        <button className="btn wa" onClick={reset}>
-          Probar con otro link
-        </button>
+      <div className="sheet">
+        {stepsBar}
+        <div className="sheet-body">
+          <h2>{help?.title ?? "No pudimos leer el formulario"}</h2>
+          {parseError?.reason && <p className="sheet-lead">{parseError.reason}</p>}
+          <div className="note note-warn">
+            <p>
+              <strong>Cómo arreglarlo.</strong> {help?.fix ?? "Revisa que el link sea correcto y que el formulario sea público."}
+            </p>
+          </div>
+          <div className="actions">
+            <button className="b b-primary" type="button" onClick={() => void analyze(url)} disabled={analyzing}>
+              {analyzing ? "Leyendo…" : "Volver a intentar"}
+            </button>
+            <button className="b b-ghost" type="button" onClick={startOver}>
+              Usar otro link
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // Paso 2 — configurar
   if (step === "preview" && form) {
+    const hasRecs = Object.keys(recs).length > 0;
     return (
-      <div className="tool-card">
-        {stepIndicator}
-        <h2>{form.title}</h2>
-        <p className="tool-sub">Detectamos {form.questions.length} preguntas. Revisa cómo las vamos a responder.</p>
-
-        <div className="tool-section">
-          <h3>Idioma y cantidad</h3>
-          <div className="tool-row">
-            <div>
-              <label htmlFor="lang">Idioma de las respuestas</label>
-              <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                {SUPPORTED_LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="total">Cantidad de respuestas</label>
-              <input
-                id="total"
-                type="number"
-                min={1}
-                max={500}
-                value={total}
-                onChange={(e) => {
-                  const next = Math.min(500, Math.max(1, Number(e.target.value) || 1));
-                  setTotal(next);
-                  if (next <= FREE_MAX) {
-                    // Al volver a la cantidad gratuita, "IA" deja de estar disponible —
-                    // las preguntas que lo tenían pasan a aleatorio (sin costo).
-                    setQConfig((prev) => {
-                      const next2 = { ...prev };
-                      for (const entry of Object.keys(next2)) {
-                        if (next2[entry]?.mode === "ai") next2[entry] = { ...next2[entry], mode: "random" };
-                      }
-                      return next2;
-                    });
-                  }
-                }}
-              />
-            </div>
-          </div>
-          {total > FREE_MAX && (
-            <p className="tool-hint">
-              Más de {FREE_MAX} respuestas requiere créditos: este envío usaría {total} créditos.
-            </p>
-          )}
-        </div>
-
-        <div className="tool-section">
-          <h3>Perfil de quien responde</h3>
-          <p className="tool-section-hint">Opcional. Describe quién responde para que la IA mantenga un estilo coherente.</p>
-          <textarea
-            id="persona"
-            placeholder='Ej: estudiante universitario de 20 años'
-            value={customInstructions}
-            onChange={(e) => setCustomInstructions(e.target.value)}
-          />
-        </div>
-
-        <div className="tool-section">
-          <h3>Respuesta por pregunta</h3>
-          <p className="tool-section-hint">
-            {total > FREE_MAX
-              ? "IA genera una respuesta natural; aleatorio y fijo no usan IA y son instantáneos."
-              : "IA requiere créditos (más de 30 respuestas). Con la cantidad actual solo están disponibles aleatorio y fijo — ambos sin costo e instantáneos."}
+      <div className="sheet">
+        {banner}
+        {stepsBar}
+        <div className="sheet-body">
+          <h2>{form.title || "Tu formulario"}</h2>
+          <p className="sheet-lead">
+            {form.questions.length} preguntas{form.numSections > 1 ? ` en ${form.numSections} secciones` : ""}. Elige cuántas respuestas quieres y cómo se llena cada pregunta.
           </p>
-          {form.questions.length > MAX_QUESTIONS_FREE && (
-            <p className="tool-hint">
-              Este formulario tiene {form.questions.length} preguntas — el máximo gratuito es {MAX_QUESTIONS_FREE}.{" "}
-              <a href="/comprar-creditos">Compra créditos</a> para procesarlo.
-            </p>
+
+          {warnings.length > 0 && (
+            <div className="note note-warn">
+              {warnings.map((w) => (
+                <p key={w.code + w.message}>{w.message}</p>
+              ))}
+            </div>
           )}
-          <div className="tool-questions">
-            {form.questions.map((q) => (
-              <div className="tool-question" key={q.entry}>
-                <div className="tool-question-title">
-                  <b>{q.title}</b>
-                  <small>{q.typeName}</small>
-                </div>
-                <select
-                  value={qConfig[q.entry]?.mode ?? "random"}
-                  onChange={(e) =>
-                    setQConfig((prev) => ({
-                      ...prev,
-                      [q.entry]: { mode: e.target.value as Mode, value: prev[q.entry]?.value ?? "" },
-                    }))
-                  }
-                >
-                  <option value="ai" disabled={total <= FREE_MAX}>
-                    IA {total <= FREE_MAX ? "(requiere créditos)" : ""}
-                  </option>
-                  <option value="random">Aleatorio</option>
-                  <option value="fixed">Fijo</option>
-                </select>
-                {qConfig[q.entry]?.mode === "fixed" && (
-                  <>
-                    <input
-                      type="text"
-                      placeholder={q.options.length ? q.options.join(" | ") : "Ej: Juan|María|Ana  o  18-65"}
-                      value={qConfig[q.entry]?.value ?? ""}
-                      onChange={(e) =>
-                        setQConfig((prev) => ({ ...prev, [q.entry]: { mode: "fixed", value: e.target.value } }))
-                      }
-                    />
-                    {!q.options.length && (
-                      <p className="tool-question-hint">
-                        Un valor fijo, varios separados por | (se elige uno al azar por respuesta), o un rango como
-                        18-65.
-                      </p>
-                    )}
-                  </>
-                )}
+
+          {tooManyQuestions && !(me && me.credits >= total) && (
+            <div className="note note-warn">
+              <p>
+                <strong>Este formulario tiene {form.questions.length} preguntas.</strong> El plan gratis llega hasta {maxFreeQuestions}. Con créditos comprados puedes enviarlo completo.
+              </p>
+              <button type="button" className="b b-small" onClick={goBuy}>
+                Comprar créditos
+              </button>
+            </div>
+          )}
+
+          <fieldset className="group">
+            <legend>Envío</legend>
+            <div className="grid-2">
+              <div className="field">
+                <label htmlFor="total">Cantidad de respuestas</label>
+                <input
+                  id="total"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={total}
+                  onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+                />
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="field">
+                <label htmlFor="lang">Idioma de las respuestas</label>
+                <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                  {SUPPORTED_LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {me && (
+              <p className="fine">
+                Tienes {me.credits} créditos comprados{me.freeCredits > 0 ? ` y ${me.freeCredits} respuestas gratis` : ""}.
+              </p>
+            )}
+          </fieldset>
 
-        <div className="tool-section">
-          <label className="tool-check">
-            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
-            <span>
-              Acepto los{" "}
-              <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
-                términos del servicio
-              </a>
-              : el formulario es público, no es concurso ni actividad ilegal, y soy responsable de su uso.
-            </span>
-          </label>
-
-          {userChecked && !user && (
-            <p className="tool-hint">Para enviar necesitas iniciar sesión con Google. No pedimos contraseña.</p>
-          )}
-          {user && (
-            <p className="tool-hint">
-              Conectado como {user.email} ({user.credits} créditos). <a href="/mi-cuenta">Ver mi cuenta</a>
+          <fieldset className="group">
+            <legend>Cómo se responde cada pregunta</legend>
+            <p className="group-hint">
+              Aleatorio y fijo se llenan al instante y no gastan IA. La IA escribe respuestas naturales y necesita créditos comprados
+              {aiAllowed ? "." : `: tener al menos ${total} para este envío.`}
             </p>
+            <div className="toolbar">
+              {hasRecs && (
+                <button type="button" className="b b-small b-ghost" onClick={applyRecommended}>
+                  Aplicar configuración recomendada
+                </button>
+              )}
+              {me && me.credits > 0 && (
+                <button type="button" className="b b-small b-ghost" onClick={suggestWithAi} disabled={aiSuggesting}>
+                  {aiSuggesting ? "Pensando sugerencias…" : "Sugerencias con IA"}
+                </button>
+              )}
+            </div>
+
+            <ol className="qlist">
+              {form.questions.map((q, i) => {
+                const conf = effectiveQ[q.entry] ?? { mode: "random" as Mode, value: "" };
+                const rec = recs[q.entry];
+                const vHint = validationHint(q.validation);
+                const selectId = `mode-${q.entry}`;
+                const valueId = `value-${q.entry}`;
+                return (
+                  <li key={q.entry} className="q">
+                    <div className="q-head">
+                      <span className="q-n">{i + 1}</span>
+                      <div>
+                        <p className="q-title">
+                          {q.title}
+                          {q.required && <span className="q-req" aria-label="obligatoria"> *</span>}
+                        </p>
+                        <p className="q-type">{q.typeName}</p>
+                      </div>
+                    </div>
+                    <div className="q-config">
+                      <label className="sr" htmlFor={selectId}>
+                        Modo para la pregunta {i + 1}
+                      </label>
+                      <select id={selectId} value={conf.mode} onChange={(e) => setQ(q.entry, { mode: e.target.value as Mode })}>
+                        <option value="random">Aleatorio</option>
+                        <option value="fixed">Fijo o lista</option>
+                        <option value="ai" disabled={!aiAllowed}>
+                          {aiAllowed ? "IA" : "IA (necesita créditos)"}
+                        </option>
+                      </select>
+                      {conf.mode === "fixed" && (
+                        <>
+                          <label className="sr" htmlFor={valueId}>
+                            Valor para la pregunta {i + 1}
+                          </label>
+                          <input
+                            id={valueId}
+                            type="text"
+                            maxLength={300}
+                            placeholder={q.options.length ? q.options.slice(0, 3).join("|") : "Ej: Juan|María|Ana o 18-65"}
+                            value={conf.value}
+                            onChange={(e) => setQ(q.entry, { value: e.target.value })}
+                          />
+                        </>
+                      )}
+                      {conf.mode === "ai" && (
+                        <input
+                          type="text"
+                          maxLength={300}
+                          aria-label={`Indicación para la IA en la pregunta ${i + 1}`}
+                          placeholder="Indicación opcional para la IA"
+                          value={conf.prompt ?? ""}
+                          onChange={(e) => setQ(q.entry, { prompt: e.target.value })}
+                        />
+                      )}
+                    </div>
+                    {conf.mode === "fixed" && (
+                      <p className="q-hint">Un valor, varios separados por | (se elige uno por respuesta) o un rango como 18-65.</p>
+                    )}
+                    {vHint && <p className="q-hint q-hint-strong">{vHint}</p>}
+                    {rec?.reason && <p className="q-hint">Recomendado: {rec.reason}</p>}
+                  </li>
+                );
+              })}
+            </ol>
+          </fieldset>
+
+          <fieldset className="group">
+            <legend>Perfil de quien responde</legend>
+            <p className="group-hint">Opcional. Solo lo usan las preguntas en modo IA.</p>
+            <label className="sr" htmlFor="persona">
+              Perfil de quien responde
+            </label>
+            <textarea
+              id="persona"
+              maxLength={600}
+              placeholder="Ej: estudiantes universitarios de 18 a 24 años de Lima"
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+            />
+          </fieldset>
+
+          {notice && (
+            <div className={notice.code === "CONFIRM" ? "note note-warn" : "note note-err"} role="alert">
+              <p>{notice.reason}</p>
+              {(notice.code === "NO_CREDITS" || notice.code === "TOO_MANY_QUESTIONS" || notice.code === "AI_REQUIRES_PAID") && (
+                <div className="actions">
+                  <button type="button" className="b b-small b-primary" onClick={goBuy}>
+                    Comprar créditos
+                  </button>
+                  {notice.code === "AI_REQUIRES_PAID" && (
+                    <button type="button" className="b b-small b-ghost" onClick={switchAiToRandom}>
+                      Cambiar IA por aleatorio
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
-          <button className="btn wa" onClick={handleSend} disabled={!acceptedTerms}>
-            {user ? `Generar y enviar ${total} respuestas` : "Iniciar sesión con Google y enviar"}
-          </button>
-          <button className="btn ghost-link" onClick={reset}>
-            Cancelar y probar otro link
-          </button>
-          {message && <p className="tool-error">{message}</p>}
-        </div>
-      </div>
-    );
-  }
+          <div className="submit-area">
+            {me === undefined && <p className="fine">Comprobando tu sesión…</p>}
 
-  if (step === "queued") {
-    return (
-      <div className="tool-card" style={{ textAlign: "center" }}>
-        {stepIndicator}
-        <span className="tool-status-icon">⏳</span>
-        <h2>
-          {progress.isPaid
-            ? "Tienes prioridad"
-            : progress.queuePosition
-              ? `Eres el número ${progress.queuePosition} en la fila`
-              : "Calculando tu lugar en la fila…"}
-        </h2>
-        <p className="tool-sub">
-          {progress.isPaid
-            ? "Tu envío con créditos empieza apenas se libere un cupo, antes que la fila gratuita."
-            : "Cuando termine el envío que está delante de ti, el tuyo empieza solo. No tienes que hacer nada."}
-        </p>
-        <p className="tool-hint">Esta pestaña se actualiza sola. Puedes dejarla abierta o volver luego.</p>
-        {!progress.isPaid && (
-          <>
-            <div className="tool-wait-options">
-              <a className="btn wa" href="/comprar-creditos" target="_blank" rel="noopener">
-                Comprar créditos y pasar al frente
-              </a>
-              <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-                Comprar el software completo
-              </a>
-            </div>
-            <div className="tool-concierge">
-              <h3>¿Prefieres que lo llene yo por ti?</h3>
-              <p>Antes de escribirme, revisa que tu formulario cumpla esto:</p>
-              <ul>
-                <li>Es público: se abre sin iniciar sesión con Google.</li>
-                <li>No tiene activada la recolección de correo verificado.</li>
-                <li>No pide subir archivos.</li>
-                <li>No tiene captcha ni preguntas que cambien según la persona.</li>
-              </ul>
-              <a className="btn" href={whatsappHref} target="_blank" rel="noopener">
-                Escribirme por WhatsApp (+51 935 372 306)
-              </a>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
+            {me === null && (
+              <SignInCard next="/" freeCredits={settings.freeSignupCredits} title="Inicia sesión para enviar" compact onNavigate={saveDraft} />
+            )}
 
-  if (step === "processing") {
-    const pct = progress.total > 0 ? Math.round(((progress.sent + progress.failed) / progress.total) * 100) : 0;
-    return (
-      <div className="tool-card" style={{ textAlign: "center" }}>
-        {stepIndicator}
-        <span className="tool-status-icon">🤖</span>
-        <h2>Generando y enviando</h2>
-        <p className="tool-sub">
-          {progress.sent + progress.failed} de {progress.total} respuestas procesadas.
-        </p>
-        <div className="tool-progress">
-          <span style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-    );
-  }
+            {me && !enough && (
+              <>
+                <p className="submit-why">
+                  Este envío necesita {total} {needsPaid ? "créditos comprados" : "créditos o respuestas gratis"} y tienes {available}.
+                  {needsPaid && usesAi ? " Las preguntas con IA solo usan créditos comprados." : ""}
+                </p>
+                <button type="button" className="b b-primary b-block" onClick={goBuy}>
+                  Comprar créditos y volver aquí
+                </button>
+              </>
+            )}
 
-  if (step === "done") {
-    const allFailed = progress.sent === 0 && progress.failed > 0;
-    return (
-      <div className="tool-card" style={{ textAlign: "center" }}>
-        {stepIndicator}
-        <span className="tool-status-icon">{allFailed ? "⚠️" : "✅"}</span>
-        <h2>{allFailed ? "No se pudo enviar ninguna respuesta" : "Enviado"}</h2>
-        <p className="tool-sub">
-          {allFailed
-            ? "Google rechazó los envíos. Puede ser que el formulario cambió, dejó de ser público, o hubo un problema temporal. Vuelve a intentarlo o revisa el link."
-            : `${progress.sent} de ${progress.total} respuestas enviadas correctamente${progress.failed > 0 ? `, ${progress.failed} fallaron` : ""}.`}
-        </p>
-        {!allFailed && (
-          <div className="tool-ad-slot" aria-label="Publicidad">
-            <div className="ad-slot">
-              <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
-            </div>
+            {me && enough && (
+              <>
+                <div className="check">
+                  <input id="confirm-use" type="checkbox" checked={confirmUse} onChange={(e) => setConfirmUse(e.target.checked)} />
+                  <label htmlFor="confirm-use">
+                    El formulario es mío o tengo permiso para probarlo, y no es un concurso ni una votación. Acepto los{" "}
+                    <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                      términos
+                    </a>
+                    .
+                  </label>
+                </div>
+                <button type="button" className="b b-primary b-block" onClick={handleSend} disabled={sending}>
+                  {sending ? "Creando el envío…" : `Enviar ${total} respuestas`}
+                </button>
+                <p className="fine">
+                  {needsPaid
+                    ? `Usa ${total} de tus ${me.credits} créditos.`
+                    : me.freeCredits >= total
+                      ? `Usa ${total} de tus ${me.freeCredits} respuestas gratis.`
+                      : `Usa tus ${me.freeCredits} respuestas gratis y ${total - me.freeCredits} créditos.`}
+                </p>
+              </>
+            )}
+
+            <button type="button" className="b b-text" onClick={startOver}>
+              Usar otro formulario
+            </button>
           </div>
-        )}
-        <div className="tool-wait-options">
-          <a className="btn wa" href="/comprar-creditos">
-            Comprar créditos para más respuestas
-          </a>
-          <a className="btn" href="https://licenses-forms.vercel.app/comprar" target="_blank" rel="noopener">
-            O compra el software, pago único
-          </a>
         </div>
-        <button className="btn ghost-link" onClick={reset}>
-          Probar otro formulario
-        </button>
+      </div>
+    );
+  }
+
+  // Paso 3 — en la fila
+  if (step === "queued" && job) {
+    return (
+      <div className="sheet">
+        {stepsBar}
+        <div className="sheet-body">
+          <div className="ticket" aria-live="polite">
+            <p className="ticket-label">{job.isPaid ? "Fila prioritaria" : "Tu turno en la fila"}</p>
+            <p className="ticket-number">{job.queuePosition > 0 ? job.queuePosition : "…"}</p>
+            <p className="ticket-sub">
+              {job.queuePosition > 0
+                ? job.queuePosition === 1
+                  ? "Eres el siguiente. Empieza apenas termine el envío actual."
+                  : `Hay ${job.queuePosition - 1} ${job.queuePosition - 1 === 1 ? "envío" : "envíos"} antes que el tuyo.`
+                : "Calculando tu lugar…"}
+            </p>
+          </div>
+          <div className="actions actions-center">
+            <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
+              {refreshing ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
+          <p className="fine center">La posición se actualiza sola. Puedes dejar esta pestaña abierta.</p>
+
+          {!job.isPaid && (
+            <div className="note">
+              <p>
+                <strong>¿Apurado?</strong> Con créditos comprados tu envío pasa a la fila prioritaria.
+              </p>
+              <button type="button" className="b b-small b-primary" onClick={goBuy}>
+                Comprar créditos
+              </button>
+            </div>
+          )}
+
+          {softwarePitch}
+          {concierge}
+        </div>
+      </div>
+    );
+  }
+
+  // Paso 3 — enviando
+  if (step === "processing" && job) {
+    const done = job.sent + job.failed;
+    const pct = job.total > 0 ? Math.round((done / job.total) * 100) : 0;
+    return (
+      <div className="sheet">
+        {stepsBar}
+        <div className="sheet-body">
+          <h2>Enviando respuestas</h2>
+          <p className="sheet-lead" aria-live="polite">
+            {done} de {job.total} procesadas{job.failed > 0 ? `, ${job.failed} con error` : ""}.
+          </p>
+          <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Avance del envío">
+            <span style={{ width: `${pct}%` }} />
+          </div>
+          <div className="actions actions-center">
+            <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
+              {refreshing ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
+          {softwarePitch}
+        </div>
+      </div>
+    );
+  }
+
+  // Paso 4 — resultado
+  if ((step === "done" || step === "failed") && job) {
+    const allFailed = step === "failed" || (job.sent === 0 && job.failed > 0);
+    return (
+      <div className="sheet">
+        {stepsBar}
+        <div className="sheet-body">
+          <h2>{allFailed ? "No se pudieron enviar las respuestas" : job.failed > 0 ? "Envío terminado con algunos errores" : "Listo, respuestas enviadas"}</h2>
+          <p className="sheet-lead">
+            {job.sent} de {job.total} respuestas llegaron a tu formulario{job.failed > 0 ? `; ${job.failed} fueron rechazadas por Google` : ""}.
+          </p>
+          {job.reason && (
+            <div className="note note-err">
+              <p>{job.reason}</p>
+            </div>
+          )}
+
+          {job.failures.length > 0 && (
+            <section className="failures" aria-labelledby="failures-h">
+              <h3 id="failures-h">Qué rechazó Google</h3>
+              <ul>
+                {job.failures.slice(0, 20).map((f, i) => (
+                  <li key={i}>
+                    <p className="failure-what">
+                      {typeof f.index === "number" ? `Respuesta ${f.index + 1}` : "Una respuesta"}
+                      {f.question ? `, pregunta "${f.question}"` : ""}
+                    </p>
+                    {f.message && <p>{f.message}</p>}
+                    {f.hint && <p className="failure-hint">{f.hint}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="actions">
+            {form && (job.failed > 0 || allFailed) && (
+              <button type="button" className="b b-primary" onClick={backToConfig}>
+                Ajustar configuración y reintentar
+              </button>
+            )}
+            <button type="button" className={form && (job.failed > 0 || allFailed) ? "b b-ghost" : "b b-primary"} onClick={startOver}>
+              Probar otro formulario
+            </button>
+          </div>
+
+          {softwarePitch}
+        </div>
       </div>
     );
   }

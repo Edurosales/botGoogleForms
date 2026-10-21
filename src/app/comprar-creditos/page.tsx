@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getAppSettings } from "@/lib/appSettings";
 import ComprarCreditosClient from "./ComprarCreditosClient";
-import AccountBar from "../AccountBar";
+import SiteNav from "../SiteNav";
 
 export const metadata: Metadata = {
   title: "Comprar créditos",
-  description: "Compra créditos para enviar más respuestas y saltar la cola gratis de FormsBot.",
+  description: "Compra créditos para enviar más respuestas, usar IA y saltar la fila gratuita de FormsBot.",
 };
 
 async function CreditPackagesLoader() {
+  // En tiempo de petición, para que los precios que edita el admin se vean sin redeploy.
+  await connection();
   const settings = await getAppSettings();
   return <ComprarCreditosClient packages={settings.credit_packages} />;
 }
@@ -18,18 +20,21 @@ async function CreditPackagesLoader() {
 export default function ComprarCreditosPage() {
   return (
     <main className="tool-page">
-      <div className="w">
-        <div className="tool-topbar">
-          <Link className="logo" href="/">
-            Forms<b>Bot</b>
-          </Link>
-          <AccountBar />
-        </div>
-        <header className="tool-header">
+      <SiteNav />
+      <div className="tool-wrap tool-wrap-wide">
+        <div className="intro">
           <h1>Comprar créditos</h1>
-          <p className="lead">1 crédito = 1 respuesta. Los créditos tienen prioridad: nunca esperan detrás de la cola gratis.</p>
-        </header>
-        <Suspense fallback={<div className="tool-card">Cargando paquetes…</div>}>
+          <p>Un crédito es una respuesta enviada. Con créditos comprados se activan las respuestas con IA, la fila prioritaria y los formularios de más de 30 preguntas.</p>
+        </div>
+        <Suspense
+          fallback={
+            <div className="sheet">
+              <div className="sheet-body">
+                <p className="sheet-lead">Cargando paquetes…</p>
+              </div>
+            </div>
+          }
+        >
           <CreditPackagesLoader />
         </Suspense>
       </div>

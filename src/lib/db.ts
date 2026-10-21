@@ -20,6 +20,10 @@ export type WebUser = {
   email: string;
   name: string;
   credits: number;
+  /** Créditos de bienvenida: solo modo aleatorio/fijo, cola gratuita, máx. 30 preguntas. */
+  free_credits: number;
+  free_grant_used: boolean;
+  signup_ip: string;
   created_at: string;
   last_login_at: string;
 };
@@ -42,6 +46,8 @@ export type WebJob = {
   profiles: Record<string, string>[] | null;
   is_paid: boolean;
   credits_spent: number;
+  free_credits_spent: number;
+  failure_details: FailureDetail[];
   status: "queued" | "processing" | "done" | "failed" | "rejected";
   moderation_reason: string;
   created_at: string;
@@ -58,5 +64,30 @@ export type AppSettings = {
   free_concurrency: number;
   paid_concurrency: number;
   free_daily_cap: number;
+  free_signup_credits: number;
+  max_signups_per_ip: number;
   updated_at: string;
+};
+
+/** Un envío fallido, con el motivo que dio Google y una sugerencia para arreglarlo. */
+export type FailureDetail = {
+  index: number;
+  status: number;
+  question: string;
+  message: string;
+  hint: string;
+};
+
+export type WebCoupon = {
+  id: string;
+  code: string;
+  description: string;
+  credits: number;
+  discount_percent: number;
+  max_uses: number | null;
+  uses: number;
+  allowed_email: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
 };

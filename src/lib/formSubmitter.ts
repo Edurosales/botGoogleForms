@@ -127,18 +127,114 @@ export function buildPayload(form: ParsedForm, profile: Record<string, string>):
   return payload;
 }
 
+export interface SubmitDetail {
+  /** Título de la pregunta que Google marcó con error, si se pudo identificar. */
+  question?: string;
+  message: string;
+}
+
 export interface SubmitResult {
   ok: boolean;
   status: number;
+  detail?: SubmitDetail;
+}
+
+function stripTags(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const ERROR_PHRASES =
+  /(obligatoria|required|debe ser|must be|n[uú]mero|number|v[aá]lid|caracteres|characters|formato|format)/i;
+
+/**
+ * Cuando Google rechaza un envío (HTTP 400) vuelve a pintar el formulario:
+ * cada pregunta es un bloque role="listitem" con su título en
+ * role="heading" y, si falló, el mensaje en un <span class="RHiWt">.
+ * (Verificado en vivo 2026-10-21; las clases de Google son ofuscadas y
+ * pueden cambiar, por eso hay respaldo por frases conocidas.)
+ */
+export function extractGoogleError(html: string, form: ParsedForm, textFallback = true): SubmitDetail | undefined {
+  const blocks = html.split('role="listitem"').slice(1);
+  for (const block of blocks) {
+    const heading = block.match(/role="heading"[^>]*>([\s\S]*?)<\/div>/);
+    const title = heading ? stripTags(heading[1]).replace(/\s*\*$/, "").trim() : "";
+    let message = "";
+    const span = block.match(/class="RHiWt"[^>]*>([^<]{2,300})</);
+    if (span) message = stripTags(span[1]);
+    if (!message) {
+      const alert = block.match(/role="alert"[^>]*>([\s\S]{0,2000}?)<\/div>\s*<\/div>/);
+      const text = alert ? stripTags(alert[1]) : "";
+      if (text && ERROR_PHRASES.test(text) && text.length < 300) message = text;
+    }
+    if (message) {
+      const q = form.questions.find((x) => x.title === title || x.title.split(" — ")[0] === title);
+      return { question: q?.title ?? (title || undefined), message };
+    }
+  }
+  if (!textFallback) return undefined;
+  // Ojo: el formulario siempre trae estos textos en sus plantillas JS, por
+  // eso este atajo solo se usa cuando Google ya respondió con error (4xx).
+  const lower = html.toLowerCase();
+  if (lower.includes("esta pregunta es obligatoria") || lower.includes("this is a required question")) {
+    return { message: "Hay una pregunta obligatoria sin responder." };
+  }
+  return undefined;
+}
+
+/** Sugerencia en español para arreglar un envío fallido. */
+export function failureHint(form: ParsedForm, result: SubmitResult): string {
+  const q = result.detail?.question;
+  const msg = (result.detail?.message ?? "").toLowerCase();
+  const question = q ? form.questions.find((x) => x.title === q) : undefined;
+  const name = q ? `"${q}"` : "una pregunta";
+
+  if (result.status === 0) return "No hubo conexión con Google en ese intento. Si se repite, vuelve a intentar en unos minutos.";
+  if (result.status === 429) return "Google frenó los envíos por ir muy seguidos. Espera unos minutos y vuelve a enviar.";
+  if (msg.includes("obligatoria") || msg.includes("required")) {
+    return `${name} es obligatoria y quedó vacía. Configúrala como Aleatorio o Fijo.`;
+  }
+  if (question?.validation?.kind === "number" || msg.includes("número") || msg.includes("numero") || msg.includes("number")) {
+    const v = question?.validation;
+    const range =
+      v?.kind === "number" && v.min !== undefined && v.max !== undefined ? `${v.min}-${v.max}` : "18-65";
+    return `${name} solo acepta números. Configúrala como Fijo con un rango como ${range}.`;
+  }
+  if (question?.validation?.kind === "email" || msg.includes("correo") || msg.includes("email")) {
+    return `${name} pide un correo válido. Configúrala como Aleatorio: genera correos con formato correcto.`;
+  }
+  if (msg.includes("caracteres") || msg.includes("characters")) {
+    return `${name} tiene un límite de caracteres. Usa Fijo con respuestas cortas separadas por |.`;
+  }
+  if (result.detail?.message) {
+    return `Google rechazó ${name} con el mensaje "${result.detail.message}". Revisa su configuración y usa Fijo con un valor que cumpla esa regla.`;
+  }
+  return "Google rechazó la respuesta. Suele pasar con preguntas obligatorias sin configurar o con validaciones de formato: revisa que cada pregunta tenga un valor válido.";
+}
+
+export interface SubmitOptions {
+  /** Espera entre abrir el formulario y enviarlo (ms). Por defecto 200–700 ms. */
+  readDelayMs?: [number, number];
 }
 
 /** GET view_url (para cookies reales) → espera → POST submit_url. */
-export async function submitOne(form: ParsedForm, profile: Record<string, string>): Promise<SubmitResult> {
+export async function submitOne(
+  form: ParsedForm,
+  profile: Record<string, string>,
+  opts: SubmitOptions = {}
+): Promise<SubmitResult> {
   const ua = pick(UA_POOL);
   const payload = buildPayload(form, profile);
+  const [dMin, dMax] = opts.readDelayMs ?? [200, 700];
 
   try {
-    const getRes = await fetch(form.viewUrl, { headers: getHeaders(ua) });
+    const getRes = await fetch(form.viewUrl, { headers: getHeaders(ua), cache: "no-store" });
     const setCookies =
       typeof (getRes.headers as { getSetCookie?: () => string[] }).getSetCookie === "function"
         ? (getRes.headers as unknown as { getSetCookie: () => string[] }).getSetCookie()
@@ -146,8 +242,11 @@ export async function submitOne(form: ParsedForm, profile: Record<string, string
           ? [getRes.headers.get("set-cookie") as string]
           : [];
     const cookieHeader = setCookies.map((c) => c.split(";")[0]).join("; ");
+    // Se descarta el cuerpo: solo interesaban las cookies.
+    await getRes.body?.cancel().catch(() => {});
 
-    await sleep(400 + Math.random() * 1400); // 0.4–1.8s, simula lectura del form
+    // Jitter corto: no parecer una ráfaga idéntica, sin frenar de más.
+    await sleep(dMin + Math.random() * Math.max(0, dMax - dMin));
 
     const body = new URLSearchParams();
     for (const [k, v] of payload) body.append(k, v);
@@ -160,18 +259,30 @@ export async function submitOne(form: ParsedForm, profile: Record<string, string
       },
       body: body.toString(),
       redirect: "manual", // Google responde 302 en éxito; no seguirlo, solo observar el status
+      cache: "no-store",
     });
 
-    const ok = postRes.status === 200 || postRes.status === 302 || postRes.status === 303;
-    if (!ok) {
-      const snippet = await postRes.text().catch(() => "");
-      console.error(
-        `[submitOne] fallo HTTP ${postRes.status} enviando a ${form.submitUrl} — cookies=${cookieHeader ? "sí" : "no"} — respuesta: ${snippet.slice(0, 300)}`
-      );
+    if (postRes.status === 302 || postRes.status === 303) {
+      await postRes.body?.cancel().catch(() => {});
+      return { ok: true, status: postRes.status };
     }
-    return { ok, status: postRes.status };
+
+    const html = await postRes.text().catch(() => "");
+    if (postRes.status === 200) {
+      // 200 normalmente es la página de "respuesta registrada". Si en cambio
+      // Google re-pintó el formulario con errores, no cuenta como enviada.
+      const detail = html.includes("FB_PUBLIC_LOAD_DATA_") ? extractGoogleError(html, form, false) : undefined;
+      if (!detail) return { ok: true, status: 200 };
+      return { ok: false, status: 200, detail };
+    }
+
+    const detail = extractGoogleError(html, form);
+    console.error(
+      `[submitOne] fallo HTTP ${postRes.status} enviando a ${form.submitUrl} — cookies=${cookieHeader ? "sí" : "no"} — ${detail ? `${detail.question ?? "?"}: ${detail.message}` : html.slice(0, 200)}`
+    );
+    return { ok: false, status: postRes.status, detail };
   } catch (e) {
     console.error(`[submitOne] excepción enviando a ${form.submitUrl}:`, e instanceof Error ? e.message : e);
-    return { ok: false, status: 0 };
+    return { ok: false, status: 0, detail: { message: "Sin conexión con Google." } };
   }
 }
