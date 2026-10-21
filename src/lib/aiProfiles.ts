@@ -3,11 +3,15 @@
  * y moderación de contenido previa. Puerto simplificado de
  * app/core/ai_client.py (ver PROYECTO.md) — a diferencia del bot de
  * escritorio, aquí NO hay claves de usuario: el servicio usa su propia
- * GROQ_API_KEY para todos. Tampoco se porta el post-procesamiento de
- * nombres/apellidos de data_gen.py (fuera de alcance del MVP).
+ * GROQ_API_KEY para todos, compartida entre todos los usuarios del
+ * servicio web. Por eso "fixed"/"random" se resuelven en JS (ver
+ * dataGen.ts, puerto de data_gen.py) en vez de seguir gastando tokens
+ * de Groq como hace el bot de escritorio (ahí cada usuario tiene su
+ * propia API key, así que ese costo nunca fue un problema compartido).
  */
 
 import type { ParsedForm, ParsedQuestion } from "./formParser";
+import { createNameState, smartRandom, isNameField, isEmailField, type NameState } from "./dataGen";
 
 export type QuestionMode = "ai" | "random" | "fixed";
 
@@ -101,25 +105,70 @@ function parseFixedOptions(value: string): string[] | null {
 function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
   const mode: QuestionMode = cfg.mode ?? "ai";
   if (mode === "fixed") return Boolean((cfg.value ?? "").trim());
-  if (mode === "random") return q.options.length > 0;
+  // "random" siempre se resuelve local: con opciones, se elige una; sin
+  // opciones (texto libre), smartRandom() detecta nombre/correo/edad/etc.
+  // por el título — ver dataGen.ts.
+  if (mode === "random") return true;
   return false;
 }
 
-function resolveLocalValue(q: ParsedQuestion, cfg: QuestionConfig): string {
-  const mode: QuestionMode = cfg.mode ?? "ai";
-  if (mode === "random") {
-    return q.options[Math.floor(Math.random() * q.options.length)];
+/** Resuelve un perfil completo de preguntas locales, con nombre y correo
+ * coherentes entre sí dentro del mismo perfil (igual que el bot de
+ * escritorio): si hay una pregunta de nombre, se resuelve primero y su
+ * valor alimenta la generación del correo. */
+function resolveLocalPart(questions: ParsedQuestion[], qConfig: QuestionConfigMap, state: NameState): Record<string, string> {
+  const part: Record<string, string> = {};
+  let resolvedName: string | undefined;
+
+  for (const q of questions) {
+    const cfg = qConfig[q.entry] ?? {};
+    const mode: QuestionMode = cfg.mode ?? "ai";
+    if (mode === "random" && !q.options.length && isNameField(q)) {
+      resolvedName = smartRandom(q, state);
+      part[q.entry] = resolvedName;
+    }
   }
-  const value = (cfg.value ?? "").trim();
-  const opts = parseFixedOptions(value);
-  if (opts && opts.length) return opts[Math.floor(Math.random() * opts.length)];
-  const rng = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-  if (rng) {
-    const lo = parseInt(rng[1], 10);
-    const hi = parseInt(rng[2], 10);
-    return String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+
+  for (const q of questions) {
+    if (part[q.entry] !== undefined) continue;
+    const cfg = qConfig[q.entry] ?? {};
+    const mode: QuestionMode = cfg.mode ?? "ai";
+
+    if (mode === "random") {
+      if (q.options.length) {
+        if (q.type === 4 || q.type === 13) {
+          // Casillas / cuadrícula de casillas: 1-3 opciones, como el bot de escritorio.
+          const n = 1 + Math.floor(Math.random() * Math.min(3, q.options.length));
+          const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+          part[q.entry] = shuffled.slice(0, n).join("|");
+        } else {
+          part[q.entry] = q.options[Math.floor(Math.random() * q.options.length)];
+        }
+      } else if (isEmailField(q)) {
+        part[q.entry] = state.randomEmailFromName(resolvedName);
+      } else {
+        part[q.entry] = smartRandom(q, state);
+      }
+      continue;
+    }
+
+    const value = (cfg.value ?? "").trim();
+    const opts = parseFixedOptions(value);
+    if (opts && opts.length) {
+      part[q.entry] = opts[Math.floor(Math.random() * opts.length)];
+      continue;
+    }
+    const rng = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    if (rng) {
+      const lo = parseInt(rng[1], 10);
+      const hi = parseInt(rng[2], 10);
+      part[q.entry] = String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+      continue;
+    }
+    part[q.entry] = value;
   }
-  return value;
+
+  return part;
 }
 
 // ── Prompt builder (puerto de _build_prompt) ─────────────────────
@@ -337,12 +386,10 @@ export async function generateProfiles(
   // riesgo de rate limit.
   const aiQuestions = form.questions.filter((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {}));
   const localQuestions = form.questions.filter((q) => isLocallyResolvable(q, qConfig[q.entry] ?? {}));
-
-  const buildLocalPart = (): Record<string, string> => {
-    const part: Record<string, string> = {};
-    for (const q of localQuestions) part[q.entry] = resolveLocalValue(q, qConfig[q.entry] ?? {});
-    return part;
-  };
+  // Un solo estado (pools de nombres/apellidos/correos sin repetir) para
+  // toda la tanda, igual que el bot de escritorio.
+  const nameState: NameState = createNameState();
+  const buildLocalPart = (): Record<string, string> => resolveLocalPart(localQuestions, qConfig, nameState);
 
   if (aiQuestions.length === 0) {
     return Array.from({ length: n }, buildLocalPart);
