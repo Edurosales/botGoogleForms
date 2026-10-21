@@ -240,6 +240,27 @@ export async function POST(request: Request) {
     return fail(500, { code: "CREATE_FAILED", reason: "No se pudo crear el envío. No se te cobró nada; intenta de nuevo." });
   }
 
+  // Re-chequeo DESPUÉS de insertar: la revisión de arriba no es atómica y
+  // varias peticiones simultáneas veían todas "te quedan 500". Ahora cada una
+  // ve también a las demás ya insertadas; si entre todas se pasan, esta se
+  // anula y se reembolsa (puede rechazar de más, nunca permitir de más).
+  const { data: mineAfter } = await supa
+    .from("web_jobs")
+    .select("total,sent,failed,status")
+    .eq("user_id", user.id)
+    .gte("created_at", since);
+  if (usage(mineAfter as UsageRow[] | null) > MAX_RESPONSES_PER_DAY) {
+    const { data: removed } = await supa.from("web_jobs").delete().eq("id", job.id).eq("status", "queued").select("id");
+    if (removed?.length) {
+      await spendCredits(user.id, -paidSpend, -freeSpend).catch((e) => console.error("[jobs] reembolso fallido:", e));
+      return fail(429, {
+        code: "DAILY_LIMIT",
+        ...balances,
+        reason: `El límite es de ${MAX_RESPONSES_PER_DAY} respuestas cada 24 horas por cuenta. No se te cobró este envío.`,
+      });
+    }
+  }
+
   const claimedJob = await claimSlot(job);
   const queuePosition = await getQueuePosition(claimedJob);
 

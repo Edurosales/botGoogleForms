@@ -122,6 +122,24 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
     return NextResponse.json({ ok: false, error: "No encontrado." }, { status: 404 });
   }
 
+  // Un solo tick a la vez por job: con dos pestañas abiertas (o un reintento)
+  // dos ticks tomaban el mismo lote y mandaban respuestas DUPLICADAS a Google.
+  let lockRelease: { tick_lock_until?: null } = {};
+  if (job.status === "processing") {
+    const now = new Date();
+    const { data: locked, error: lockErr } = await supa
+      .from("web_jobs")
+      .update({ tick_lock_until: new Date(now.getTime() + 55_000).toISOString() })
+      .eq("id", job.id)
+      .or(`tick_lock_until.is.null,tick_lock_until.lt.${now.toISOString()}`)
+      .select("id");
+    // Si la columna aún no existe (schema sin re-ejecutar), se sigue sin lock.
+    if (!lockErr && !locked?.length) {
+      return NextResponse.json(statusPayload(job, { phase: "busy" }));
+    }
+    if (!lockErr) lockRelease = { tick_lock_until: null };
+  }
+
   if (job.status === "queued") {
     const claimed = await claimSlot(job);
     const queuePosition = await getQueuePosition(claimed);
@@ -178,7 +196,7 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
       return NextResponse.json({ ok: false, error: friendly, reason: friendly }, { status: 502 });
     }
     const profiles = [...generatedSoFar, ...chunk].slice(0, job.total);
-    await supa.from("web_jobs").update({ profiles }).eq("id", job.id);
+    await supa.from("web_jobs").update({ profiles, ...lockRelease }).eq("id", job.id);
     return NextResponse.json(statusPayload(job, { phase: "generating", generated: profiles.length }));
   }
 
@@ -230,6 +248,6 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
     );
   }
 
-  await supa.from("web_jobs").update({ sent, failed, failure_details: failureDetails }).eq("id", job.id).eq("status", "processing");
+  await supa.from("web_jobs").update({ sent, failed, failure_details: failureDetails, ...lockRelease }).eq("id", job.id).eq("status", "processing");
   return NextResponse.json(statusPayload({ ...job, sent, failed, failure_details: failureDetails }, { phase: "sending" }));
 }
