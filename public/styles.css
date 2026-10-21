@@ -136,6 +136,7 @@ body:has(.bar-m) .cookie{bottom:86px}
 .tool-question-title small{color:var(--mute);white-space:nowrap}
 .tool-question select{min-height:44px}
 .tool-question input{margin-top:8px;min-height:44px}
+.tool-question-hint{color:var(--mute);font-size:.8rem;margin:6px 0 0}
 
 .tool-warning{color:var(--mute);font-size:.92rem;line-height:1.6;margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid var(--line)}
 .tool-warning b{color:var(--ink)}

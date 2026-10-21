@@ -367,7 +367,10 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
 
         <div className="tool-section">
           <h3>Respuesta por pregunta</h3>
-          <p className="tool-section-hint">IA genera una respuesta natural; aleatorio elige entre las opciones; fijo usa siempre el mismo valor.</p>
+          <p className="tool-section-hint">
+            IA genera una respuesta natural (más lento con formularios grandes); aleatorio y fijo no usan IA — son
+            instantáneos y no tienen límite de envíos por minuto.
+          </p>
           <div className="tool-questions">
             {form.questions.map((q) => (
               <div className="tool-question" key={q.entry}>
@@ -389,14 +392,22 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
                   <option value="fixed">Fijo</option>
                 </select>
                 {qConfig[q.entry]?.mode === "fixed" && (
-                  <input
-                    type="text"
-                    placeholder={q.options.length ? q.options.join(" | ") : "Valor fijo"}
-                    value={qConfig[q.entry]?.value ?? ""}
-                    onChange={(e) =>
-                      setQConfig((prev) => ({ ...prev, [q.entry]: { mode: "fixed", value: e.target.value } }))
-                    }
-                  />
+                  <>
+                    <input
+                      type="text"
+                      placeholder={q.options.length ? q.options.join(" | ") : "Ej: Juan|María|Ana  o  18-65"}
+                      value={qConfig[q.entry]?.value ?? ""}
+                      onChange={(e) =>
+                        setQConfig((prev) => ({ ...prev, [q.entry]: { mode: "fixed", value: e.target.value } }))
+                      }
+                    />
+                    {!q.options.length && (
+                      <p className="tool-question-hint">
+                        Un valor fijo, varios separados por | (se elige uno al azar por respuesta), o un rango como
+                        18-65.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             ))}

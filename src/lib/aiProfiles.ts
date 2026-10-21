@@ -67,17 +67,57 @@ async function callGroq(
   return text.trim();
 }
 
+// ── Resolución local (sin IA) para preguntas "fixed"/"random" ────
+// Antes, "fixed"/"random" solo le daban una PISTA a la IA dentro del
+// mismo prompt — la pregunta seguía gastando tokens de Groq igual.
+// Ahora se resuelven aquí mismo, en JS, sin ninguna llamada a la API:
+// menos tokens por formulario y cero riesgo de rate limit en esas
+// preguntas. Reduce costo real y reduce la carga sobre Groq.
+
+function parseFixedOptions(value: string): string[] | null {
+  if (value.includes("|")) return value.split("|").map((v) => v.trim()).filter(Boolean);
+  if (value.startsWith("{") && value.endsWith("}")) {
+    return value.slice(1, -1).split(",").map((v) => v.trim()).filter(Boolean);
+  }
+  return null;
+}
+
+function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
+  const mode: QuestionMode = cfg.mode ?? "ai";
+  if (mode === "fixed") return Boolean((cfg.value ?? "").trim());
+  if (mode === "random") return q.options.length > 0;
+  return false;
+}
+
+function resolveLocalValue(q: ParsedQuestion, cfg: QuestionConfig): string {
+  const mode: QuestionMode = cfg.mode ?? "ai";
+  if (mode === "random") {
+    return q.options[Math.floor(Math.random() * q.options.length)];
+  }
+  const value = (cfg.value ?? "").trim();
+  const opts = parseFixedOptions(value);
+  if (opts && opts.length) return opts[Math.floor(Math.random() * opts.length)];
+  const rng = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  if (rng) {
+    const lo = parseInt(rng[1], 10);
+    const hi = parseInt(rng[2], 10);
+    return String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+  }
+  return value;
+}
+
 // ── Prompt builder (puerto de _build_prompt) ─────────────────────
 
 function buildPrompt(
-  form: ParsedForm,
+  formTitle: string,
+  questions: ParsedQuestion[],
   nProfiles: number,
   customInstructions: string,
   qConfig: QuestionConfigMap,
   language: string
 ): string {
   const lines: string[] = [
-    `Formulario: "${form.title}"`,
+    `Formulario: "${formTitle}"`,
     `Tarea: genera ${nProfiles} respuesta(s) realistas y DIFERENTES entre sí.`,
     `Idioma de las respuestas: ${language} (TODAS las respuestas de texto libre deben estar en este idioma).`,
     "",
@@ -116,7 +156,7 @@ function buildPrompt(
 
   lines.push("", "PREGUNTAS:", "");
 
-  form.questions.forEach((q, idx) => {
+  questions.forEach((q, idx) => {
     const i = idx + 1;
     const cfg = qConfig[q.entry] ?? {};
     const mode: QuestionMode = cfg.mode ?? "ai";
@@ -273,7 +313,26 @@ export async function generateProfiles(
 ): Promise<Record<string, string>[]> {
   const qConfig = opts.qConfig ?? {};
   const language = opts.language ?? "español";
-  const prompt = buildPrompt(form, opts.nProfiles, opts.customInstructions ?? "", qConfig, language);
+  const n = opts.nProfiles;
+
+  // Preguntas "fixed"/"random" se resuelven aquí mismo, sin tocar Groq.
+  // Solo las que de verdad necesitan generación con IA se mandan al
+  // prompt — si no queda ninguna, el lote completo sale gratis y sin
+  // riesgo de rate limit.
+  const aiQuestions = form.questions.filter((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {}));
+  const localQuestions = form.questions.filter((q) => isLocallyResolvable(q, qConfig[q.entry] ?? {}));
+
+  const buildLocalPart = (): Record<string, string> => {
+    const part: Record<string, string> = {};
+    for (const q of localQuestions) part[q.entry] = resolveLocalValue(q, qConfig[q.entry] ?? {});
+    return part;
+  };
+
+  if (aiQuestions.length === 0) {
+    return Array.from({ length: n }, buildLocalPart);
+  }
+
+  const prompt = buildPrompt(form.title, aiQuestions, n, opts.customInstructions ?? "", qConfig, language);
 
   const text = await callGroq(
     [
@@ -297,8 +356,8 @@ export async function generateProfiles(
 
   return rawProfiles.map((raw) => {
     const r = raw as Record<string, unknown>;
-    const profile: Record<string, string> = {};
-    form.questions.forEach((q: ParsedQuestion, idx) => {
+    const profile: Record<string, string> = buildLocalPart();
+    aiQuestions.forEach((q: ParsedQuestion, idx) => {
       const i = idx + 1;
       let answer = String(r[`P${i}`] ?? r[`p${i}`] ?? "").trim();
       if (q.options.length && !q.options.includes(answer)) {
