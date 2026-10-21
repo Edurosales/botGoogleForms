@@ -47,7 +47,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
   const [user, setUser] = useState<{ email: string; name: string; credits: number } | null>(null);
   const [userChecked, setUserChecked] = useState(false);
   const [progress, setProgress] = useState({ sent: 0, failed: 0, total: 0, queuePosition: 0, isPaid: false });
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Sesión + restaurar borrador tras volver del login de Google ──
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
 
@@ -137,9 +137,12 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
   }
 
   const startPolling = useCallback((id: string) => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
     let failStreak = 0;
-    pollRef.current = setInterval(async () => {
+    let stopped = false;
+
+    const tick = async () => {
+      if (stopped) return;
       let data: {
         ok?: boolean;
         error?: string;
@@ -156,14 +159,17 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       } catch {
         data = { ok: false };
       }
+      if (stopped) return;
       if (!data.ok) {
         failStreak++;
         // Tolera un par de fallos transitorios (red, cold start) antes de rendirse.
         if (failStreak >= 3) {
-          if (pollRef.current) clearInterval(pollRef.current);
+          stopped = true;
           setMessage(data.reason || data.error || "No se pudo completar el envío. Intenta de nuevo.");
           setStep("error");
+          return;
         }
+        pollRef.current = setTimeout(tick, 2500);
         return;
       }
       failStreak = 0;
@@ -178,15 +184,24 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       else if (data.status === "processing") setStep("processing");
       else if (data.status === "done") {
         setStep("done");
-        if (pollRef.current) clearInterval(pollRef.current);
+        stopped = true;
+        return;
       } else if (data.status === "failed") {
         // Falló de verdad (ej. la IA no pudo generar las respuestas) —
         // antes esto se mostraba igual que un envío exitoso con 0/30.
         setMessage(data.reason || "No se pudo completar el envío.");
         setStep("error");
-        if (pollRef.current) clearInterval(pollRef.current);
+        stopped = true;
+        return;
       }
-    }, 2500);
+      // Solo se programa el siguiente tick cuando este terminó por
+      // completo — antes un setInterval fijo disparaba el siguiente
+      // tick aunque el anterior (generar con Groq) siguiera en vuelo,
+      // y las llamadas solapadas se pisaban entre sí sin avanzar nunca.
+      pollRef.current = setTimeout(tick, 2500);
+    };
+
+    tick();
   }, []);
 
   async function handleSend() {
@@ -231,7 +246,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
     setUrl("");
     setForm(null);
     setMessage("");
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
   }
 
   const whatsappHref = (() => {
