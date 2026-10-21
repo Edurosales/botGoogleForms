@@ -119,16 +119,23 @@ function parseFixedOptions(value: string): string[] | null {
   return null;
 }
 
-function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
+/**
+ * Modo efectivo de una pregunta. Un modo que no es "ai" NUNCA cae en Groq:
+ * antes, "Fijo" sin valor o "Lista pegada" vacía se trataban como IA, así
+ * que un envío gratis podía terminar llamando a Groq (IA gratis / cuota
+ * gastada). Ahora esos casos incompletos se llenan como Aleatorio.
+ */
+function effectiveMode(q: ParsedQuestion, cfg: QuestionConfig): QuestionMode {
   const mode: QuestionMode = cfg.mode ?? "ai";
-  if (mode === "fixed") return Boolean((cfg.value ?? "").trim());
-  if (mode === "list") return listLines(cfg.value).length > 0;
-  if (mode === "weighted") return q.options.length > 0;
-  // "random" siempre se resuelve local: con opciones, se elige una; sin
-  // opciones (texto libre), smartRandom() detecta nombre/correo/edad/etc.
-  // por el título — ver dataGen.ts.
-  if (mode === "random") return true;
-  return false;
+  if (mode === "ai") return "ai";
+  if (mode === "fixed") return (cfg.value ?? "").trim() ? "fixed" : "random";
+  if (mode === "list") return listLines(cfg.value).length ? "list" : "random";
+  if (mode === "weighted") return q.options.length ? "weighted" : "random";
+  return "random";
+}
+
+function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
+  return effectiveMode(q, cfg) !== "ai";
 }
 
 /** true si ALGUNA pregunta necesita Groq — permite saber, sin generar
@@ -172,19 +179,19 @@ function resolveLocalPart(
 
   for (const q of questions) {
     const cfg = qConfig[q.entry] ?? {};
-    if (cfg.mode === "list") {
+    const mode = effectiveMode(q, cfg);
+    if (mode === "list") {
       const lines = listLines(cfg.value);
       part[q.entry] =
         cfg.order === "sequential" ? lines[index % lines.length] : lines[Math.floor(Math.random() * lines.length)];
       if (isNameField(q) && !q.options.length) resolvedName = part[q.entry];
-    } else if (cfg.mode === "weighted") {
+    } else if (mode === "weighted") {
       part[q.entry] = pickWeighted(q, cfg.weights);
     }
   }
 
   for (const q of questions) {
-    const cfg = qConfig[q.entry] ?? {};
-    const mode: QuestionMode = cfg.mode ?? "ai";
+    const mode = effectiveMode(q, qConfig[q.entry] ?? {});
     if (part[q.entry] === undefined && mode === "random" && !q.options.length && isNameField(q)) {
       resolvedName = smartRandom(q, state);
       part[q.entry] = resolvedName;
@@ -194,7 +201,7 @@ function resolveLocalPart(
   for (const q of questions) {
     if (part[q.entry] !== undefined) continue;
     const cfg = qConfig[q.entry] ?? {};
-    const mode: QuestionMode = cfg.mode ?? "ai";
+    const mode = effectiveMode(q, cfg);
 
     if (mode === "random") {
       if (q.options.length) {
@@ -220,10 +227,13 @@ function resolveLocalPart(
       part[q.entry] = opts[Math.floor(Math.random() * opts.length)];
       continue;
     }
-    const rng = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    const rng = value.match(/^(\d{1,9})\s*[-–]\s*(\d{1,9})$/);
     if (rng) {
-      const lo = parseInt(rng[1], 10);
-      const hi = parseInt(rng[2], 10);
+      // Acepta el rango al revés ("65-18") sin generar números fuera de él.
+      const a = parseInt(rng[1], 10);
+      const b = parseInt(rng[2], 10);
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
       part[q.entry] = String(lo + Math.floor(Math.random() * (hi - lo + 1)));
       continue;
     }

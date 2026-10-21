@@ -145,7 +145,7 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
 
   const tickStart = Date.now();
   const form = jobToForm(job);
-  const aiInvolved = needsAi(form.questions, job.q_config);
+  const aiInvolved = job.is_paid && needsAi(form.questions, job.q_config);
 
   // ── Fase 1: generar perfiles ───────────────────────────────────────
   const generatedSoFar = job.profiles ?? [];
@@ -157,7 +157,13 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
     try {
       chunk = await generateProfiles(form, {
         nProfiles: chunkSize,
-        qConfig: job.q_config,
+        // Defensa en profundidad: un envío gratis nunca usa Groq, aunque su
+        // configuración guardada dijera "ai".
+        qConfig: job.is_paid
+          ? job.q_config
+          : Object.fromEntries(
+              Object.entries(job.q_config ?? {}).map(([k, v]) => [k, v?.mode === "ai" ? { ...v, mode: "random" as const } : v])
+            ),
         language: job.language,
         customInstructions: job.custom_instructions,
         startIndex: generatedSoFar.length,
