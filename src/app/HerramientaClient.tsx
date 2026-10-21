@@ -372,6 +372,11 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
           {userChecked && !user && (
             <p className="tool-hint">Para enviar necesitas iniciar sesión con Google. No pedimos contraseña.</p>
           )}
+          {user && (
+            <p className="tool-hint">
+              Conectado como {user.email} ({user.credits} créditos). <a href="/mi-cuenta">Ver mi cuenta</a>
+            </p>
+          )}
 
           <button className="btn wa" onClick={handleSend} disabled={!acceptedTerms}>
             {user ? `Generar y enviar ${total} respuestas` : "Iniciar sesión con Google y enviar"}
