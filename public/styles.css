@@ -75,14 +75,14 @@ body:has(.bar-m) .cookie{bottom:86px}
    sin flechas en botones — solo jerarquía tipográfica y espacio.
 */
 /* Redefine los tokens de color dentro de .tool-page para que SIEMPRE
-   queden en modo claro, sin importar el modo oscuro del sistema — si no,
-   el texto de los inputs (que sigue var(--ink)) se vuelve casi blanco
-   mientras el fondo se queda fijo en #fff, y se vuelve invisible al
-   escribir. */
+   queden en modo claro, sin importar el modo oscuro del sistema. El
+   `color` normal (no solo la variable) se fija aquí también: si no, los
+   títulos/párrafos heredan el color de <body> (que SÍ cambia en modo
+   oscuro) y quedan casi blancos sobre este fondo blanco — invisibles. */
 .tool-page{
   --bg:#fff;--card:#fff;--ink:#21163F;--mute:#5B5174;--line:#D8CEEB;
   --acc:#673AB7;--soft:#E4DAF5;--wa:#128C4A;--ok:#0B8A5F;
-  color-scheme:light;background:#fff;padding:48px 0 80px
+  color-scheme:light;background:#fff;color:#21163F;padding:48px 0 80px
 }
 .tool-page .w{max-width:620px}
 .tool-header{margin:0 auto 32px}
