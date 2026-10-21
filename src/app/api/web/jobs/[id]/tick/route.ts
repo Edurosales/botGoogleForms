@@ -6,7 +6,16 @@ import { generateProfiles } from "@/lib/aiProfiles";
 import { submitOne } from "@/lib/formSubmitter";
 import type { ParsedForm, ParsedQuestion } from "@/lib/formParser";
 
-const BATCH_SIZE = 4; // respuestas enviadas por cada llamada a /tick
+// Vercel mata la función a los ~10s por defecto (plan Hobby). Generar
+// perfiles (llamada a un modelo de razonamiento) ya puede tardar varios
+// segundos, y cada envío a Google suma GET + espera 0.4–1.8s + POST —
+// con BATCH_SIZE=4 esto se pasaba del límite y la función moría a mitad
+// de camino (502), perdiendo el trabajo sin dejar rastro. Ahora:
+// 1) un tick que genera perfiles NO envía nada ese mismo tick (se separa
+//    el trabajo pesado en dos invocaciones distintas), y
+// 2) el lote de envío por tick se redujo a 2.
+export const maxDuration = 60;
+const BATCH_SIZE = 2; // respuestas enviadas por cada llamada a /tick
 
 function jobToForm(job: WebJob): ParsedForm {
   return {
@@ -43,8 +52,8 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
 
   const form = jobToForm(job);
 
-  let profiles = job.profiles;
-  if (!profiles) {
+  if (!job.profiles) {
+    let profiles;
     try {
       profiles = await generateProfiles(form, {
         nProfiles: job.total,
@@ -60,8 +69,12 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
       return NextResponse.json({ ok: false, error: "No se pudieron generar las respuestas." }, { status: 502 });
     }
     await supa.from("web_jobs").update({ profiles }).eq("id", job.id);
+    // Este tick solo generó: el envío empieza en el siguiente, para no
+    // acumular la llamada lenta a la IA + envíos en una sola invocación.
+    return NextResponse.json({ ok: true, status: "processing", sent: job.sent, failed: job.failed, total: job.total, queuePosition: 0 });
   }
 
+  const profiles = job.profiles;
   const alreadyDone = job.sent + job.failed;
   const batch = profiles.slice(alreadyDone, alreadyDone + BATCH_SIZE);
 
