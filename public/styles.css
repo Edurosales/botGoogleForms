@@ -226,7 +226,7 @@ body:has(.tool-page){
 .weights li{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.875rem;color:var(--ink)}
 .weights li label{flex:1;min-width:0;overflow-wrap:anywhere}
 .weights-input{display:inline-flex;align-items:center;gap:4px;color:var(--mute);font-size:.875rem}
-.weights-input input{width:72px;min-height:36px;text-align:right;font-variant-numeric:tabular-nums}
+.tool-page .weights-input input{width:88px;min-height:38px;padding:6px 10px;text-align:right;font-variant-numeric:tabular-nums}
 .weights-foot,.listed-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
 .weights-sum{font-size:.8125rem;color:var(--warn);font-variant-numeric:tabular-nums}
 .weights-sum.ok{color:var(--ok)}
