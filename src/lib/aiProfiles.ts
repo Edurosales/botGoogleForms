@@ -34,11 +34,16 @@ function groqApiKey(): string {
   return key;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function callGroq(
   messages: { role: "system" | "user"; content: string }[],
   model: string,
   temperature: number,
-  maxTokens: number
+  maxTokens: number,
+  retriesLeft = 1
 ): Promise<string> {
   const res = await fetch(GROQ_API_URL, {
     method: "POST",
@@ -56,6 +61,17 @@ async function callGroq(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // Groq dice en el propio mensaje cuánto esperar ("Please try again
+    // in 10.22s") — con margen de maxDuration=60s en /tick, conviene
+    // esperar y reintentar una vez en vez de fallar el job entero por
+    // un pico de tráfico momentáneo.
+    if (res.status === 429 && retriesLeft > 0) {
+      const wait = body.match(/try again in ([\d.]+)s/i);
+      const waitMs = wait ? Math.min(Math.ceil(parseFloat(wait[1]) * 1000) + 500, 20000) : 5000;
+      console.error(`[callGroq] 429, reintentando en ${waitMs}ms:`, body.slice(0, 200));
+      await sleep(waitMs);
+      return callGroq(messages, model, temperature, maxTokens, retriesLeft - 1);
+    }
     throw new Error(`Groq respondió ${res.status}: ${body.slice(0, 300)}`);
   }
 
