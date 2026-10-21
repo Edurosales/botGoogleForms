@@ -218,6 +218,9 @@ export function failureHint(form: ParsedForm, result: SubmitResult): string {
   return "Google rechazó la respuesta. Suele pasar con preguntas obligatorias sin configurar o con validaciones de formato: revisa que cada pregunta tenga un valor válido.";
 }
 
+const GET_TIMEOUT_MS = 6_000;
+const POST_TIMEOUT_MS = 12_000;
+
 export interface SubmitOptions {
   /** Espera entre abrir el formulario y enviarlo (ms). Por defecto 200–700 ms. */
   readDelayMs?: [number, number];
@@ -234,16 +237,29 @@ export async function submitOne(
   const [dMin, dMax] = opts.readDelayMs ?? [200, 700];
 
   try {
-    const getRes = await fetch(form.viewUrl, { headers: getHeaders(ua), cache: "no-store" });
-    const setCookies =
-      typeof (getRes.headers as { getSetCookie?: () => string[] }).getSetCookie === "function"
-        ? (getRes.headers as unknown as { getSetCookie: () => string[] }).getSetCookie()
-        : getRes.headers.get("set-cookie")
-          ? [getRes.headers.get("set-cookie") as string]
-          : [];
-    const cookieHeader = setCookies.map((c) => c.split(";")[0]).join("; ");
-    // Se descarta el cuerpo: solo interesaban las cookies.
-    await getRes.body?.cancel().catch(() => {});
+    // El GET solo sirve para obtener cookies. Si Google tarda, se envía sin
+    // ellas en vez de colgar la función: sin tiempo máximo, un GET lento
+    // dejaba la invocación esperando hasta que Vercel la mataba (504) sin
+    // guardar nada, y el envío quedaba trabado para siempre.
+    let cookieHeader = "";
+    try {
+      const getRes = await fetch(form.viewUrl, {
+        headers: getHeaders(ua),
+        cache: "no-store",
+        signal: AbortSignal.timeout(GET_TIMEOUT_MS),
+      });
+      const setCookies =
+        typeof (getRes.headers as { getSetCookie?: () => string[] }).getSetCookie === "function"
+          ? (getRes.headers as unknown as { getSetCookie: () => string[] }).getSetCookie()
+          : getRes.headers.get("set-cookie")
+            ? [getRes.headers.get("set-cookie") as string]
+            : [];
+      cookieHeader = setCookies.map((c) => c.split(";")[0]).join("; ");
+      // Se descarta el cuerpo sin esperarlo: solo interesaban las cookies.
+      void getRes.body?.cancel().catch(() => {});
+    } catch {
+      // seguimos sin cookies
+    }
 
     // Jitter corto: no parecer una ráfaga idéntica, sin frenar de más.
     await sleep(dMin + Math.random() * Math.max(0, dMax - dMin));
@@ -260,6 +276,7 @@ export async function submitOne(
       body: body.toString(),
       redirect: "manual", // Google responde 302 en éxito; no seguirlo, solo observar el status
       cache: "no-store",
+      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
     });
 
     if (postRes.status === 302 || postRes.status === 303) {
@@ -282,7 +299,12 @@ export async function submitOne(
     );
     return { ok: false, status: postRes.status, detail };
   } catch (e) {
-    console.error(`[submitOne] excepción enviando a ${form.submitUrl}:`, e instanceof Error ? e.message : e);
-    return { ok: false, status: 0, detail: { message: "Sin conexión con Google." } };
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    console.error(`[submitOne] ${timedOut ? "timeout" : "excepción"} enviando a ${form.submitUrl}:`, e instanceof Error ? e.message : e);
+    return {
+      ok: false,
+      status: 0,
+      detail: { message: timedOut ? "Google tardó demasiado en responder." : "Sin conexión con Google." },
+    };
   }
 }

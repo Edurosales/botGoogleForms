@@ -140,7 +140,12 @@ async function fetchFormPage(startUrl: string): Promise<{ html: string; finalUrl
     assertAllowedFormHost(current);
     let resp: Response;
     try {
-      resp = await fetch(current, { headers: BROWSER_HEADERS, redirect: "manual", cache: "no-store" });
+      resp = await fetch(current, {
+        headers: BROWSER_HEADERS,
+        redirect: "manual",
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
+      });
     } catch {
       fail("FETCH_FAILED");
     }

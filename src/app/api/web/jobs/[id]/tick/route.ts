@@ -16,6 +16,13 @@ const SUBMIT_BATCH = 12;
 const SUBMIT_CONCURRENCY = 3;
 const GEN_CHUNK = 6; // perfiles por llamada a Groq (solo si hay preguntas en modo IA)
 const MAX_FAILURE_DETAILS = 20;
+// No se empiezan envíos nuevos pasado este tiempo: lo que ya arrancó
+// termina dentro de sus timeouts (6 s GET + 0.7 s + 12 s POST) y el tick
+// guarda su avance muy por debajo de maxDuration.
+const SUBMIT_BUDGET_MS = 30_000;
+// Un job que lleva más que esto "procesando" quedó trabado (p. ej. por un
+// tick que murió antes de este arreglo): se cierra y se reembolsa.
+const STUCK_AFTER_MS = 15 * 60_000;
 
 function jobToForm(job: WebJob): ParsedForm {
   return {
@@ -52,18 +59,24 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
   if (won) await refundUnsent(job, job.total - (patch.sent ?? job.sent));
 }
 
-async function runPool<T, R>(items: T[], limit: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
+/**
+ * Corre `fn` con concurrencia limitada y deja de EMPEZAR ítems nuevos al
+ * pasar `deadline`. Los que ya arrancaron terminan (cada envío está acotado
+ * por sus timeouts), así que lo devuelto es siempre un prefijo contiguo del
+ * lote: lo que falte se retoma en el siguiente tick.
+ */
+async function runPool<T, R>(items: T[], limit: number, deadline: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
+      while (next < items.length && Date.now() < deadline) {
         const i = next++;
         out[i] = await fn(items[i], i);
       }
     })
   );
-  return out;
+  return out.slice(0, next);
 }
 
 function statusPayload(job: WebJob, extra: Record<string, unknown> = {}) {
@@ -102,6 +115,14 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
     return NextResponse.json(statusPayload(job, { reason: job.moderation_reason || undefined }));
   }
 
+  const startedMs = job.started_at ? Date.parse(job.started_at) : Date.parse(job.created_at);
+  if (Date.now() - startedMs > STUCK_AFTER_MS) {
+    const reason = `El envío se detuvo después de ${job.sent} respuesta(s). Te devolvimos las ${job.total - job.sent} que no se enviaron.`;
+    await finishJob(job, { status: job.sent > 0 ? "done" : "failed", moderation_reason: reason });
+    return NextResponse.json(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: job.total - job.sent }));
+  }
+
+  const tickStart = Date.now();
   const form = jobToForm(job);
   const aiInvolved = needsAi(form.questions, job.q_config);
 
@@ -137,7 +158,9 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
   const alreadyDone = job.sent + job.failed;
   const batch = generatedSoFar.slice(alreadyDone, alreadyDone + SUBMIT_BATCH);
 
-  const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, (profile) => submitOne(form, profile));
+  const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, tickStart + SUBMIT_BUDGET_MS, (profile) =>
+    submitOne(form, profile)
+  );
 
   let sent = job.sent;
   let failed = job.failed;

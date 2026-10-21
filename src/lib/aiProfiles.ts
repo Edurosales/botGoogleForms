@@ -38,6 +38,9 @@ function groqApiKey(): string {
   return key;
 }
 
+const GROQ_TIMEOUT_MS = 20_000;
+const GROQ_MAX_RETRY_WAIT_MS = 10_000;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -61,20 +64,23 @@ async function callGroq(
       temperature,
       max_tokens: maxTokens,
     }),
+    // Peor caso dentro de maxDuration=60 s: 20 s + espera ≤10 s + 20 s.
+    signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // Groq dice en el propio mensaje cuánto esperar ("Please try again
-    // in 10.22s") — con margen de maxDuration=60s en /tick, conviene
-    // esperar y reintentar una vez en vez de fallar el job entero por
-    // un pico de tráfico momentáneo.
+    // Groq dice cuánto esperar ("Please try again in 10.22s"): se reintenta
+    // una vez solo si esa espera cabe en el tiempo de la función; si no
+    // (p. ej. límite diario agotado, "2m35s"), se falla de inmediato.
     if (res.status === 429 && retriesLeft > 0) {
       const wait = body.match(/try again in ([\d.]+)s/i);
-      const waitMs = wait ? Math.min(Math.ceil(parseFloat(wait[1]) * 1000) + 500, 20000) : 5000;
-      console.error(`[callGroq] 429, reintentando en ${waitMs}ms:`, body.slice(0, 200));
-      await sleep(waitMs);
-      return callGroq(messages, model, temperature, maxTokens, retriesLeft - 1);
+      const waitMs = wait ? Math.ceil(parseFloat(wait[1]) * 1000) + 500 : 5000;
+      if (waitMs <= GROQ_MAX_RETRY_WAIT_MS) {
+        console.error(`[callGroq] 429, reintentando en ${waitMs}ms:`, body.slice(0, 200));
+        await sleep(waitMs);
+        return callGroq(messages, model, temperature, maxTokens, retriesLeft - 1);
+      }
     }
     throw new Error(`Groq respondió ${res.status}: ${body.slice(0, 300)}`);
   }
