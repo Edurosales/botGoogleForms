@@ -6,7 +6,26 @@ import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
 import { spendCredits } from "@/lib/credits";
 import { rateLimit } from "@/lib/ratelimit";
-import { SUPPORTED_LANGUAGES, MAX_FREE_QUESTIONS, MAX_RESPONSES_PER_JOB } from "@/lib/webConfig";
+import {
+  SUPPORTED_LANGUAGES,
+  MAX_FREE_QUESTIONS,
+  MAX_PAID_QUESTIONS,
+  MAX_RESPONSES_PER_JOB,
+  MAX_RESPONSES_PER_DAY,
+  DEFAULT_BUY_SOFTWARE_URL,
+  globalDailyCap,
+} from "@/lib/webConfig";
+
+type UsageRow = { total: number; sent: number; failed: number; status: WebJob["status"] };
+
+/** Respuestas "consumidas" en 24 h: los jobs activos cuentan completos; los
+ * terminados, por intentos reales contra Google (enviadas + rechazadas). */
+function usage(rows: UsageRow[] | null): number {
+  return (rows ?? []).reduce(
+    (acc, r) => acc + (r.status === "queued" || r.status === "processing" ? r.total : r.sent + r.failed),
+    0
+  );
+}
 
 interface CreateJobBody {
   formUrl?: unknown;
@@ -105,14 +124,53 @@ export async function POST(request: Request) {
     if (!qConfig[q.entry]) qConfig[q.entry] = { mode: "random", value: "", prompt: "" };
   }
 
+  const balances = { credits: user.credits, freeCredits: user.freeCredits };
+
+  if (form.questions.length > MAX_PAID_QUESTIONS) {
+    return fail(400, {
+      code: "TOO_MANY_QUESTIONS_WEB",
+      ...balances,
+      buySoftwareUrl: DEFAULT_BUY_SOFTWARE_URL,
+      reason: `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${MAX_PAID_QUESTIONS}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
+    });
+  }
+
+  // ── Límites de volumen (antes de cobrar nada) ─────────────────────
+  // Por cuenta y global en 24 h: nadie puede reintentar sin fin ni
+  // saturar Google/Vercel, ni siquiera con créditos.
+  const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+  const supaCheck = db();
+  const [{ data: mine }, { data: everyone }] = await Promise.all([
+    supaCheck.from("web_jobs").select("total,sent,failed,status").eq("user_id", user.id).gte("created_at", since),
+    supaCheck.from("web_jobs").select("total,sent,failed,status").gte("created_at", since),
+  ]);
+  const usedToday = usage(mine as UsageRow[] | null);
+  if (usedToday + total > MAX_RESPONSES_PER_DAY) {
+    const left = Math.max(0, MAX_RESPONSES_PER_DAY - usedToday);
+    return fail(429, {
+      code: "DAILY_LIMIT",
+      ...balances,
+      reason:
+        left > 0
+          ? `El límite es de ${MAX_RESPONSES_PER_DAY} respuestas cada 24 horas por cuenta. Hoy te quedan ${left}: baja la cantidad o vuelve mañana.`
+          : `Llegaste al límite de ${MAX_RESPONSES_PER_DAY} respuestas en 24 horas. Vuelve mañana, o usa FormsBot para Windows si necesitas más volumen.`,
+    });
+  }
+  if (usage(everyone as UsageRow[] | null) + total > globalDailyCap()) {
+    return fail(503, {
+      code: "SERVICE_BUSY",
+      ...balances,
+      reason: "El servicio llegó a su capacidad de hoy. Intenta de nuevo en unas horas; tu saldo no se tocó.",
+    });
+  }
+
   // ── Cobro ─────────────────────────────────────────────────────────
-  // Gratis (créditos de bienvenida): solo aleatorio/fijo, hasta 30
-  // preguntas y si alcanzan los créditos gratis. Cualquier otra cosa se
-  // paga completa con créditos comprados (y va a la cola prioritaria).
+  // Gratis (bienvenida): UN solo envío por cuenta, solo aleatorio/fijo y
+  // hasta 30 preguntas. Lo que no se use en ese envío se pierde. Cualquier
+  // otra cosa se paga completa con créditos comprados (cola prioritaria).
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
   const tooManyQuestions = form.questions.length > MAX_FREE_QUESTIONS;
   const isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
-  const balances = { credits: user.credits, freeCredits: user.freeCredits };
 
   if (isPaid && user.credits < total) {
     if (usesAi) {
@@ -140,7 +198,9 @@ export async function POST(request: Request) {
   }
 
   const paidSpend = isPaid ? total : 0;
-  const freeSpend = isPaid ? 0 : total;
+  // El envío gratis consume TODA la bienvenida (no solo `total`): lo que no
+  // se use se pierde, así no se puede repartir en muchos envíos pequeños.
+  const freeSpend = isPaid ? 0 : user.freeCredits;
   const spent = await spendCredits(user.id, paidSpend, freeSpend).catch((e) => {
     console.error("[jobs] no se pudo descontar saldo:", e);
     return null;

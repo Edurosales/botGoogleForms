@@ -226,6 +226,10 @@ const PARSE_HELP: Record<string, { title: string; fix: string }> = {
     title: "Google no respondió",
     fix: "Puede ser algo temporal. Espera unos segundos y vuelve a intentarlo.",
   },
+  TOO_MANY_QUESTIONS_WEB: {
+    title: "El formulario es demasiado grande para el servicio web",
+    fix: "El servicio web llena formularios de hasta 60 preguntas. FormsBot para Windows no tiene límite de preguntas ni de respuestas.",
+  },
 };
 
 function validationHint(v: Validation | null | undefined): string {
@@ -939,6 +943,13 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   )}
                 </div>
               )}
+              {(notice.code === "TOO_MANY_QUESTIONS_WEB" || notice.code === "DAILY_LIMIT") && (
+                <div className="actions">
+                  <a className="b b-small b-primary" href={settings.buySoftwareUrl} target="_blank" rel="noopener">
+                    Ver FormsBot para Windows
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -977,11 +988,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   {sending ? "Creando el envío…" : `Enviar ${total} respuestas`}
                 </button>
                 <p className="fine">
-                  {needsPaid
-                    ? `Usa ${total} de tus ${me.credits} créditos.`
-                    : me.freeCredits >= total
-                      ? `Usa ${total} de tus ${me.freeCredits} respuestas gratis.`
-                      : `Usa tus ${me.freeCredits} respuestas gratis y ${total - me.freeCredits} créditos.`}
+                  {!needsPaid && me.freeCredits >= total
+                    ? total < me.freeCredits
+                      ? `Es tu envío gratis: hay uno solo por cuenta. Pides ${total} de ${me.freeCredits}; las ${me.freeCredits - total} que no uses se pierden.`
+                      : `Es tu envío gratis: hay uno solo por cuenta.`
+                    : `Usa ${total} de tus ${me.credits} créditos.`}
                 </p>
               </>
             )}

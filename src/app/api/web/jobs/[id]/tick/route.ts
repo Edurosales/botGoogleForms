@@ -37,14 +37,31 @@ function jobToForm(job: WebJob): ParsedForm {
 }
 
 /** Devuelve al saldo de origen lo que no se llegó a enviar. */
-async function refundUnsent(job: WebJob, unsent: number) {
-  if (unsent <= 0) return;
+/**
+ * Reembolso al cerrar un job:
+ * - Pagado: se devuelven las respuestas no enviadas (rechazadas o sin intentar).
+ * - Gratis: la bienvenida es UN solo envío. Solo se devuelve completa si el
+ *   envío no llegó a intentar nada contra Google (falla nuestra: IA caída,
+ *   envío trabado). Si Google rechazó respuestas, o se enviaron algunas, se
+ *   pierde: si no, se podría reintentar gratis sin fin.
+ */
+async function refundOnFinish(job: WebJob, sent: number, failed: number) {
   try {
-    if (job.is_paid) await addCredits(job.user_id, unsent);
-    else await spendCredits(job.user_id, 0, -unsent);
+    if (job.is_paid) {
+      const unsent = job.total - sent;
+      if (unsent > 0) await addCredits(job.user_id, unsent);
+    } else if (sent === 0 && failed === 0 && job.free_credits_spent > 0) {
+      await spendCredits(job.user_id, 0, -job.free_credits_spent);
+    }
   } catch (e) {
-    console.error(`[tick] reembolso de ${unsent} falló para job ${job.id}:`, e);
+    console.error(`[tick] reembolso falló para job ${job.id}:`, e);
   }
+}
+
+/** Lo que `refundOnFinish` devolvería (para informarlo en la respuesta). */
+function refundAmount(job: WebJob, sent: number, failed: number): number {
+  if (job.is_paid) return Math.max(0, job.total - sent);
+  return sent === 0 && failed === 0 ? job.free_credits_spent : 0;
 }
 
 /** Pasa el job a un estado final una sola vez (aunque haya dos ticks a la vez) y reembolsa. */
@@ -56,7 +73,7 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
     .eq("status", "processing")
     .select("id")
     .maybeSingle();
-  if (won) await refundUnsent(job, job.total - (patch.sent ?? job.sent));
+  if (won) await refundOnFinish(job, patch.sent ?? job.sent, patch.failed ?? job.failed);
 }
 
 /**
@@ -117,9 +134,13 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
 
   const startedMs = job.started_at ? Date.parse(job.started_at) : Date.parse(job.created_at);
   if (Date.now() - startedMs > STUCK_AFTER_MS) {
-    const reason = `El envío se detuvo después de ${job.sent} respuesta(s). Te devolvimos las ${job.total - job.sent} que no se enviaron.`;
+    const back = refundAmount(job, job.sent, job.failed);
+    const reason =
+      back > 0
+        ? `El envío se detuvo después de ${job.sent} respuesta(s). Te devolvimos ${back} ${job.is_paid ? "créditos" : "respuestas gratis"}.`
+        : `El envío se detuvo después de ${job.sent} respuesta(s).`;
     await finishJob(job, { status: job.sent > 0 ? "done" : "failed", moderation_reason: reason });
-    return NextResponse.json(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: job.total - job.sent }));
+    return NextResponse.json(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: back }));
   }
 
   const tickStart = Date.now();
@@ -199,7 +220,7 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
         ? `Google rechazó todas las respuestas. ${failureDetails[failureDetails.length - 1].hint}`
         : undefined;
     return NextResponse.json(
-      statusPayload({ ...job, status, sent, failed, failure_details: failureDetails }, { reason, refunded: job.total - sent })
+      statusPayload({ ...job, status, sent, failed, failure_details: failureDetails }, { reason, refunded: refundAmount(job, sent, failed) })
     );
   }
 

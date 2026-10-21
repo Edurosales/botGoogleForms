@@ -4,7 +4,7 @@ import { moderateFormSafe } from "@/lib/aiProfiles";
 import { heuristicRecommendations } from "@/lib/recommend";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { getWebUser } from "@/lib/googleAuth";
-import { MAX_FREE_QUESTIONS } from "@/lib/webConfig";
+import { MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS } from "@/lib/webConfig";
 
 function err(code: string, reason: string, status = 400, extra: Record<string, unknown> = {}) {
   // `error` se mantiene por compatibilidad con la UI anterior.
@@ -46,6 +46,14 @@ export async function POST(request: Request) {
       moderation.reason || "Este formulario parece ser un concurso, sorteo, votación u otra actividad que no podemos procesar.",
       400,
       { blocked: true }
+    );
+  }
+
+  if (form.questions.length > MAX_PAID_QUESTIONS) {
+    return err(
+      "TOO_MANY_QUESTIONS_WEB",
+      `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${MAX_PAID_QUESTIONS}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
+      400
     );
   }
 
