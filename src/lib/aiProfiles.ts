@@ -112,6 +112,13 @@ function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
   return false;
 }
 
+/** true si ALGUNA pregunta necesita Groq — permite saber, sin generar
+ * nada, si un job puede tratarse como "sin IA" (generar todo de una vez,
+ * sin los límites de tokens/minuto de Groq). */
+export function needsAi(questions: ParsedQuestion[], qConfig: QuestionConfigMap): boolean {
+  return questions.some((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {}));
+}
+
 /** Resuelve un perfil completo de preguntas locales, con nombre y correo
  * coherentes entre sí dentro del mismo perfil (igual que el bot de
  * escritorio): si hay una pregunta de nombre, se resuelve primero y su

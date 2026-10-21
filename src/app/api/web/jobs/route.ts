@@ -5,6 +5,7 @@ import { moderateForm, type QuestionConfigMap } from "@/lib/aiProfiles";
 import { getAppSettings } from "@/lib/appSettings";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
+import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 
 interface CreateJobBody {
   formUrl?: string;
@@ -33,8 +34,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Debes aceptar los términos del servicio." }, { status: 400 });
   }
 
-  const formUrl = (body.formUrl ?? "").trim();
+  const formUrl = (body.formUrl ?? "").trim().slice(0, 500);
   if (!formUrl) return NextResponse.json({ ok: false, error: "Falta el link del formulario." }, { status: 400 });
+
+  // Cualquier texto libre que el usuario escribe termina en el prompt de
+  // Groq o guardado en la BD — se acota el tamaño para que nadie pueda
+  // inflar el costo de IA o el almacenamiento con un payload gigante.
+  const customInstructions = (body.customInstructions ?? "").slice(0, 600);
+  const language = SUPPORTED_LANGUAGES.some((l) => l.code === body.language) ? body.language! : SUPPORTED_LANGUAGES[0].code;
+  const rawQConfig = body.qConfig || {};
+  const qConfig: QuestionConfigMap = {};
+  for (const [entry, cfg] of Object.entries(rawQConfig)) {
+    if (!cfg || typeof cfg !== "object") continue;
+    qConfig[entry] = {
+      mode: cfg.mode === "ai" || cfg.mode === "fixed" ? cfg.mode : "random",
+      value: typeof cfg.value === "string" ? cfg.value.slice(0, 300) : "",
+      prompt: typeof cfg.prompt === "string" ? cfg.prompt.slice(0, 300) : "",
+    };
+  }
 
   const settings = await getAppSettings();
   const maxFree = settings.free_daily_cap || 30;
@@ -74,7 +91,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const qConfig = body.qConfig || {};
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "ai") === "ai");
   if (!isPaid && usesAi) {
     return NextResponse.json(
@@ -131,8 +147,8 @@ export async function POST(request: Request) {
       num_sections: form.numSections,
       questions: form.questions,
       total,
-      language: body.language || "español",
-      custom_instructions: body.customInstructions || "",
+      language,
+      custom_instructions: customInstructions,
       q_config: qConfig,
       is_paid: isPaid,
       credits_spent: isPaid ? total : 0,

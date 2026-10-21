@@ -20,9 +20,18 @@ export function suggestedConcurrency(): { free: number; paid: number } {
   return { free: Math.max(1, Math.round(base * 0.4)), paid: Math.max(1, Math.round(base * 0.6)) };
 }
 
+// Paquetes por defecto para que /comprar-creditos nunca se vea vacío
+// (ej. recién desplegado, o la fila de app_settings aún no se configuró
+// desde el admin). El admin puede sobreescribirlos en cualquier momento.
+const DEFAULT_CREDIT_PACKAGES = [
+  { responses: 50, priceCents: 1500 },
+  { responses: 150, priceCents: 3500 },
+  { responses: 500, priceCents: 9000 },
+];
+
 const DEFAULT_SETTINGS: AppSettings = {
   id: 1,
-  credit_packages: [],
+  credit_packages: DEFAULT_CREDIT_PACKAGES,
   buy_software_url: "",
   whatsapp_number: "",
   whatsapp_message_template: "Hola, quiero que me ayuden a llenar mi formulario: {url} — {total} respuestas",
@@ -44,7 +53,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 export async function getAppSettings(): Promise<AppSettings> {
   try {
     const { data } = await db().from("app_settings").select("*").eq("id", 1).maybeSingle<AppSettings>();
-    return data ?? DEFAULT_SETTINGS;
+    if (!data) return DEFAULT_SETTINGS;
+    // Si la fila ya existe pero el admin aún no configuró paquetes
+    // (array vacío), usar los de ejemplo en vez de mostrar la página de
+    // compra sin nada — el admin los sobreescribe apenas entre.
+    return { ...data, credit_packages: data.credit_packages?.length ? data.credit_packages : DEFAULT_CREDIT_PACKAGES };
   } catch (e) {
     console.error("[appSettings] no se pudo leer la configuración, usando defaults:", e);
     return DEFAULT_SETTINGS;

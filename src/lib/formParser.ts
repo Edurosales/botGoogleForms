@@ -49,6 +49,27 @@ const BROWSER_HEADERS = {
 
 export class FormParseError extends Error {}
 
+const ALLOWED_HOSTS = new Set(["docs.google.com", "forms.gle", "forms.google.com"]);
+
+/**
+ * El servidor hace fetch() del link que cualquier visitante escribe en el
+ * formulario — sin esta validación sería SSRF: alguien podría poner una
+ * URL interna (ej. metadata de la nube, localhost, otro servicio de la
+ * red) y el servidor la pediría por él. Solo se permiten los dominios
+ * reales de Google Forms.
+ */
+function assertAllowedFormHost(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new FormParseError("El link del formulario no es una URL válida.");
+  }
+  if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new FormParseError("Solo se admiten links de Google Forms (docs.google.com o forms.gle).");
+  }
+}
+
 // ── URL helpers ──────────────────────────────────────────────────
 
 export function normalizeUrls(rawUrl: string): { viewUrl: string; submitUrl: string } {
@@ -301,6 +322,7 @@ function parseGrouped(groups: unknown[]): { questions: ParsedQuestion[]; numSect
 
 export async function parseForm(inputUrl: string): Promise<ParsedForm> {
   let { viewUrl, submitUrl } = normalizeUrls(inputUrl);
+  assertAllowedFormHost(viewUrl);
 
   const resp = await fetch(viewUrl, { headers: BROWSER_HEADERS, redirect: "follow" });
   if (!resp.ok) {
@@ -309,6 +331,7 @@ export async function parseForm(inputUrl: string): Promise<ParsedForm> {
 
   // Si hubo redirección (ej. enlace acortado forms.gle), actualizar view/submit URL
   if (resp.url && resp.url !== viewUrl) {
+    assertAllowedFormHost(resp.url);
     const norm = normalizeUrls(resp.url);
     viewUrl = norm.viewUrl;
     submitUrl = norm.submitUrl;
@@ -321,6 +344,7 @@ export async function parseForm(inputUrl: string): Promise<ParsedForm> {
   if (actionM) {
     const rawAction = actionM[1].replace(/&amp;/g, "&").split("?")[0];
     submitUrl = new URL(rawAction, resp.url || viewUrl).toString();
+    assertAllowedFormHost(submitUrl);
   }
 
   const raw = extractRawJson(html);
