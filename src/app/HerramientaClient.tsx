@@ -33,6 +33,7 @@ type SavedDraft = {
 
 const DRAFT_KEY = "formsbot_tool_draft";
 const FREE_MAX = 30;
+const MAX_QUESTIONS_FREE = 30;
 
 export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: string }) {
   const [step, setStep] = useState<Step>("input");
@@ -107,7 +108,9 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       setForm(data.form);
       const initialConfig: Record<string, { mode: Mode; value: string }> = {};
       for (const q of data.form.questions as QuestionView[]) {
-        initialConfig[q.entry] = { mode: "ai", value: "" };
+        // "IA" es un modo de pago (gasta créditos de Groq compartidos) —
+        // por defecto todo arranca en "aleatorio", sin costo.
+        initialConfig[q.entry] = { mode: "random", value: "" };
       }
       setQConfig((prev) => (Object.keys(prev).length ? prev : initialConfig));
       setStep("preview");
@@ -224,7 +227,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
       const data = await res.json();
       if (!data.ok) {
         if (data.needsCredits) {
-          setMessage(`${data.reason} Compra créditos para enviar más de ${FREE_MAX} respuestas.`);
+          setMessage(data.reason || `Compra créditos para enviar más de ${FREE_MAX} respuestas.`);
           setStep("error");
           return;
         }
@@ -343,7 +346,21 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
                 min={1}
                 max={500}
                 value={total}
-                onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+                onChange={(e) => {
+                  const next = Math.min(500, Math.max(1, Number(e.target.value) || 1));
+                  setTotal(next);
+                  if (next <= FREE_MAX) {
+                    // Al volver a la cantidad gratuita, "IA" deja de estar disponible —
+                    // las preguntas que lo tenían pasan a aleatorio (sin costo).
+                    setQConfig((prev) => {
+                      const next2 = { ...prev };
+                      for (const entry of Object.keys(next2)) {
+                        if (next2[entry]?.mode === "ai") next2[entry] = { ...next2[entry], mode: "random" };
+                      }
+                      return next2;
+                    });
+                  }
+                }}
               />
             </div>
           </div>
@@ -368,9 +385,16 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
         <div className="tool-section">
           <h3>Respuesta por pregunta</h3>
           <p className="tool-section-hint">
-            IA genera una respuesta natural (más lento con formularios grandes); aleatorio y fijo no usan IA — son
-            instantáneos y no tienen límite de envíos por minuto.
+            {total > FREE_MAX
+              ? "IA genera una respuesta natural; aleatorio y fijo no usan IA y son instantáneos."
+              : "IA requiere créditos (más de 30 respuestas). Con la cantidad actual solo están disponibles aleatorio y fijo — ambos sin costo e instantáneos."}
           </p>
+          {form.questions.length > MAX_QUESTIONS_FREE && (
+            <p className="tool-hint">
+              Este formulario tiene {form.questions.length} preguntas — el máximo gratuito es {MAX_QUESTIONS_FREE}.{" "}
+              <a href="/comprar-creditos">Compra créditos</a> para procesarlo.
+            </p>
+          )}
           <div className="tool-questions">
             {form.questions.map((q) => (
               <div className="tool-question" key={q.entry}>
@@ -379,7 +403,7 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
                   <small>{q.typeName}</small>
                 </div>
                 <select
-                  value={qConfig[q.entry]?.mode ?? "ai"}
+                  value={qConfig[q.entry]?.mode ?? "random"}
                   onChange={(e) =>
                     setQConfig((prev) => ({
                       ...prev,
@@ -387,7 +411,9 @@ export default function HerramientaClient({ initialUrl = "" }: { initialUrl?: st
                     }))
                   }
                 >
-                  <option value="ai">IA</option>
+                  <option value="ai" disabled={total <= FREE_MAX}>
+                    IA {total <= FREE_MAX ? "(requiere créditos)" : ""}
+                  </option>
                   <option value="random">Aleatorio</option>
                   <option value="fixed">Fijo</option>
                 </select>

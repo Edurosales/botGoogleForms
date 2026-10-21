@@ -46,7 +46,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
           crossOrigin="anonymous"
         />
+        {/* Adsterra — formatos que se auto-inyectan en toda la página (social bar / popunder), sin contenedor visible propio */}
+        <Script data-cfasync="false" src="https://abscloud.org/1/770fcdedbf509655ee3f79ef54b4fcf4" strategy="afterInteractive" />
+        <Script data-cfasync="false" src="https://araplhn.org/4/f27d369c54209201b87740f437af60e0" strategy="afterInteractive" />
+        <Script data-cfasync="false" src="https://bauval.org/14/f1105401dd8a7839c4a36856f913ea72" strategy="afterInteractive" />
+
         {children}
+
+        {/* Adsterra — banner nativo con contenedor visible */}
+        <div id="container-67a9cadc8bbd530b557716e84d977e60" />
+        <Script async data-cfasync="false" src="https://bauval.org/21/67a9cadc8bbd530b557716e84d977e60" strategy="afterInteractive" />
+
+        {/* Adsterra — banner 300x250 */}
+        <Script id="adsterra-banner-options" strategy="afterInteractive">
+          {`atOptions = { key: 'f59176d1f88f9f8bf808d89b44f66848', format: 'iframe', height: 250, width: 300, params: {} };`}
+        </Script>
+        <Script src="https://bauval.org/22/f59176d1f88f9f8bf808d89b44f66848" strategy="afterInteractive" />
 
         <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
           <p>

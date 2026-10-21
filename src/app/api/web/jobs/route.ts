@@ -16,6 +16,7 @@ interface CreateJobBody {
 }
 
 const TERMS_VERSION = "2026-10-20";
+const MAX_QUESTIONS_FREE = 30;
 
 export async function POST(request: Request) {
   const user = await getWebUser();
@@ -62,6 +63,31 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!isPaid && form.questions.length > MAX_QUESTIONS_FREE) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsCredits: true,
+        reason: `Este formulario tiene ${form.questions.length} preguntas. El máximo gratuito es ${MAX_QUESTIONS_FREE} preguntas — compra créditos para formularios más grandes.`,
+      },
+      { status: 402 }
+    );
+  }
+
+  const qConfig = body.qConfig || {};
+  const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "ai") === "ai");
+  if (!isPaid && usesAi) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsCredits: true,
+        reason:
+          'Las respuestas generadas con IA solo están disponibles con créditos. Cambia esas preguntas a "aleatorio" o "fijo", o compra créditos para esta tanda.',
+      },
+      { status: 402 }
+    );
+  }
+
   const moderation = await moderateForm(form).catch(() => ({ allowed: false, reason: "" }));
   if (!moderation.allowed) {
     return NextResponse.json(
@@ -78,7 +104,7 @@ export async function POST(request: Request) {
     const credits = userRow?.credits ?? 0;
     if (credits < total) {
       return NextResponse.json(
-        { ok: false, needsCredits: true, reason: `Necesitas ${total} créditos y tienes ${credits}.` },
+        { ok: false, needsCredits: true, reason: `Necesitas ${total} créditos y tienes ${credits}. Compra créditos para continuar.` },
         { status: 402 }
       );
     }
@@ -107,7 +133,7 @@ export async function POST(request: Request) {
       total,
       language: body.language || "español",
       custom_instructions: body.customInstructions || "",
-      q_config: body.qConfig || {},
+      q_config: qConfig,
       is_paid: isPaid,
       credits_spent: isPaid ? total : 0,
       terms_version: TERMS_VERSION,
