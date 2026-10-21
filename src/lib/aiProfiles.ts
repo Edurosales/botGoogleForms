@@ -285,7 +285,10 @@ export async function generateProfiles(
     ],
     GENERATION_MODEL,
     0.8,
-    4096
+    // Modelo de razonamiento: gasta tokens pensando antes de escribir el
+    // JSON final. Con 30 perfiles y varias preguntas, 4096 se quedaba
+    // corto y la respuesta llegaba truncada (JSON inválido).
+    16000
   );
 
   const rawProfiles = cleanAndParseJson(text);

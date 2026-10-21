@@ -62,11 +62,13 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
         customInstructions: job.custom_instructions,
       });
     } catch (e) {
+      const reason = e instanceof Error ? e.message : "Fallo generando respuestas";
+      console.error(`[tick] generateProfiles falló para job ${job.id}:`, reason);
       await supa
         .from("web_jobs")
-        .update({ status: "failed", moderation_reason: e instanceof Error ? e.message : "Fallo generando respuestas", finished_at: new Date().toISOString() })
+        .update({ status: "failed", moderation_reason: reason, finished_at: new Date().toISOString() })
         .eq("id", job.id);
-      return NextResponse.json({ ok: false, error: "No se pudieron generar las respuestas." }, { status: 502 });
+      return NextResponse.json({ ok: false, error: "No se pudieron generar las respuestas.", reason }, { status: 502 });
     }
     await supa.from("web_jobs").update({ profiles }).eq("id", job.id);
     // Este tick solo generó: el envío empieza en el siguiente, para no
