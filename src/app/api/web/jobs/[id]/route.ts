@@ -23,6 +23,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]">
     sent: job.sent,
     failed: job.failed,
     total: job.total,
+    generated: (job.profiles ?? []).length,
     queuePosition,
     isPaid: job.is_paid,
     title: job.title,

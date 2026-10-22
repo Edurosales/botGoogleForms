@@ -52,6 +52,9 @@ export type WebJob = {
   moderation_reason: string;
   created_at: string;
   started_at: string | null;
+  /** Último avance real (Ronda 12). Ausente si el schema no se re-ejecutó. */
+  progress_at?: string | null;
+  tick_lock_until?: string | null;
   finished_at: string | null;
 };
 

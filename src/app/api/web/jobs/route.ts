@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { siteUrl } from "@/lib/config";
 import { getWebUser } from "@/lib/googleAuth";
 import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
 import { moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
@@ -262,6 +263,19 @@ export async function POST(request: Request) {
   }
 
   const claimedJob = await claimSlot(job);
+
+  // Despertar al worker en la nube: el envío avanza aunque el cliente cierre
+  // la pestaña justo después de presionar "Enviar".
+  if (process.env.WORKER_SECRET) {
+    after(async () => {
+      await fetch(`${siteUrl()}/api/web/worker`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.WORKER_SECRET}` },
+        signal: AbortSignal.timeout(3_000),
+        cache: "no-store",
+      }).catch(() => {});
+    });
+  }
   const queuePosition = await getQueuePosition(claimedJob);
 
   return NextResponse.json({

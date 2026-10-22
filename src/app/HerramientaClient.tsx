@@ -179,6 +179,8 @@ type JobState = {
   isPaid: boolean;
   failures: Failure[];
   reason: string;
+  /** Respuestas ya preparadas (antes de enviarlas a Google). */
+  generated?: number;
 };
 
 type SavedDraft = {
@@ -289,6 +291,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const [paidBanner, setPaidBanner] = useState(paidOrder);
   const [job, setJob] = useState<JobState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [resumedTitle, setResumedTitle] = useState("");
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoppedRef = useRef(false);
   const restoredRef = useRef(false);
@@ -412,6 +415,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       isPaid: typeof d.isPaid === "boolean" ? d.isPaid : prev?.isPaid ?? false,
       failures: Array.isArray(d.failures) ? (d.failures as Failure[]) : prev?.failures ?? [],
       reason: typeof d.reason === "string" ? d.reason : prev?.reason ?? "",
+      generated: typeof d.generated === "number" ? d.generated : prev?.generated,
     }));
     const status = String(d.status || "");
     if (status === "queued") setStep("queued");
@@ -468,6 +472,30 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
     },
     [applyJobData]
   );
+
+  // ── Retomar un envío en curso ──────────────────────────────────
+  // Si el cliente cerró la pestaña (o vuelve desde otro dispositivo), el
+  // envío siguió en la nube: al volver se busca en el servidor y se muestra
+  // su avance real en vez de la pantalla vacía.
+  const resumeCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!me || resumeCheckedRef.current || step !== "input") return;
+    resumeCheckedRef.current = true;
+    (async () => {
+      try {
+        const list = await fetch("/api/web/jobs", { cache: "no-store" }).then((r) => r.json());
+        const active = (list?.jobs ?? []).find((j: { status?: string }) => j.status === "queued" || j.status === "processing");
+        if (!active?.id) return;
+        const d = await fetch(`/api/web/jobs/${active.id}`, { cache: "no-store" }).then((r) => r.json());
+        if (!d?.ok) return;
+        setResumedTitle(String(active.title || d.title || ""));
+        applyJobData(String(active.id), d);
+        if (d.status === "queued" || d.status === "processing") startPolling(String(active.id));
+      } catch {
+        /* sin envío que retomar */
+      }
+    })();
+  }, [me, step, applyJobData, startPolling]);
 
   async function refreshJob() {
     if (!job) return;
@@ -1028,7 +1056,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               {refreshing ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
-          <p className="fine center">La posición se actualiza sola. Puedes dejar esta pestaña abierta.</p>
+          <p className="fine center">
+            La posición se actualiza sola. Puedes cerrar esta pestaña: tu envío se procesa en la nube y lo verás al volver.
+          </p>
 
           {!job.isPaid && (
             <div className="note">
@@ -1051,18 +1081,56 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   // Paso 3 — enviando
   if (step === "processing" && job) {
     const done = job.sent + job.failed;
-    const pct = job.total > 0 ? Math.round((done / job.total) * 100) : 0;
+    const generated = job.generated ?? 0;
+    const preparing = done === 0 && generated < job.total;
+    // La barra cuenta la preparación como el primer 15% para que nunca se vea congelada.
+    const pct =
+      job.total > 0
+        ? preparing
+          ? Math.round((generated / job.total) * 15)
+          : 15 + Math.round((done / job.total) * 85)
+        : 0;
+    const left = job.total - done;
+    const ratio = job.total > 0 ? done / job.total : 0;
+    const stage = preparing
+      ? {
+          title: "Preparando las respuestas",
+          detail:
+            generated > 0
+              ? `${generated} de ${job.total} listas para enviar.`
+              : "Armando cada respuesta según tu configuración.",
+        }
+      : ratio < 0.5
+        ? { title: "Enviando respuestas", detail: "Las respuestas están llegando a tu formulario." }
+        : ratio < 0.9
+          ? { title: "Ya casi", detail: "Más de la mitad ya está en tu formulario." }
+          : { title: "Terminando", detail: "Enviando las últimas respuestas." };
+    // ~12 respuestas cada ~5 s mientras envía; la preparación con IA es más lenta.
+    const secs = preparing ? Math.ceil((job.total - generated) / 6) * 4 + Math.ceil(left / 12) * 5 : Math.ceil(left / 12) * 5;
+    const eta = left > 0 ? (secs < 60 ? `unos ${Math.max(5, secs)} s` : `unos ${Math.ceil(secs / 60)} min`) : "";
     return (
       <div className="sheet">
         {stepsBar}
         <div className="sheet-body">
-          <h2>Enviando respuestas</h2>
+          {resumedTitle && (
+            <div className="note note-ok">
+              <p>
+                Retomamos tu envío en curso{resumedTitle ? ` de “${resumedTitle}”` : ""}: siguió avanzando mientras no estabas.
+              </p>
+            </div>
+          )}
+          <h2>{stage.title}</h2>
           <p className="sheet-lead" aria-live="polite">
-            {done} de {job.total} procesadas{job.failed > 0 ? `, ${job.failed} con error` : ""}.
+            {stage.detail}
           </p>
           <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Avance del envío">
             <span style={{ width: `${pct}%` }} />
           </div>
+          <p className="fine center">
+            {done} de {job.total} enviadas{job.failed > 0 ? `, ${job.failed} rechazadas` : ""}
+            {eta ? ` · quedan ${eta}` : ""}
+          </p>
+          <p className="fine center">Puedes cerrar esta pestaña: el envío sigue en la nube y lo verás al volver.</p>
           <div className="actions actions-center">
             <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
               {refreshing ? "Actualizando…" : "Actualizar"}
