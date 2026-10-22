@@ -79,7 +79,35 @@ export function verifyIzipayHash(fields: { answer: string; hash: string; hashKey
 
 export type IzipayAnswer = {
   orderStatus?: string;
-  orderDetails?: { orderId?: string; orderTotalAmount?: number; orderCurrency?: string };
+  orderDetails?: { orderId?: string; orderTotalAmount?: number; orderCurrency?: string; mode?: string };
   customer?: { email?: string };
-  transactions?: { uuid?: string; status?: string }[];
+  transactions?: { uuid?: string; status?: string; detailedStatus?: string; amount?: number; currency?: string }[];
 };
+
+/** true si las credenciales configuradas son de prueba (Izipay: testpassword_… vs prodpassword_…). */
+export function izipayTestCredentials(): boolean {
+  return /^testpassword_/i.test((process.env.IZIPAY_PASSWORD || "").trim());
+}
+
+/**
+ * Motivo por el que NO se debe entregar nada, o null si el pago es real y
+ * aprobado. En modo prueba Izipay responde PAID con tarjetas de prueba: sin
+ * este control, cualquiera "pagaba" con una tarjeta de prueba y recibía
+ * créditos/licencias reales. Para probar a propósito en un entorno de
+ * pruebas: IZIPAY_ALLOW_TEST_PAYMENTS=true.
+ */
+export function paymentProblem(answer: IzipayAnswer, expectedCents: number, expectedCurrency: string): string | null {
+  if (answer.orderStatus !== "PAID") return `estado ${answer.orderStatus ?? "desconocido"}`;
+  const isTest = answer.orderDetails?.mode === "TEST" || izipayTestCredentials();
+  if (isTest && process.env.IZIPAY_ALLOW_TEST_PAYMENTS !== "true") return "pago en modo prueba";
+  if (answer.orderDetails?.orderTotalAmount !== expectedCents || answer.orderDetails?.orderCurrency !== expectedCurrency) {
+    return "monto o moneda no coinciden";
+  }
+  const tx = (answer.transactions ?? []).find((t) => t.status === "PAID");
+  if (!tx) return "sin transacción pagada";
+  if (typeof tx.amount === "number" && tx.amount !== expectedCents) return "monto de la transacción no coincide";
+  if (tx.detailedStatus && !["AUTHORISED", "CAPTURED", "ACCEPTED"].includes(tx.detailedStatus)) {
+    return `transacción ${tx.detailedStatus}`;
+  }
+  return null;
+}

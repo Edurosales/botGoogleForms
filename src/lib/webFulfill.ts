@@ -5,7 +5,7 @@
  * saldo en `web_users.credits` en vez de emitir una licencia.
  */
 import { db } from "./db";
-import type { IzipayAnswer } from "./izipay";
+import { paymentProblem, type IzipayAnswer } from "./izipay";
 import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 
@@ -28,17 +28,14 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
   const { data: order } = await supa.from("web_credit_orders").select("*").eq("order_id", orderId).maybeSingle<CreditOrder>();
   if (!order) return { ok: false, orderId, reason: "orden desconocida" };
 
-  if (answer.orderStatus !== "PAID") {
-    if (order.status === "pending" && answer.orderStatus === "UNPAID") {
+  // amount_cents guarda el monto FINAL cobrado (ya con el descuento del cupón).
+  const problem = paymentProblem(answer, order.amount_cents, order.currency);
+  if (problem) {
+    if (order.status === "pending" && answer.orderStatus !== "RUNNING") {
       await supa.from("web_credit_orders").update({ status: "failed", raw_answer: answer }).eq("id", order.id).eq("status", "pending");
     }
-    return { ok: false, orderId, reason: `estado ${answer.orderStatus}` };
-  }
-
-  // amount_cents guarda el monto FINAL cobrado (ya con el descuento del cupón).
-  if (answer.orderDetails?.orderTotalAmount !== order.amount_cents || answer.orderDetails?.orderCurrency !== order.currency) {
-    console.error("[izipay-web] monto/moneda no coinciden", orderId, answer.orderDetails);
-    return { ok: false, orderId, reason: "monto no coincide" };
+    console.error("[izipay-web] pago no válido, no se acredita:", orderId, problem);
+    return { ok: false, orderId, reason: problem };
   }
 
   if (order.status === "paid") return { ok: true, orderId, reason: "ya procesada" };
