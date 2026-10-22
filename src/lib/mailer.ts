@@ -9,6 +9,7 @@
 import { db } from "./db";
 import { siteUrl } from "./config";
 import { gmailConfigured, sendMail } from "./gmail";
+import { hasColumn } from "./schemaFlags";
 
 const DAILY_LIMIT = Math.max(50, Number(process.env.GMAIL_DAILY_LIMIT) || 450);
 const SERVICE_RESERVE = 100;
@@ -99,13 +100,14 @@ export async function sendNewsletterBatch(max = 15, deadline = Date.now() + 20_0
   const result = { sent: 0, failed: 0 };
   if (!gmailConfigured()) return result;
   const supa = db();
+  const serviceCol = await hasColumn("web_newsletters", "is_service");
   const { data: nl } = await supa
     .from("web_newsletters")
-    .select("id,subject,body_html,sent_count,failed_count")
+    .select(serviceCol ? "id,subject,body_html,sent_count,failed_count,is_service" : "id,subject,body_html,sent_count,failed_count")
     .eq("status", "sending")
     .order("started_at", { ascending: true })
     .limit(1)
-    .maybeSingle<{ id: string; subject: string; body_html: string; sent_count: number; failed_count: number }>();
+    .maybeSingle<{ id: string; subject: string; body_html: string; sent_count: number; failed_count: number; is_service?: boolean }>();
   if (!nl) return result;
 
   const budget = Math.min(max, DAILY_LIMIT - SERVICE_RESERVE - (await sentLast24h()));
@@ -140,22 +142,27 @@ export async function sendNewsletterBatch(max = 15, deadline = Date.now() + 20_0
       .select("email,marketing_opt_in,unsubscribe_token,deleted_at")
       .eq("id", row.user_id)
       .maybeSingle<{ email: string; marketing_opt_in: boolean; unsubscribe_token: string | null; deleted_at: string | null }>();
-    if (!u || !u.marketing_opt_in || u.deleted_at || !u.unsubscribe_token) {
+    // Aviso del servicio: basta con que la cuenta exista. Boletín: solo suscritos.
+    const isService = nl.is_service === true;
+    if (!u || u.deleted_at || (!isService && (!u.marketing_opt_in || !u.unsubscribe_token))) {
       await supa.from("web_newsletter_sends").update({ status: "skipped", error: "ya no está suscrito" }).eq("id", row.id);
       continue;
     }
-    const unsub = unsubscribeUrl(u.unsubscribe_token);
     try {
-      await sendMail({
-        to: u.email,
-        subject: nl.subject,
-        html: nl.body_html.split("{{UNSUB_URL}}").join(escapeHtml(unsub)),
-        headers: {
-          // Baja con un clic desde Gmail/Outlook (RFC 8058).
-          "List-Unsubscribe": `<${siteUrl()}/api/web/unsubscribe?t=${encodeURIComponent(u.unsubscribe_token)}>`,
-          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        },
-      });
+      await sendMail(
+        isService
+          ? { to: u.email, subject: nl.subject, html: nl.body_html }
+          : {
+              to: u.email,
+              subject: nl.subject,
+              html: nl.body_html.split("{{UNSUB_URL}}").join(escapeHtml(unsubscribeUrl(u.unsubscribe_token as string))),
+              headers: {
+                // Baja con un clic desde Gmail/Outlook (RFC 8058).
+                "List-Unsubscribe": `<${siteUrl()}/api/web/unsubscribe?t=${encodeURIComponent(u.unsubscribe_token as string)}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+      );
       await supa.from("web_newsletter_sends").update({ status: "sent", error: "", sent_at: new Date().toISOString() }).eq("id", row.id);
       result.sent++;
     } catch (e) {
