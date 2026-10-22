@@ -9,6 +9,7 @@ import { siteUrl } from "./config";
 import { db, type WebUser } from "./db";
 import { getAppSettings } from "./appSettings";
 import { addCredits } from "./credits";
+import { notifyAdmin, notifyUser } from "./notify";
 
 export const WEB_SESSION_COOKIE = "web_session";
 const STATE_COOKIE = "web_g_state";
@@ -108,7 +109,15 @@ async function claimPendingGrants(userId: string, email: string): Promise<void> 
       .is("claimed_at", null)
       .select("credits")
       .maybeSingle<{ credits: number }>();
-    if (claimed?.credits) await addCredits(userId, claimed.credits);
+    if (claimed?.credits) {
+      await addCredits(userId, claimed.credits);
+      await notifyUser(userId, {
+        kind: "gift",
+        title: `Recibiste ${claimed.credits} créditos de regalo`,
+        body: "Ya están en tu saldo.",
+        link: "/mi-cuenta",
+      });
+    }
   }
 }
 
@@ -148,6 +157,12 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
       .single<WebUser>();
     if (error || !created) return null;
     userId = created.id;
+    await notifyAdmin({
+      kind: "signup",
+      title: "Nuevo usuario",
+      body: `${email} se registró${bonus > 0 ? ` y recibió ${bonus} respuestas gratis` : " (sin regalo: IP ya usada)"}.`,
+      link: "/admin#web-users",
+    });
   }
 
   try {

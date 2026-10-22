@@ -12,6 +12,7 @@ import { generateProfiles, needsAi } from "./aiProfiles";
 import { failureHint, submitOne, type SubmitResult } from "./formSubmitter";
 import { addCredits, spendCredits } from "./credits";
 import type { ParsedForm, ParsedQuestion } from "./formParser";
+import { notifyUser } from "./notify";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
 const SUBMIT_BATCH = 12;
@@ -78,7 +79,20 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
     .eq("status", "processing")
     .select("id")
     .maybeSingle();
-  if (won) await refundOnFinish(job, patch.sent ?? job.sent, patch.failed ?? job.failed);
+  if (!won) return;
+  const sent = patch.sent ?? job.sent;
+  const failed = patch.failed ?? job.failed;
+  await refundOnFinish(job, sent, failed);
+  const back = refundAmount(job, sent, failed);
+  await notifyUser(job.user_id, {
+    kind: patch.status === "done" ? "job_done" : "job_failed",
+    title:
+      patch.status === "done"
+        ? `Envío terminado: ${sent} de ${job.total} respuestas`
+        : `Tu envío no se completó (${sent} de ${job.total})`,
+    body: `${job.title || "Tu formulario"}.${failed > 0 ? ` ${failed} rechazadas por Google.` : ""}${back > 0 ? ` Te devolvimos ${back} ${job.is_paid ? "créditos" : "respuestas gratis"}.` : ""}`,
+    link: "/",
+  });
 }
 
 /**

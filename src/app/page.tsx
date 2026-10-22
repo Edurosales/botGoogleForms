@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import HerramientaClient from "./HerramientaClient";
+import PurchaseCelebration from "./PurchaseCelebration";
 import SiteNav from "./SiteNav";
 
 // Esta página lee `searchParams` directamente (para precargar el link
@@ -41,6 +42,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           </p>
         </div>
         <HerramientaClient initialUrl={initialUrl} paidOrder={paidOrder} />
+        <PurchaseCelebration orderId={paidOrder || null} />
       </div>
     </main>
   );

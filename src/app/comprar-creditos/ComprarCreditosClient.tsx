@@ -12,10 +12,11 @@ type Capacity = {
   testPayments: boolean;
 };
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
 import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "../clientData";
 import { SignInCard } from "../SignIn";
+import PurchaseCelebration from "../PurchaseCelebration";
 
 type Pkg = { responses: number; priceCents: number };
 type Pay = {
@@ -34,6 +35,7 @@ const IDLE_COUPON: CouponState = { status: "idle", discountPercent: 0, finalCent
 
 export default function ComprarCreditosClient({ packages: serverPackages }: { packages: Pkg[] }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { me } = useMe();
   const settings = usePublicSettings();
 
@@ -274,6 +276,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
 
   return (
     <div className="buy">
+      <PurchaseCelebration orderId={paidOrder} onUse={() => router.push("/")} />
       {paidOrder && (
         <div className="note note-ok" role="status">
           <p>

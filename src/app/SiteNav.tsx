@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMe, googleLoginHref } from "./clientData";
+import NotificationsBell from "./NotificationsBell";
 
 const LINKS = [
   { href: "/", label: "Herramienta" },
@@ -72,6 +73,7 @@ export default function SiteNav() {
 
           {me && (
             <>
+              <NotificationsBell />
               <Link href="/comprar-creditos" className="tn-balance" title="Créditos comprados y respuestas gratis disponibles">
                 <span>
                   <strong>{me.credits}</strong> créditos

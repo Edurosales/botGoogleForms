@@ -8,6 +8,8 @@ import { db } from "./db";
 import { isRefundAnswer, paymentProblem, type IzipayAnswer } from "./izipay";
 import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
+import { notifyAdmin, notifyUser } from "./notify";
+const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 
 type CreditOrder = {
   id: string;
@@ -40,6 +42,18 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
         .from("web_credit_orders")
         .update({ refund_reason: "Devolución procesada desde la pasarela de pago." })
         .eq("order_id", orderId);
+      await notifyUser(order.user_id, {
+        kind: "refund",
+        title: `Te devolvimos ${pen(order.amount_cents)}`,
+        body: `Pedido ${orderId}: se retiraron de tu saldo los créditos de esa compra que aún tenías.`,
+        link: "/mi-cuenta",
+      });
+      await notifyAdmin({
+        kind: "refund",
+        title: `Devolución registrada: ${pen(order.amount_cents)}`,
+        body: `Pedido ${orderId}, avisada por Izipay. ${row.message ?? ""}`,
+        link: "/admin#web-orders",
+      });
     }
     console.info(`[izipay-web] devolución ${orderId}:`, row?.message);
     return { ok: false, orderId, reason: "devolución registrada" };
@@ -77,6 +91,20 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
   // simultáneos del mismo usuario podían pisarse y perder créditos).
   await addCredits(claimed.user_id, claimed.credits);
   if (claimed.coupon_code) await incrementCouponUse(claimed.coupon_code);
+
+  const { data: buyer } = await supa.from("web_users").select("email").eq("id", claimed.user_id).maybeSingle<{ email: string }>();
+  await notifyUser(claimed.user_id, {
+    kind: "purchase",
+    title: `Compra confirmada: +${claimed.credits} créditos`,
+    body: `Pagaste ${pen(claimed.amount_cents)} (pedido ${claimed.order_id}). Ya puedes usarlos.`,
+    link: "/mi-cuenta",
+  });
+  await notifyAdmin({
+    kind: "purchase",
+    title: `Nueva compra: ${pen(claimed.amount_cents)}`,
+    body: `${buyer?.email ?? "Un cliente"} compró ${claimed.credits} créditos (pedido ${claimed.order_id}).`,
+    link: "/admin#web-orders",
+  });
 
   return { ok: true, orderId };
 }

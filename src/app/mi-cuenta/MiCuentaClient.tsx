@@ -63,6 +63,7 @@ export default function MiCuentaClient() {
   const [redeemMsg, setRedeemMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     if (!me) return;
@@ -142,7 +143,7 @@ export default function MiCuentaClient() {
         </div>
 
         {(orders ?? [])
-          .filter((o) => o.status === "refunded" && o.refunded_at && Date.now() - Date.parse(o.refunded_at) < 14 * 86400_000)
+          .filter((o) => o.status === "refunded" && o.refunded_at && now - Date.parse(o.refunded_at) < 14 * 86400_000)
           .map((o) => (
             <div className="note note-warn" role="status" key={`r-${o.order_id}`}>
               <p>

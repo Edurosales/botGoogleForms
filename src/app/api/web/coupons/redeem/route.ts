@@ -3,6 +3,7 @@ import { getWebUser } from "@/lib/googleAuth";
 import { db } from "@/lib/db";
 import { normalizeCouponCode } from "@/lib/coupons";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { notifyUser } from "@/lib/notify";
 
 /** Canjea un cupón que regala créditos (transacción en SQL: web_redeem_coupon). */
 export async function POST(request: Request) {
@@ -25,5 +26,11 @@ export async function POST(request: Request) {
     | { ok: boolean; message: string; credits_added: number; new_balance: number | null }
     | undefined;
   if (!row?.ok) return NextResponse.json({ ok: false, reason: row?.message || "Cupón no válido." }, { status: 400 });
+  await notifyUser(user.id, {
+    kind: "gift",
+    title: `Cupón canjeado: +${row.credits_added} créditos`,
+    body: `Usaste el cupón ${code.toUpperCase()}.`,
+    link: "/mi-cuenta",
+  });
   return NextResponse.json({ ok: true, message: row.message, creditsAdded: row.credits_added, credits: row.new_balance });
 }

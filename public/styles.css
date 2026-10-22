@@ -16,6 +16,7 @@ h2{font-size:clamp(1.6rem,4.5vw,2.4rem);margin-bottom:10px}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:12px;font-weight:700;text-decoration:none;color:var(--ink);border:2px solid var(--ink);transition:transform .15s}
 .btn:active{transform:scale(.98)}
 .btn.wa{background:var(--wa);border-color:var(--wa);color:#fff}
+.btn.go{background:var(--acc);border-color:var(--acc);color:#fff}
 header{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
 header .w{display:flex;align-items:center;justify-content:space-between;min-height:60px}
 .logo{font-weight:800;font-size:1.25rem;text-decoration:none;color:var(--ink)}
@@ -366,3 +367,33 @@ body.paying .cookie{display:none!important}
 
 /* Botón del programa de escritorio aún no disponible */
 .is-soon{opacity:.6;cursor:not-allowed;pointer-events:none;font-style:normal}
+
+/* Campana de notificaciones */
+.nb{position:relative}
+.nb-btn{position:relative;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.nb-btn:hover{border-color:var(--line-strong)}
+.nb-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.nb-count{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C62828;color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
+.nb-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:120;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px -16px rgba(33,22,63,.35)}
+.nb-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff}
+.nb-link{border:0;background:none;color:var(--acc);font:inherit;font-size:.8125rem;font-weight:600;cursor:pointer;padding:0}
+.nb-empty{padding:18px 14px;margin:0;color:var(--mute);font-size:.875rem}
+.nb-list{list-style:none;margin:0;padding:0}
+.nb-item{display:flex;align-items:flex-start;border-bottom:1px solid var(--line)}
+.nb-item:last-child{border-bottom:0}
+.nb-item.is-unread{background:var(--soft)}
+.nb-main{flex:1;display:grid;gap:2px;text-align:left;border:0;background:none;padding:12px 14px;cursor:pointer;font:inherit;color:inherit}
+.nb-title{font-weight:600;font-size:.875rem}
+.nb-item.is-unread .nb-title::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--acc);margin-right:6px;vertical-align:middle}
+.nb-body{font-size:.8125rem;color:var(--mute)}
+.nb-time{font-size:.75rem;color:var(--mute)}
+.nb-del{border:0;background:none;color:var(--mute);font-size:1.1rem;padding:10px 12px;cursor:pointer}
+.nb-del:hover{color:var(--ink)}
+
+/* Compra confirmada */
+.cele{text-align:center;padding-top:26px}
+.cele-mark{width:56px;height:56px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok)}
+.cele h2{margin:0;font-size:1.375rem}
+.cele-amount{margin:6px 0 4px;font-size:2rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
+.cele .sheet-lead{margin:6px auto 4px;max-width:34ch}
+.cele .b{margin-top:14px}
