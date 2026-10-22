@@ -14,7 +14,7 @@ type Capacity = {
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
-import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink } from "../clientData";
+import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "../clientData";
 import { SignInCard } from "../SignIn";
 
 type Pkg = { responses: number; priceCents: number };
@@ -504,9 +504,9 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
           <div className="sheet-body">
             <h2 id="soft-h">O compra el programa</h2>
             <p className="sheet-lead">FormsBot para Windows: sin fila, sin límite de respuestas y con tu propia IA. Pago único.</p>
-            <a className="b b-ghost b-block" href={settings.buySoftwareUrl} target="_blank" rel="noopener">
+            <SoftwareButton className="b b-ghost b-block" href={settings.buySoftwareUrl}>
               Ver el software
-            </a>
+            </SoftwareButton>
           </div>
         </section>
       </div>

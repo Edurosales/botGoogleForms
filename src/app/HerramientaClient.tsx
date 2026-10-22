@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { SignInCard } from "./SignIn";
-import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink } from "./clientData";
+import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
 
 type Mode = "ai" | "random" | "fixed" | "weighted" | "list";
 type QConf = {
@@ -675,9 +675,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       <div className="pitch-body">
         <h3>¿Lo usas seguido? Llévate el programa</h3>
         <p>FormsBot para Windows llena formularios sin fila, sin límite de respuestas y con tu propia IA. Pago único.</p>
-        <a className="b b-ghost" href={settings.buySoftwareUrl} target="_blank" rel="noopener">
+        <SoftwareButton className="b b-ghost" href={settings.buySoftwareUrl}>
           Ver el software
-        </a>
+        </SoftwareButton>
       </div>
     </aside>
   );
@@ -973,9 +973,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               )}
               {(notice.code === "TOO_MANY_QUESTIONS_WEB" || notice.code === "DAILY_LIMIT") && (
                 <div className="actions">
-                  <a className="b b-small b-primary" href={settings.buySoftwareUrl} target="_blank" rel="noopener">
+                  <SoftwareButton className="b b-small b-primary" href={settings.buySoftwareUrl}>
                     Ver FormsBot para Windows
-                  </a>
+                  </SoftwareButton>
                 </div>
               )}
             </div>

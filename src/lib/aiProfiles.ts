@@ -56,7 +56,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callGroq(
+async function callGroqOnly(
   messages: { role: "system" | "user"; content: string }[],
   model: string,
   temperature: number,
@@ -90,7 +90,7 @@ async function callGroq(
       if (waitMs <= GROQ_MAX_RETRY_WAIT_MS) {
         console.error(`[callGroq] 429, reintentando en ${waitMs}ms:`, body.slice(0, 200));
         await sleep(waitMs);
-        return callGroq(messages, model, temperature, maxTokens, retriesLeft - 1);
+        return callGroqOnly(messages, model, temperature, maxTokens, retriesLeft - 1);
       }
     }
     throw new Error(`Groq respondió ${res.status}: ${body.slice(0, 300)}`);
@@ -102,6 +102,63 @@ async function callGroq(
     throw new Error("La respuesta de la IA llegó vacía.");
   }
   return text.trim();
+}
+
+// ── Respaldo NVIDIA (opcional) ───────────────────────────────────
+// Si Groq falla (saturado, límite diario, caído), se prueba la API
+// compatible de NVIDIA antes de cancelar el envío. Solo con NVIDIA_API_KEY
+// en el entorno; las claves de build.nvidia.com son "para pruebas" y vencen.
+const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+const NVIDIA_TIMEOUT_MS = 25_000;
+
+async function callNvidia(
+  messages: { role: "system" | "user"; content: string }[],
+  temperature: number,
+  maxTokens: number,
+  timeoutMs: number
+): Promise<string> {
+  const key = (process.env.NVIDIA_API_KEY || "").trim();
+  const model = (process.env.NVIDIA_MODEL || "meta/llama-3.3-70b-instruct").trim();
+  const res = await fetch(NVIDIA_API_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ model, messages, temperature, max_tokens: Math.min(maxTokens, 4096) }),
+    signal: AbortSignal.timeout(timeoutMs),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`NVIDIA respondió ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content;
+  if (typeof text !== "string" || !text.trim()) throw new Error("La respuesta de NVIDIA llegó vacía.");
+  return text.trim();
+}
+
+/** Groq primero; si falla y hay NVIDIA_API_KEY, NVIDIA como respaldo. */
+async function callGroq(
+  messages: { role: "system" | "user"; content: string }[],
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<string> {
+  const start = Date.now();
+  try {
+    return await callGroqOnly(messages, model, temperature, maxTokens);
+  } catch (groqErr) {
+    if (!(process.env.NVIDIA_API_KEY || "").trim()) throw groqErr;
+    // La función tiene 60 s en total: NVIDIA solo usa lo que quede.
+    const left = 55_000 - (Date.now() - start);
+    if (left < 8_000) throw groqErr;
+    console.error("[ai] Groq falló, probando NVIDIA:", groqErr instanceof Error ? groqErr.message : groqErr);
+    try {
+      return await callNvidia(messages, temperature, maxTokens, Math.min(NVIDIA_TIMEOUT_MS, left));
+    } catch (nvErr) {
+      console.error("[ai] NVIDIA también falló:", nvErr instanceof Error ? nvErr.message : nvErr);
+      throw groqErr;
+    }
+  }
 }
 
 // ── Resolución local (sin IA) para preguntas "fixed"/"random" ────

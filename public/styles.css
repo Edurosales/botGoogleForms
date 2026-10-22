@@ -363,3 +363,6 @@ body.paying .cookie{display:none!important}
 .paymodal-trust{display:flex;gap:8px;align-items:flex-start;font-size:.8125rem;color:var(--mute);margin:0 0 6px;line-height:1.5}
 .paymodal-trust svg{flex:none;margin-top:2px;color:var(--ok)}
 @media(max-width:480px){.paymodal{padding:0;place-items:end center}.paymodal-card{max-width:none;border-radius:14px 14px 0 0;max-height:92vh}}
+
+/* Botón del programa de escritorio aún no disponible */
+.is-soon{opacity:.6;cursor:not-allowed;pointer-events:none;font-style:normal}

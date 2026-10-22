@@ -2,8 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { announceBalanceChange, useMe, usePublicSettings } from "../clientData";
+import { announceBalanceChange, fmtPen, useMe, usePublicSettings } from "../clientData";
 import { SignInCard } from "../SignIn";
+
+type OrderRow = {
+  order_id: string;
+  credits: number;
+  amount_cents: number;
+  status: "paid" | "refunded";
+  created_at: string;
+  paid_at: string | null;
+  refunded_at: string | null;
+  refund_reason: string;
+};
 
 type JobRow = {
   id: string;
@@ -51,6 +62,7 @@ export default function MiCuentaClient() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemMsg, setRedeemMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [orders, setOrders] = useState<OrderRow[] | null>(null);
 
   useEffect(() => {
     if (!me) return;
@@ -58,6 +70,10 @@ export default function MiCuentaClient() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setJobs(normalizeJobs(d)))
       .catch(() => setJobs([]));
+    fetch("/api/web/orders", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setOrders(Array.isArray(d?.orders) ? (d.orders as OrderRow[]) : []))
+      .catch(() => setOrders([]));
   }, [me]);
 
   async function redeem(e: React.FormEvent) {
@@ -125,6 +141,18 @@ export default function MiCuentaClient() {
           <p className="who-mail">{me.email}</p>
         </div>
 
+        {(orders ?? [])
+          .filter((o) => o.status === "refunded" && o.refunded_at && Date.now() - Date.parse(o.refunded_at) < 14 * 86400_000)
+          .map((o) => (
+            <div className="note note-warn" role="status" key={`r-${o.order_id}`}>
+              <p>
+                <strong>Te devolvimos {fmtPen(o.amount_cents)}</strong> del pedido {o.order_id} ({fmtDate(o.refunded_at ?? "")}).
+                {o.refund_reason ? ` Motivo: ${o.refund_reason}` : ""} Se retiraron de tu saldo los créditos de esa compra que
+                aún tenías.
+              </p>
+            </div>
+          ))}
+
         <div className="balances">
           <div className="balance">
             <p className="balance-label">Créditos comprados</p>
@@ -172,6 +200,32 @@ export default function MiCuentaClient() {
             </p>
           )}
         </form>
+
+        <section className="group" aria-labelledby="orders-h">
+          <h3 id="orders-h">Tus compras</h3>
+          {orders === null && <p className="fine">Cargando…</p>}
+          {orders && orders.length === 0 && <p className="fine">Todavía no compraste créditos.</p>}
+          {orders && orders.length > 0 && (
+            <ul className="jobs">
+              {orders.map((o) => (
+                <li key={o.order_id}>
+                  <div>
+                    <p className="job-title">
+                      {o.credits} créditos por {fmtPen(o.amount_cents)}
+                    </p>
+                    <p className="job-meta">
+                      {o.order_id}, {fmtDate(o.paid_at ?? o.created_at)}
+                      {o.status === "refunded" && o.refund_reason ? `. Motivo de la devolución: ${o.refund_reason}` : ""}
+                    </p>
+                  </div>
+                  <span className={`status status-${o.status === "refunded" ? "failed" : "done"}`}>
+                    {o.status === "refunded" ? "Devuelto" : "Pagado"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="group" aria-labelledby="jobs-h">
           <h3 id="jobs-h">Tus envíos recientes</h3>

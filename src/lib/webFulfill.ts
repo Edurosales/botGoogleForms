@@ -35,6 +35,12 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
     const { data, error } = await supa.rpc("web_refund_order", { p_order: orderId, p_note: "Devolución desde Izipay" });
     if (error) throw new Error(`No se pudo registrar la devolución: ${error.message}`);
     const row = Array.isArray(data) ? data[0] : data;
+    if (row?.ok) {
+      await supa
+        .from("web_credit_orders")
+        .update({ refund_reason: "Devolución procesada desde la pasarela de pago." })
+        .eq("order_id", orderId);
+    }
     console.info(`[izipay-web] devolución ${orderId}:`, row?.message);
     return { ok: false, orderId, reason: "devolución registrada" };
   }

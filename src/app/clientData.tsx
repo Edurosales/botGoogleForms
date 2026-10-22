@@ -118,3 +118,20 @@ export function safeNextPath(value: string | null | undefined, fallback = "/"): 
 }
 
 export const googleLoginHref = (next: string) => `/api/auth/google?next=${encodeURIComponent(safeNextPath(next))}`;
+
+/** Botón del programa de escritorio. Mientras la venta no abra
+ * (NEXT_PUBLIC_SOFTWARE_SALES_OPEN), muestra "Pronto" deshabilitado. */
+export function SoftwareButton({ href, className, children }: { href: string; className: string; children: React.ReactNode }) {
+  if (process.env.NEXT_PUBLIC_SOFTWARE_SALES_OPEN !== "true") {
+    return (
+      <span className={`${className} is-soon`} aria-disabled="true">
+        Pronto: el programa se está preparando
+      </span>
+    );
+  }
+  return (
+    <a className={className} href={href} target="_blank" rel="noopener">
+      {children}
+    </a>
+  );
+}
