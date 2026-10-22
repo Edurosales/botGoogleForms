@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import Ads from "./Ads";
 
 const GA_ID = "G-4WCK4EME75";
-const ADSENSE_CLIENT = "ca-pub-8213456831990505";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bot-google-forms-servicio.vercel.app"),
@@ -40,12 +40,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Script id="ga-config" strategy="afterInteractive">
           {`gtag('js', new Date()); gtag('config', '${GA_ID}');`}
         </Script>
-        <Script
-          id="adsense-loader"
-          strategy="afterInteractive"
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-          crossOrigin="anonymous"
-        />
         {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el
             layout global: probado en vivo, el popunder abre una pestaña de
             publicidad en el primer clic (el campo del link, "Leer formulario") y
@@ -53,15 +47,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             título de la pestaña a "(1) New Message!". Siguen en /sobre. */}
         {children}
 
-        {/* Adsterra — banner nativo con contenedor visible */}
-        <div id="container-67a9cadc8bbd530b557716e84d977e60" />
-        <Script async data-cfasync="false" src="https://bauval.org/21/67a9cadc8bbd530b557716e84d977e60" strategy="afterInteractive" />
-
-        {/* Adsterra — banner 300x250 */}
-        <Script id="adsterra-banner-options" strategy="afterInteractive">
-          {`atOptions = { key: 'f59176d1f88f9f8bf808d89b44f66848', format: 'iframe', height: 250, width: 300, params: {} };`}
-        </Script>
-        <Script src="https://bauval.org/22/f59176d1f88f9f8bf808d89b44f66848" strategy="afterInteractive" />
+        {/* Anuncios solo para visitantes gratuitos y fuera de las páginas de pago (ver Ads.tsx). */}
+        <Ads />
 
         <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
           <p>

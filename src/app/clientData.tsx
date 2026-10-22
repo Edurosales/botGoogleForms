@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type Me = { email: string; name: string; credits: number; freeCredits: number };
+export type Me = { email: string; name: string; credits: number; freeCredits: number; hasPaid: boolean };
 
 export type PublicSettings = {
   creditPackages: { responses: number; priceCents: number }[];
@@ -36,6 +36,7 @@ function normalizeMe(raw: unknown): Me | null {
     name: typeof u.name === "string" ? u.name : "",
     credits: Number(u.credits) || 0,
     freeCredits: Number(u.freeCredits ?? u.free_credits) || 0,
+    hasPaid: u.hasPaid === true,
   };
 }
 

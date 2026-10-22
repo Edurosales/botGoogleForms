@@ -18,7 +18,16 @@ import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, w
 import { SignInCard } from "../SignIn";
 
 type Pkg = { responses: number; priceCents: number };
-type Pay = { orderId: string; formToken: string; publicKey: string; staticUrl: string; returnUrl: string };
+type Pay = {
+  orderId: string;
+  formToken: string;
+  publicKey: string;
+  staticUrl: string;
+  returnUrl: string;
+  amountCents?: number;
+  originalCents?: number;
+  credits?: number;
+};
 type CouponState = { status: "idle" | "checking" | "ok" | "bad"; discountPercent: number; finalCents: number; reason: string };
 
 const IDLE_COUPON: CouponState = { status: "idle", discountPercent: 0, finalCents: 0, reason: "" };
@@ -200,6 +209,21 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
     };
   }, [pay]);
 
+  // Ventana de pago: bloquea el scroll del fondo y se cierra con Esc.
+  useEffect(() => {
+    if (!pay) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPay(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [pay]);
+
   function changeCoupon(value: string) {
     setCouponCode(value);
     setCoupon(value.trim() ? { ...IDLE_COUPON, status: "checking" } : IDLE_COUPON);
@@ -291,8 +315,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
             </p>
           )}
 
-          {!pay && (
-            <>
+          <>
               <fieldset className="group group-first">
                 <legend>Elige un paquete</legend>
                 <p className="fine">
@@ -387,27 +410,65 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                       : "Elige un paquete"}
               </button>
               <p className="fine">Pago procesado por Izipay. No guardamos los datos de tu tarjeta.</p>
-            </>
-          )}
+          </>
 
           {pay && (
-            <div className="group group-first">
-              <h3>Pago con tarjeta</h3>
-              <p className="fine">
-                Pedido {pay.orderId}. Al terminar vuelves {returnTo === "/" ? "a tu formulario" : "a esta página"} con los créditos ya cargados.
-              </p>
-              {!formReady && !err && <p className="fine">Cargando el formulario seguro de Izipay…</p>}
-              {err && (
-                <div className="note note-err" role="alert">
-                  <p>{err}</p>
+            <div className="paymodal" role="dialog" aria-modal="true" aria-labelledby="paymodal-h">
+              <div className="paymodal-backdrop" onClick={() => setPay(null)} />
+              <div className="paymodal-card">
+                <header className="paymodal-head">
+                  <div>
+                    <p className="paymodal-kicker">Pago seguro</p>
+                    <h2 id="paymodal-h">{pay.credits ?? selected?.responses ?? ""} créditos</h2>
+                  </div>
+                  <button type="button" className="paymodal-x" onClick={() => setPay(null)} aria-label="Cerrar el pago">
+                    ×
+                  </button>
+                </header>
+
+                <dl className="paymodal-sum">
+                  <div>
+                    <dt>Total a pagar</dt>
+                    <dd>{fmtPen(pay.amountCents ?? finalCents)}</dd>
+                  </div>
+                  {pay.originalCents !== undefined && pay.amountCents !== undefined && pay.originalCents > pay.amountCents && (
+                    <div>
+                      <dt>Descuento</dt>
+                      <dd>−{fmtPen(pay.originalCents - pay.amountCents)}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Pedido</dt>
+                    <dd className="mono">{pay.orderId}</dd>
+                  </div>
+                </dl>
+
+                {!formReady && !err && (
+                  <div className="paymodal-loading" role="status">
+                    <span className="spin" aria-hidden="true" />
+                    Cargando el formulario seguro de Izipay…
+                  </div>
+                )}
+                {err && (
+                  <div className="note note-err" role="alert">
+                    <p>{err}</p>
+                  </div>
+                )}
+                <div className="kr-wrap">
+                  <div className="kr-smart-form" kr-popin="false" />
                 </div>
-              )}
-              <div className="kr-wrap">
-                <div className="kr-smart-form" kr-popin="false" />
+
+                <p className="paymodal-trust">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path fill="currentColor" d="M12 1a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V6a5 5 0 0 0-5-5Zm-3 8V6a3 3 0 0 1 6 0v3H9Z" />
+                  </svg>
+                  Tus datos de tarjeta van directo a Izipay. FormsBot nunca los ve ni los guarda. Al terminar vuelves{" "}
+                  {returnTo === "/" ? "a tu formulario" : "aquí"} con los créditos cargados.
+                </p>
+                <button type="button" className="b b-text b-block" onClick={() => setPay(null)}>
+                  Cancelar y cambiar de paquete
+                </button>
               </div>
-              <button type="button" className="b b-text" onClick={() => setPay(null)}>
-                Cambiar de paquete
-              </button>
             </div>
           )}
         </div>

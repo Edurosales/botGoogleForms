@@ -333,3 +333,27 @@ body:has(.tool-page){
 .hero-tool-form input:focus{border-color:var(--acc)}
 .hero-tool-form .btn{min-height:54px}
 @media(max-width:480px){.hero-tool-form{flex-direction:column}.hero-tool-form .btn{width:100%}}
+
+/* Ventana de pago */
+.paymodal{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
+.paymodal-backdrop{position:absolute;inset:0;background:rgba(33,22,63,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.paymodal-card{position:relative;width:100%;max-width:440px;max-height:calc(100vh - 32px);overflow:auto;background:#fff;color:#21163F;border-radius:14px;box-shadow:0 24px 60px -20px rgba(33,22,63,.55);padding:20px 20px 12px;border-top:6px solid var(--acc)}
+.paymodal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.paymodal-kicker{margin:0;font-size:.8125rem;font-weight:600;color:var(--ok)}
+.paymodal-head h2{margin:2px 0 0;font-size:1.375rem;line-height:1.2}
+.paymodal-x{border:0;background:none;font-size:1.75rem;line-height:1;color:var(--mute);cursor:pointer;padding:0 4px;border-radius:8px}
+.paymodal-x:hover{color:var(--ink)}
+.paymodal-x:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.paymodal-sum{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px;font-size:.9375rem}
+.paymodal-sum div{display:flex;justify-content:space-between;gap:12px}
+.paymodal-sum dt{color:var(--mute)}
+.paymodal-sum dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums}
+.paymodal-sum .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:500;font-size:.8125rem}
+.paymodal-loading{display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--mute);padding:18px 0}
+.spin{width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
+.paymodal .kr-wrap{margin:4px 0 12px}
+.paymodal-trust{display:flex;gap:8px;align-items:flex-start;font-size:.8125rem;color:var(--mute);margin:0 0 6px;line-height:1.5}
+.paymodal-trust svg{flex:none;margin-top:2px;color:var(--ok)}
+@media(max-width:480px){.paymodal{padding:0;place-items:end center}.paymodal-card{max-width:none;border-radius:14px 14px 0 0;max-height:92vh}}
