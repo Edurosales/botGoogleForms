@@ -141,12 +141,14 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
             document.head.appendChild(link);
           }
         };
-        addCss(`${base}/static/js/krypton-client/V4.0/ext/classic.css`);
+        // Tema "neon" de Izipay: con "classic", el texto de los campos de tarjeta
+        // quedaba cortado por abajo dentro de sus iframes (visto en producción).
+        addCss(`${base}/static/js/krypton-client/V4.0/ext/neon-reset.min.css`);
 
         const win = window as unknown as { KR?: Record<string, unknown> };
         if (!win.KR) {
           await new Promise<void>((resolve) => {
-            const themeSrc = `${base}/static/js/krypton-client/V4.0/ext/classic.js`;
+            const themeSrc = `${base}/static/js/krypton-client/V4.0/ext/neon.js`;
             if (document.querySelector(`script[src="${themeSrc}"]`)) return resolve();
             const s = document.createElement("script");
             s.src = themeSrc;
