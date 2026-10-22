@@ -5,6 +5,7 @@ import Link from "next/link";
 import { announceBalanceChange, fmtPen, safeNextPath, useMe, usePublicSettings } from "../clientData";
 import { SignInCard } from "../SignIn";
 import PrivacyPanel from "./PrivacyPanel";
+import ExportButton from "../ExportButton";
 
 type OrderRow = {
   order_id: string;
@@ -268,7 +269,10 @@ export default function MiCuentaClient() {
                       {j.sent} de {j.total} enviadas{j.failed > 0 ? `, ${j.failed} con error` : ""}
                     </p>
                   </div>
-                  <span className={`status status-${j.status}`}>{STATUS_LABEL[j.status] ?? j.status}</span>
+                  <div className="job-side">
+                    <span className={`status status-${j.status}`}>{STATUS_LABEL[j.status] ?? j.status}</span>
+                    {j.sent > 0 && <ExportButton jobId={j.id} premium={me.hasPaid} small />}
+                  </div>
                 </li>
               ))}
             </ul>

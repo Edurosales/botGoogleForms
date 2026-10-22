@@ -6,6 +6,7 @@ import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
 import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
+import ExportButton from "./ExportButton";
 
 type Mode = "ai" | "random" | "fixed" | "weighted" | "list";
 type QConf = {
@@ -1226,6 +1227,12 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 ))}
               </ul>
             </section>
+          )}
+
+          {job.sent > 0 && me && (
+            <div className="actions">
+              <ExportButton jobId={job.jobId} premium={me.hasPaid} />
+            </div>
           )}
 
           <div className="actions">

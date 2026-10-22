@@ -12,6 +12,7 @@
 
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { createNameState, smartRandom, isNameField, isEmailField, conformToValidation, type NameState } from "./dataGen";
+import { answersFromCache, contextKey, normalizeQuestion, storeAnswers, type CacheKey } from "./aiCache";
 
 export type QuestionMode = "ai" | "random" | "fixed" | "weighted" | "list";
 
@@ -502,6 +503,8 @@ export interface GenerateProfilesOptions {
   language?: string;
   /** Índice global de la primera respuesta de este lote (para listas "en orden"). */
   startIndex?: number;
+  /** Respuestas ya usadas en este envío por pregunta: el banco de IA no las repite. */
+  usedAnswers?: Record<string, string[]>;
 }
 
 /** Retorna perfiles como Record<entry, respuesta>, uno por respuesta a enviar. */
@@ -530,6 +533,28 @@ export async function generateProfiles(
     return Array.from({ length: n }, (_, i) => buildLocalPart(i));
   }
 
+  // Banco de respuestas: las preguntas abiertas con IA pueden salir de lo
+  // ya generado antes para preguntas iguales o parecidas (ver aiCache.ts).
+  const openAi = aiQuestions.filter((q) => !q.options.length);
+  const cacheKeys = new Map<string, CacheKey>(
+    openAi.map((q) => [
+      q.entry,
+      { norm: normalizeQuestion(q.title), lang: language, ctx: contextKey(qConfig[q.entry]?.prompt ?? "", opts.customInstructions ?? "") },
+    ])
+  );
+  // Solo si TODAS las preguntas con IA son abiertas (las de opciones necesitan
+  // el criterio de la IA para ser coherentes con el resto del perfil).
+  if (openAi.length === aiQuestions.length) {
+    const cached = await answersFromCache(cacheKeys, n, opts.usedAnswers ?? {});
+    if (cached) {
+      return Array.from({ length: n }, (_, i) => {
+        const profile = buildLocalPart(i);
+        for (const q of openAi) profile[q.entry] = conformToValidation(q, cached.get(q.entry)?.[i] ?? "", nameState);
+        return profile;
+      });
+    }
+  }
+
   const prompt = buildPrompt(form.title, aiQuestions, n, opts.customInstructions ?? "", qConfig, language);
 
   const text = await callGroq(
@@ -552,7 +577,7 @@ export async function generateProfiles(
 
   const rawProfiles = cleanAndParseJson(text);
 
-  return rawProfiles.map((raw, pIdx) => {
+  const generated = rawProfiles.map((raw, pIdx) => {
     const r = raw as Record<string, unknown>;
     const profile: Record<string, string> = buildLocalPart(pIdx);
     aiQuestions.forEach((q: ParsedQuestion, idx) => {
@@ -571,6 +596,8 @@ export async function generateProfiles(
     });
     return profile;
   });
+  await storeAnswers(cacheKeys, generated);
+  return generated;
 }
 
 // ── Moderación de contenido ───────────────────────────────────────

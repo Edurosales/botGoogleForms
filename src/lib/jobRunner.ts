@@ -256,6 +256,10 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
         language: job.language,
         customInstructions: job.custom_instructions,
         startIndex: generatedSoFar.length,
+        // Para que el banco de IA no repita respuestas dentro de este envío.
+        usedAnswers: Object.fromEntries(
+          (form.questions as ParsedQuestion[]).map((q) => [q.entry, generatedSoFar.map((p) => p[q.entry]).filter(Boolean)])
+        ),
       });
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Fallo generando respuestas";

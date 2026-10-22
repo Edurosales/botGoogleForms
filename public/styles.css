@@ -437,3 +437,13 @@ body.paying .support-fab{display:none}
 .delete-box label{display:block;font-weight:700;margin:10px 0 4px}
 .delete-box input{margin-bottom:10px}
 .legal table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.9rem;display:block;overflow-x:auto}@media(min-width:760px){.legal table{display:table}}.legal th,.legal td{padding:9px 12px;border:1px solid var(--line);text-align:left;vertical-align:top;color:var(--mute)}.legal th{background:var(--soft);color:var(--ink);font-weight:700}
+
+/* Ronda 16: exportar a Excel */
+.is-locked{opacity:.92}
+.job-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.xp-card{max-width:620px}
+.xp-table{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin:10px 0}
+.xp-table table{width:100%;border-collapse:collapse;font-size:.8125rem}
+.xp-table th{background:#5B2EA6;color:#fff;text-align:left;padding:7px 9px;white-space:nowrap}
+.xp-table td{padding:7px 9px;border-top:1px solid var(--line);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.xp-blur td{filter:blur(4px);user-select:none}
