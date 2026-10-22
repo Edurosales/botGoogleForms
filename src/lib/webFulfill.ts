@@ -5,7 +5,7 @@
  * saldo en `web_users.credits` en vez de emitir una licencia.
  */
 import { db } from "./db";
-import { paymentProblem, type IzipayAnswer } from "./izipay";
+import { isRefundAnswer, paymentProblem, type IzipayAnswer } from "./izipay";
 import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 
@@ -27,6 +27,17 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
 
   const { data: order } = await supa.from("web_credit_orders").select("*").eq("order_id", orderId).maybeSingle<CreditOrder>();
   if (!order) return { ok: false, orderId, reason: "orden desconocida" };
+
+  // Devolución hecha en el panel de Izipay: revertir el pedido y retirar los
+  // créditos (función SQL atómica; idempotente si el aviso llega dos veces).
+  if (isRefundAnswer(answer)) {
+    if (order.status !== "paid") return { ok: false, orderId, reason: `devolución ignorada (estado ${order.status})` };
+    const { data, error } = await supa.rpc("web_refund_order", { p_order: orderId, p_note: "Devolución desde Izipay" });
+    if (error) throw new Error(`No se pudo registrar la devolución: ${error.message}`);
+    const row = Array.isArray(data) ? data[0] : data;
+    console.info(`[izipay-web] devolución ${orderId}:`, row?.message);
+    return { ok: false, orderId, reason: "devolución registrada" };
+  }
 
   // amount_cents guarda el monto FINAL cobrado (ya con el descuento del cupón).
   const problem = paymentProblem(answer, order.amount_cents, order.currency);

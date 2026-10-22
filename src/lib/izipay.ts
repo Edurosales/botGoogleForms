@@ -81,8 +81,19 @@ export type IzipayAnswer = {
   orderStatus?: string;
   orderDetails?: { orderId?: string; orderTotalAmount?: number; orderCurrency?: string; mode?: string };
   customer?: { email?: string };
-  transactions?: { uuid?: string; status?: string; detailedStatus?: string; amount?: number; currency?: string }[];
+  transactions?: { uuid?: string; status?: string; detailedStatus?: string; amount?: number; currency?: string; operationType?: string }[];
 };
+
+/**
+ * true si la notificación es una DEVOLUCIÓN hecha en el panel de Izipay
+ * (transacción de tipo CREDIT ya realizada) o un pedido anulado/reembolsado.
+ */
+export function isRefundAnswer(answer: IzipayAnswer): boolean {
+  if (answer.orderStatus === "REFUNDED" || answer.orderStatus === "CANCELLED") return true;
+  return (answer.transactions ?? []).some(
+    (t) => t.operationType === "CREDIT" && (t.status === "PAID" || t.detailedStatus === "CAPTURED" || t.detailedStatus === "AUTHORISED")
+  );
+}
 
 /** true si las credenciales configuradas son de prueba (Izipay: testpassword_… vs prodpassword_…). */
 export function izipayTestCredentials(): boolean {
