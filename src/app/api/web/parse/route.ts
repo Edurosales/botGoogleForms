@@ -37,7 +37,6 @@ export async function POST(request: Request) {
     return err("FETCH_FAILED", FORM_ERROR_MESSAGES.FETCH_FAILED, 502);
   }
 
-  if (form.collectsEmail) return err("COLLECTS_EMAIL", FORM_ERROR_MESSAGES.COLLECTS_EMAIL, 400, { blocked: true });
 
   // Sin sesión, solo la revisión local por palabras clave: si no, cualquiera
   // podría repetir lecturas anónimas y agotar la cuota diaria de Groq que

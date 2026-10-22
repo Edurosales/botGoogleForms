@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { SignInCard } from "./SignIn";
+import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
 import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
 
 type Mode = "ai" | "random" | "fixed" | "weighted" | "list";
@@ -166,7 +167,7 @@ interface FormView {
 
 type Rec = { mode?: Mode; value?: string; reason?: string; prompt?: string };
 type Warning = { code: string; message: string };
-type Failure = { index?: number; status?: number; question?: string; message?: string; hint?: string };
+type Failure = { index?: number; status?: number; question?: string; message?: string; hint?: string; code?: string };
 
 type Step = "input" | "parseError" | "preview" | "queued" | "processing" | "done" | "failed";
 
@@ -181,6 +182,8 @@ type JobState = {
   reason: string;
   /** Respuestas ya preparadas (antes de enviarlas a Google). */
   generated?: number;
+  /** Causa principal si falló (ventana de ayuda). */
+  failCode?: string | null;
 };
 
 type SavedDraft = {
@@ -292,6 +295,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const [job, setJob] = useState<JobState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [resumedTitle, setResumedTitle] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoppedRef = useRef(false);
   const restoredRef = useRef(false);
@@ -416,6 +420,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       failures: Array.isArray(d.failures) ? (d.failures as Failure[]) : prev?.failures ?? [],
       reason: typeof d.reason === "string" ? d.reason : prev?.reason ?? "",
       generated: typeof d.generated === "number" ? d.generated : prev?.generated,
+      failCode: typeof d.failCode === "string" ? d.failCode : prev?.failCode ?? null,
     }));
     const status = String(d.status || "");
     if (status === "queued") setStep("queued");
@@ -426,6 +431,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       return true;
     } else if (status === "failed" || status === "rejected") {
       setStep("failed");
+      // Se abre sola la explicación de qué falló y cómo arreglarlo.
+      if (status === "failed") setHelpOpen(true);
       announceBalanceChange();
       return true;
     }
@@ -595,6 +602,17 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig: effectiveQ, acceptedTerms: true }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!data.ok && data.code === "ACTIVE_JOB" && data.activeJobId) {
+        // Ya tenía un envío en curso (otra pestaña u otro equipo): se muestra ese.
+        const activeId = String(data.activeJobId);
+        const d = await fetch(`/api/web/jobs/${activeId}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+        if (d?.ok) {
+          setResumedTitle(String(d.title || "tu formulario"));
+          applyJobData(activeId, d);
+          if (d.status === "queued" || d.status === "processing") startPolling(activeId);
+          return;
+        }
+      }
       if (!data.ok) {
         setNotice({
           code: String(data.code || (data.needsCredits ? "NO_CREDITS" : "SEND_FAILED")),
@@ -1145,9 +1163,35 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   // Paso 4 — resultado
   if ((step === "done" || step === "failed") && job) {
     const allFailed = step === "failed" || (job.sent === 0 && job.failed > 0);
+    const coded = job.failures.find((f) => isFailCode(f.code));
+    const failCode: FailCode = isFailCode(job.failCode) ? job.failCode : isFailCode(coded?.code) ? coded.code : "OTHER";
+    const refundText =
+      job.sent === 0
+        ? job.isPaid
+          ? `Te devolvimos los ${job.total} créditos: no se gastó nada.`
+          : "Te devolvimos tus respuestas gratis: arregla el formulario y vuelve a intentarlo."
+        : job.isPaid && job.total - job.sent > 0
+          ? `Te devolvimos ${job.total - job.sent} créditos por las respuestas que no llegaron.`
+          : "";
     return (
       <div className="sheet">
         {stepsBar}
+        {helpOpen && allFailed && (
+          <FailHelp
+            code={failCode}
+            failures={job.failures}
+            refundText={refundText}
+            onRetry={
+              form
+                ? () => {
+                    setHelpOpen(false);
+                    backToConfig();
+                  }
+                : undefined
+            }
+            onClose={() => setHelpOpen(false)}
+          />
+        )}
         <div className="sheet-body">
           <h2>{allFailed ? "No se pudieron enviar las respuestas" : job.failed > 0 ? "Envío terminado con algunos errores" : "Listo, respuestas enviadas"}</h2>
           <p className="sheet-lead">
@@ -1158,6 +1202,13 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               <p>{job.reason}</p>
             </div>
           )}
+          {allFailed && (
+            <div className="actions actions-center">
+              <button type="button" className="b b-ghost b-small" onClick={() => setHelpOpen(true)}>
+                Ver cómo arreglarlo
+              </button>
+            </div>
+          )}
 
           {job.failures.length > 0 && (
             <section className="failures" aria-labelledby="failures-h">
@@ -1166,7 +1217,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 {job.failures.slice(0, 20).map((f, i) => (
                   <li key={i}>
                     <p className="failure-what">
-                      {typeof f.index === "number" ? `Respuesta ${f.index + 1}` : "Una respuesta"}
+                      {typeof f.index === "number" ? `Respuesta ${f.index}` : "Una respuesta"}
                       {f.question ? `, pregunta "${f.question}"` : ""}
                     </p>
                     {f.message && <p>{f.message}</p>}

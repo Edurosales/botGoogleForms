@@ -6,13 +6,14 @@
  * Generar con Groq y enviar a Google nunca van en la misma invocación: la
  * suma se pasaba del tiempo máximo de la función (502 sin rastro).
  */
-import { db, type FailureDetail, type WebJob } from "./db";
+import { db, type FailureCode, type FailureDetail, type WebJob } from "./db";
 import { claimSlot, getQueuePosition } from "./queue";
 import { generateProfiles, needsAi } from "./aiProfiles";
-import { failureHint, submitOne, type SubmitResult } from "./formSubmitter";
+import { failureCode, failureHint, submitOne, type SubmitResult } from "./formSubmitter";
 import { addCredits, spendCredits } from "./credits";
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { notifyUser } from "./notify";
+import { hasColumn, onlyExisting } from "./schemaFlags";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
 const SUBMIT_BATCH = 12;
@@ -28,6 +29,10 @@ const STUCK_WITHOUT_PROGRESS_MS = 15 * 60_000;
 // Si la columna progress_at aún no existe, se mide desde que empezó con más margen.
 const STUCK_FALLBACK_MS = 60 * 60_000;
 const LOCK_MS = 55_000;
+// Corte rápido: si los primeros intentos fallan TODOS, no tiene sentido seguir
+// (el formulario no es público, pide algo que no podemos dar…): se detiene,
+// se explica y se reembolsa en vez de hacer esperar al cliente.
+const FAIL_FAST_AFTER = 6;
 
 export type AdvanceResult = { httpStatus: number; body: Record<string, unknown> };
 
@@ -39,24 +44,24 @@ function jobToForm(job: WebJob): ParsedForm {
     viewUrl: job.view_url,
     submitUrl: job.submit_url,
     numSections: job.num_sections,
-    collectsEmail: false,
+    collectsEmail: job.collects_email ?? false,
   };
 }
 
 /**
  * Reembolso al cerrar un job:
  * - Pagado: se devuelven las respuestas no enviadas (rechazadas o sin intentar).
- * - Gratis: la bienvenida es UN solo envío. Solo se devuelve completa si el
- *   envío no llegó a intentar nada contra Google (falla nuestra: IA caída,
- *   envío trabado). Si Google rechazó respuestas, o se enviaron algunas, se
- *   pierde: si no, se podría reintentar gratis sin fin.
+ * - Gratis: la bienvenida es UN solo envío. Si no llegó NINGUNA respuesta
+ *   (Google rechazó todo, IA caída, envío trabado) se devuelve completa para
+ *   que pueda arreglar su formulario y reintentar: no obtuvo nada. Si llegó
+ *   al menos una, la bienvenida se usó y lo demás se pierde.
  */
-async function refundOnFinish(job: WebJob, sent: number, failed: number) {
+async function refundOnFinish(job: WebJob, sent: number) {
   try {
     if (job.is_paid) {
       const unsent = job.total - sent;
       if (unsent > 0) await addCredits(job.user_id, unsent);
-    } else if (sent === 0 && failed === 0 && job.free_credits_spent > 0) {
+    } else if (sent === 0 && job.free_credits_spent > 0) {
       await spendCredits(job.user_id, 0, -job.free_credits_spent);
     }
   } catch (e) {
@@ -65,16 +70,26 @@ async function refundOnFinish(job: WebJob, sent: number, failed: number) {
 }
 
 /** Lo que `refundOnFinish` devolvería (para informarlo en la respuesta). */
-function refundAmount(job: WebJob, sent: number, failed: number): number {
+function refundAmount(job: WebJob, sent: number): number {
   if (job.is_paid) return Math.max(0, job.total - sent);
-  return sent === 0 && failed === 0 ? job.free_credits_spent : 0;
+  return sent === 0 ? job.free_credits_spent : 0;
+}
+
+/** La causa más repetida entre los rechazos (para la ventana de ayuda). */
+function mainFailCode(failures: FailureDetail[]): FailureCode | null {
+  const counts = new Map<FailureCode, number>();
+  for (const f of failures) if (f.code) counts.set(f.code, (counts.get(f.code) ?? 0) + 1);
+  let best: FailureCode | null = null;
+  for (const [code, n] of counts) if (!best || n > (counts.get(best) ?? 0)) best = code;
+  return best;
 }
 
 /** Pasa el job a un estado final una sola vez (aunque haya dos ticks a la vez) y reembolsa. */
 async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob["status"] }) {
+  const safePatch = await onlyExisting("web_jobs", { ...patch, finished_at: new Date().toISOString() }, ["fail_code"]);
   const { data: won } = await db()
     .from("web_jobs")
-    .update({ ...patch, finished_at: new Date().toISOString() })
+    .update(safePatch)
     .eq("id", job.id)
     .eq("status", "processing")
     .select("id")
@@ -82,8 +97,8 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
   if (!won) return;
   const sent = patch.sent ?? job.sent;
   const failed = patch.failed ?? job.failed;
-  await refundOnFinish(job, sent, failed);
-  const back = refundAmount(job, sent, failed);
+  await refundOnFinish(job, sent);
+  const back = refundAmount(job, sent);
   await notifyUser(job.user_id, {
     kind: patch.status === "done" ? "job_done" : "job_failed",
     title:
@@ -123,6 +138,8 @@ export function statusPayload(job: WebJob, extra: Record<string, unknown> = {}) 
     generated: (job.profiles ?? []).length,
     queuePosition: 0,
     failures: (job.failure_details ?? []).slice(-5),
+    failCode: job.fail_code ?? null,
+    isPaid: job.is_paid,
     ...extra,
   };
 }
@@ -166,7 +183,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   const lastProgress = Date.parse(job.progress_at || job.started_at || job.created_at);
   const stuckAfter = job.progress_at ? STUCK_WITHOUT_PROGRESS_MS : STUCK_FALLBACK_MS;
   if (Date.now() - lastProgress > stuckAfter) {
-    const back = refundAmount(job, job.sent, job.failed);
+    const back = refundAmount(job, job.sent);
     const reason =
       back > 0
         ? `El envío se detuvo después de ${job.sent} respuesta(s). Te devolvimos ${back} ${job.is_paid ? "créditos" : "respuestas gratis"}.`
@@ -223,6 +240,18 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
     submitOne(form, profile)
   );
 
+  // Google pidió el correo del encuestado y el formulario no lo mostraba al
+  // leerlo: se marca y el mismo lote se reintenta con correo en el próximo
+  // tick (no cuenta como rechazo).
+  if (!job.collects_email && results.some((r) => r.needsEmail) && (await hasColumn("web_jobs", "collects_email"))) {
+    await supa
+      .from("web_jobs")
+      .update({ collects_email: true, ...lockRelease })
+      .eq("id", job.id)
+      .eq("status", "processing");
+    return ok(statusPayload(job, { phase: "sending" }));
+  }
+
   let sent = job.sent;
   let failed = job.failed;
   const failures: FailureDetail[] = [...(job.failure_details ?? [])];
@@ -238,19 +267,33 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       question: r.detail?.question ?? "",
       message: r.detail?.message ?? `Google respondió ${r.status || "sin conexión"}`,
       hint: failureHint(form, r),
+      code: failureCode(form, r),
     });
   });
   const failureDetails = failures.slice(-MAX_FAILURE_DETAILS);
+  const failFast = sent === 0 && failed >= FAIL_FAST_AFTER;
 
-  if (sent + failed >= job.total) {
+  if (sent + failed >= job.total || failFast) {
     const status = sent === 0 ? "failed" : "done";
+    const code = mainFailCode(failureDetails);
+    const lastHint = failureDetails.length ? failureDetails[failureDetails.length - 1].hint : "";
     const reason =
       sent === 0 && failureDetails.length
-        ? `Google rechazó todas las respuestas. ${failureDetails[failureDetails.length - 1].hint}`
+        ? `${failFast && failed < job.total ? `Detuvimos el envío: las primeras ${failed} respuestas fueron rechazadas por Google. ` : "Google rechazó todas las respuestas. "}${lastHint}`
         : undefined;
-    await finishJob(job, { status, sent, failed, failure_details: failureDetails, ...(reason ? { moderation_reason: reason } : {}) });
+    await finishJob(job, {
+      status,
+      sent,
+      failed,
+      failure_details: failureDetails,
+      ...(status === "failed" && code ? { fail_code: code } : {}),
+      ...(reason ? { moderation_reason: reason } : {}),
+    });
     return ok(
-      statusPayload({ ...job, status, sent, failed, failure_details: failureDetails }, { reason, refunded: refundAmount(job, sent, failed) })
+      statusPayload(
+        { ...job, status, sent, failed, failure_details: failureDetails, fail_code: status === "failed" ? code : null },
+        { reason, refunded: refundAmount(job, sent) }
+      )
     );
   }
 

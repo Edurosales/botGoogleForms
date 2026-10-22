@@ -29,5 +29,6 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]">
     title: job.title,
     failures: (job.failure_details ?? []).slice(-5),
     reason: job.moderation_reason || undefined,
+    failCode: job.fail_code ?? null,
   });
 }

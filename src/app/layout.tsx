@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import Ads from "./Ads";
+import SupportButton from "./SupportButton";
 
 const GA_ID = "G-4WCK4EME75";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 
         {/* Anuncios solo para visitantes gratuitos y fuera de las páginas de pago (ver Ads.tsx). */}
         <Ads />
+        <SupportButton />
 
         <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
           <p>

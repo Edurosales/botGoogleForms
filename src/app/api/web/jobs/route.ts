@@ -5,6 +5,7 @@ import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser
 import { moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
+import { onlyExisting } from "@/lib/schemaFlags";
 import { spendCredits } from "@/lib/credits";
 import { rateLimit } from "@/lib/ratelimit";
 import {
@@ -79,6 +80,22 @@ export async function POST(request: Request) {
   const formUrl = typeof body.formUrl === "string" ? body.formUrl.trim().slice(0, 500) : "";
   if (!formUrl) return fail(400, { code: "INVALID_URL", reason: "Falta el link del formulario." });
 
+  // Regla: un envío a la vez por cuenta. El siguiente formulario entra cuando
+  // termina el actual (así nadie acapara la cola con varios a la vez).
+  const { data: active } = await db()
+    .from("web_jobs")
+    .select("id,title,status")
+    .eq("user_id", user.id)
+    .in("status", ["queued", "processing"])
+    .limit(1);
+  if (active?.length) {
+    return fail(409, {
+      code: "ACTIVE_JOB",
+      activeJobId: active[0].id,
+      reason: `Ya tienes un envío en curso${active[0].title ? ` ("${active[0].title}")` : ""}. Cuando termine podrás enviar otro formulario.`,
+    });
+  }
+
   // Todo texto libre termina en el prompt de Groq o en la BD: se acota.
   const customInstructions = typeof body.customInstructions === "string" ? body.customInstructions.slice(0, 600) : "";
   const language = SUPPORTED_LANGUAGES.some((l) => l.code === body.language)
@@ -96,9 +113,9 @@ export async function POST(request: Request) {
     return fail(502, { code: "FETCH_FAILED", reason: FORM_ERROR_MESSAGES.FETCH_FAILED });
   }
 
-  if (form.collectsEmail) {
-    return fail(400, { code: "COLLECTS_EMAIL", blocked: true, reason: FORM_ERROR_MESSAGES.COLLECTS_EMAIL });
-  }
+  // Formularios que piden correo ("Respuesta del usuario"): se envía un
+  // correo generado en cada respuesta (ver formSubmitter). Los de correo
+  // verificado exigen iniciar sesión y parseForm ya los rechaza (NOT_PUBLIC).
 
   const moderation = await moderateFormSafe(form);
   if (!moderation.allowed) {
@@ -201,9 +218,9 @@ export async function POST(request: Request) {
   }
 
   const supa = db();
-  const { data: job, error } = await supa
-    .from("web_jobs")
-    .insert({
+  const row = await onlyExisting(
+    "web_jobs",
+    {
       user_id: user.id,
       form_url: formUrl,
       view_url: form.viewUrl,
@@ -220,9 +237,11 @@ export async function POST(request: Request) {
       free_credits_spent: freeSpend,
       terms_version: TERMS_VERSION,
       terms_accepted_at: new Date().toISOString(),
-    })
-    .select()
-    .single<WebJob>();
+      collects_email: form.collectsEmail,
+    },
+    ["collects_email"]
+  );
+  const { data: job, error } = await supa.from("web_jobs").insert(row).select().single<WebJob>();
 
   if (error || !job) {
     // Devolver lo cobrado: el envío nunca se creó.

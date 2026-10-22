@@ -58,6 +58,12 @@ export type WebJob = {
   progress_at?: string | null;
   tick_lock_until?: string | null;
   finished_at: string | null;
+  /** El formulario pide correo ("Respuesta del usuario"): se envía uno generado (Ronda 14). */
+  collects_email?: boolean;
+  /** Causa principal si el envío falló (ver FailureCode). */
+  fail_code?: string | null;
+  /** Prioridad manual en la cola (admin); mayor = antes. */
+  priority?: number;
 };
 
 export type AppSettings = {
@@ -83,7 +89,19 @@ export type FailureDetail = {
   question: string;
   message: string;
   hint: string;
+  code?: FailureCode;
 };
+
+/** Causa de un rechazo, para explicarle al cliente cómo arreglarlo. */
+export type FailureCode =
+  | "NOT_PUBLIC"
+  | "NEEDS_EMAIL"
+  | "CLOSED"
+  | "REQUIRED"
+  | "VALIDATION"
+  | "RATE_LIMIT"
+  | "NETWORK"
+  | "OTHER";
 
 export type WebCoupon = {
   id: string;

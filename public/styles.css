@@ -397,3 +397,22 @@ body.paying .cookie{display:none!important}
 .cele-amount{margin:6px 0 4px;font-size:2rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
 .cele .sheet-lead{margin:6px auto 4px;max-width:34ch}
 .cele .b{margin-top:14px}
+
+/* Ronda 14: ventana de ayuda cuando falla un envío y botón de soporte */
+.fh-card{max-width:520px}
+.fh-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.fh-why{margin:0 0 12px;color:var(--mute)}
+.fh-label{margin:14px 0 6px;font-size:.8125rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--acc)}
+.fh-google{background:var(--err-bg,#FDF0EE);border:1px solid #F1C9C3;border-radius:10px;padding:10px 12px}
+.fh-google .fh-label{margin-top:0;color:var(--err,#9A2A20)}
+.fh-google p{margin:2px 0}
+.fh-q{font-weight:700}
+.fh-steps{margin:0;padding-left:22px}
+.fh-steps li{margin:4px 0}
+.fh-refund{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:var(--ok-bg,#EDF7EE);color:var(--ok);font-weight:700}
+.fh-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 8px}
+.fh-actions .b{flex:1 1 200px;text-align:center;justify-content:center}
+.support-fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:65;display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 16px;border-radius:999px;background:#0F7A41;color:#fff!important;font-weight:800;text-decoration:none;box-shadow:0 10px 24px -10px rgba(15,122,65,.7)}
+.support-fab:hover{background:#0b6635}
+body.paying .support-fab{display:none}
+@media(max-width:520px){.support-fab span{display:none}.support-fab{padding:0;width:50px;justify-content:center}}

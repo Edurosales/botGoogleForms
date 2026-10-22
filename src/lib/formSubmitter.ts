@@ -4,13 +4,16 @@
  * paralelo, cola) no se porta aquí: en el servicio web la maneja el
  * endpoint de "tick" del job (Fase 3), llamando submitOne() por lotes.
  *
- * Nota: el servicio bloquea la creación de jobs cuando
- * `form.collectsEmail` es true (ver formParser.ts / página principal),
- * así que a diferencia del bot de escritorio, aquí NO se agrega el campo
- * emailAddress al payload.
+ * Formularios que recolectan correo como "Respuesta del usuario": igual que
+ * el bot de escritorio, se agrega `emailAddress` con un correo generado
+ * (coherente con el nombre de esa respuesta). Los de correo VERIFICADO
+ * exigen iniciar sesión: Google redirige a accounts.google.com y eso se
+ * reporta como NOT_PUBLIC, nunca como enviado.
  */
 
 import type { ParsedForm } from "./formParser";
+import type { FailureCode } from "./db";
+import { createNameState, isNameField } from "./dataGen";
 
 const UA_POOL = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
@@ -137,7 +140,36 @@ export interface SubmitResult {
   ok: boolean;
   status: number;
   detail?: SubmitDetail;
+  /** Causa ya conocida por la respuesta de Google (si no, se deduce del mensaje). */
+  code?: FailureCode;
+  /** Google pidió el correo del encuestado y no lo mandamos: reintentar con correo. */
+  needsEmail?: boolean;
 }
+
+// Dominios reservados (RFC 2606): no existen buzones. Si el formulario tiene
+// "Enviar a los encuestados una copia de sus respuestas", Google no le
+// escribe a una persona real que casualmente tenga ese correo.
+const SAFE_EMAIL_DOMAINS = ["example.com", "example.org", "example.net"];
+
+/** Correo para el campo `emailAddress`, a partir del nombre de esa misma respuesta. */
+export function emailForProfile(form: ParsedForm, profile: Record<string, string>): string {
+  const nameQ = form.questions.find((q) => isNameField(q));
+  const local = createNameState()
+    .randomEmailFromName(nameQ ? profile[nameQ.entry] : undefined)
+    .split("@")[0];
+  return `${local}@${pick(SAFE_EMAIL_DOMAINS)}`;
+}
+
+function isLoginUrl(location: string): boolean {
+  return /accounts\.google\.com|servicelogin|\/signin/i.test(location);
+}
+
+/** El HTML re-pintado por Google trae el campo de correo del encuestado. */
+function asksRespondentEmail(html: string): boolean {
+  return /name="emailAddress"/i.test(html) || /"emailAddress"/.test(html);
+}
+
+const CLOSED_RE = /closedform|ya no acepta respuestas|no longer accepting responses|is no longer accepting/i;
 
 function stripTags(html: string): string {
   return html
@@ -188,8 +220,30 @@ export function extractGoogleError(html: string, form: ParsedForm, textFallback 
   return undefined;
 }
 
+/** Causa de un rechazo (para la ventana de ayuda del cliente). */
+export function failureCode(form: ParsedForm, result: SubmitResult): FailureCode {
+  if (result.code) return result.code;
+  const msg = (result.detail?.message ?? "").toLowerCase();
+  const question = result.detail?.question ? form.questions.find((x) => x.title === result.detail?.question) : undefined;
+  if (result.status === 0) return "NETWORK";
+  if (result.status === 429) return "RATE_LIMIT";
+  if (result.status === 401 || result.status === 403) return "NOT_PUBLIC";
+  if (msg.includes("obligatoria") || msg.includes("required")) return "REQUIRED";
+  if (question?.validation || ERROR_PHRASES.test(msg)) return "VALIDATION";
+  return "OTHER";
+}
+
 /** Sugerencia en español para arreglar un envío fallido. */
 export function failureHint(form: ParsedForm, result: SubmitResult): string {
+  if (result.code === "NOT_PUBLIC") {
+    return 'Tu formulario pide iniciar sesión con Google. En Google Forms → Configuración → Respuestas desactiva "Limitar a 1 respuesta", "Restringir a usuarios de tu organización" y en "Recopilar correos" elige "Respuesta del usuario" o "No recopilar" (no "Verificado").';
+  }
+  if (result.code === "CLOSED") {
+    return 'Tu formulario dejó de aceptar respuestas. En Google Forms → pestaña Respuestas activa "Se aceptan respuestas".';
+  }
+  if (result.code === "NEEDS_EMAIL") {
+    return 'Tu formulario pide el correo de quien responde. Ya lo completamos con correos generados; si sigue fallando, en Configuración → Respuestas → "Recopilar correos" elige "Respuesta del usuario" (no "Verificado").';
+  }
   const q = result.detail?.question;
   const msg = (result.detail?.message ?? "").toLowerCase();
   const question = q ? form.questions.find((x) => x.title === q) : undefined;
@@ -233,7 +287,9 @@ export async function submitOne(
   opts: SubmitOptions = {}
 ): Promise<SubmitResult> {
   const ua = pick(UA_POOL);
-  const payload = buildPayload(form, profile);
+  const withEmail =
+    form.collectsEmail && !profile.emailAddress ? { ...profile, emailAddress: emailForProfile(form, profile) } : profile;
+  const payload = buildPayload(form, withEmail);
   const [dMin, dMax] = opts.readDelayMs ?? [200, 700];
 
   try {
@@ -280,11 +336,26 @@ export async function submitOne(
     });
 
     if (postRes.status === 302 || postRes.status === 303) {
+      const location = postRes.headers.get("location") ?? "";
       await postRes.body?.cancel().catch(() => {});
+      // Una redirección al login NO es un envío: Google pide iniciar sesión
+      // (antes contaba como enviada y el cliente veía respuestas que no existían).
+      if (isLoginUrl(location)) {
+        return { ok: false, status: postRes.status, code: "NOT_PUBLIC", detail: { message: "Google pidió iniciar sesión para responder." } };
+      }
+      if (CLOSED_RE.test(location)) {
+        return { ok: false, status: postRes.status, code: "CLOSED", detail: { message: "El formulario ya no acepta respuestas." } };
+      }
       return { ok: true, status: postRes.status };
     }
 
     const html = await postRes.text().catch(() => "");
+    if (CLOSED_RE.test(html) && !html.includes("FB_PUBLIC_LOAD_DATA_")) {
+      return { ok: false, status: postRes.status, code: "CLOSED", detail: { message: "El formulario ya no acepta respuestas." } };
+    }
+    if (!form.collectsEmail && postRes.status !== 200 && asksRespondentEmail(html)) {
+      return { ok: false, status: postRes.status, code: "NEEDS_EMAIL", needsEmail: true, detail: { message: "El formulario pide el correo de quien responde." } };
+    }
     if (postRes.status === 200) {
       // 200 normalmente es la página de "respuesta registrada". Si en cambio
       // Google re-pintó el formulario con errores, no cuenta como enviada.
