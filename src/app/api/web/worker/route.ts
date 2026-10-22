@@ -17,9 +17,14 @@ const RUN_BUDGET_MS = 40_000;
 const PARALLEL_JOBS = 3;
 
 function authorized(req: Request): boolean {
-  const secret = process.env.WORKER_SECRET || "";
-  if (secret.length < 16) return false;
-  const got = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  // trim: al pegar el secreto en Vercel o en el SQL de Supabase es común que
+  // se cuele un espacio o salto de línea, y la comparación exacta daba 401.
+  const secret = (process.env.WORKER_SECRET || "").trim();
+  if (secret.length < 16) {
+    console.error("[worker] WORKER_SECRET no está configurado (o es muy corto) en este deploy");
+    return false;
+  }
+  const got = (req.headers.get("authorization") || "").trim().replace(/^Bearer\s+/i, "").trim();
   const a = Buffer.from(got);
   const b = Buffer.from(secret);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -63,7 +68,7 @@ export async function POST(req: Request) {
     after(async () => {
       await fetch(`${siteUrl()}/api/web/worker`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.WORKER_SECRET}` },
+        headers: { Authorization: `Bearer ${(process.env.WORKER_SECRET || "").trim()}` },
         signal: AbortSignal.timeout(3_000),
         cache: "no-store",
       }).catch(() => {});

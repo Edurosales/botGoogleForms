@@ -260,7 +260,7 @@ export async function POST(request: Request) {
     after(async () => {
       await fetch(`${siteUrl()}/api/web/worker`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.WORKER_SECRET}` },
+        headers: { Authorization: `Bearer ${(process.env.WORKER_SECRET || "").trim()}` },
         signal: AbortSignal.timeout(3_000),
         cache: "no-store",
       }).catch(() => {});
