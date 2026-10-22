@@ -44,6 +44,16 @@ async function accessToken(): Promise<string> {
   return j.access_token;
 }
 
+/** ¿Google acepta el refresh token? (diagnóstico; nunca devuelve el token). */
+export async function gmailTokenCheck(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await accessToken();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
 const b64url = (s: string) => Buffer.from(s, "utf8").toString("base64url");
 /** Sin saltos de línea: evita inyectar cabeceras desde un asunto o un correo. */
