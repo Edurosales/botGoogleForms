@@ -209,18 +209,17 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
     };
   }, [pay]);
 
-  // Ventana de pago: bloquea el scroll del fondo y se cierra con Esc.
+  // Ventana de pago: bloquea el scroll del fondo y oculta el aviso de cookies.
+  // A propósito NO se cierra con Esc ni con clic afuera: con un pago en curso,
+  // cerrarla por accidente cancelaba la compra (reportado por el dueño).
   useEffect(() => {
     if (!pay) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPay(null);
-    };
-    window.addEventListener("keydown", onKey);
+    document.body.classList.add("paying");
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
+      document.body.classList.remove("paying");
     };
   }, [pay]);
 
@@ -414,16 +413,11 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
 
           {pay && (
             <div className="paymodal" role="dialog" aria-modal="true" aria-labelledby="paymodal-h">
-              <div className="paymodal-backdrop" onClick={() => setPay(null)} />
+              <div className="paymodal-backdrop" />
               <div className="paymodal-card">
                 <header className="paymodal-head">
-                  <div>
-                    <p className="paymodal-kicker">Pago seguro</p>
-                    <h2 id="paymodal-h">{pay.credits ?? selected?.responses ?? ""} créditos</h2>
-                  </div>
-                  <button type="button" className="paymodal-x" onClick={() => setPay(null)} aria-label="Cerrar el pago">
-                    ×
-                  </button>
+                  <h2 id="paymodal-h">Completa tu pago</h2>
+                  <p className="paymodal-kicker">{pay.credits ?? selected?.responses ?? ""} créditos para FormsBot</p>
                 </header>
 
                 <dl className="paymodal-sum">
@@ -455,7 +449,9 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                   </div>
                 )}
                 <div className="kr-wrap">
-                  <div className="kr-smart-form" kr-popin="false" />
+                  {/* kr-card-form-expanded: el formulario de tarjeta va DENTRO de esta
+                      ventana. Sin él, Izipay abría su propia ventanita encima. */}
+                  <div className="kr-smart-form" kr-card-form-expanded="" />
                 </div>
 
                 <p className="paymodal-trust">
@@ -465,8 +461,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                   Tus datos de tarjeta van directo a Izipay. FormsBot nunca los ve ni los guarda. Al terminar vuelves{" "}
                   {returnTo === "/" ? "a tu formulario" : "aquí"} con los créditos cargados.
                 </p>
-                <button type="button" className="b b-text b-block" onClick={() => setPay(null)}>
-                  Cancelar y cambiar de paquete
+                <button type="button" className="b b-ghost b-block" onClick={() => setPay(null)}>
+                  Cancelar pago
                 </button>
               </div>
             </div>

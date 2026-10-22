@@ -338,9 +338,10 @@ body:has(.tool-page){
 .paymodal{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
 .paymodal-backdrop{position:absolute;inset:0;background:rgba(33,22,63,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 .paymodal-card{position:relative;width:100%;max-width:440px;max-height:calc(100vh - 32px);overflow:auto;background:#fff;color:#21163F;border-radius:14px;box-shadow:0 24px 60px -20px rgba(33,22,63,.55);padding:20px 20px 12px;border-top:6px solid var(--acc)}
-.paymodal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.paymodal-kicker{margin:0;font-size:.8125rem;font-weight:600;color:var(--ok)}
-.paymodal-head h2{margin:2px 0 0;font-size:1.375rem;line-height:1.2}
+.paymodal-head{margin-bottom:12px}
+.paymodal-kicker{margin:2px 0 0;font-size:.875rem;color:var(--mute)}
+.paymodal-head h2{margin:0;font-size:1.375rem;line-height:1.2}
+body.paying .cookie{display:none!important}
 .paymodal-x{border:0;background:none;font-size:1.75rem;line-height:1;color:var(--mute);cursor:pointer;padding:0 4px;border-radius:8px}
 .paymodal-x:hover{color:var(--ink)}
 .paymodal-x:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
