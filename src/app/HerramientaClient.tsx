@@ -7,6 +7,7 @@ import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
 import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
 import ExportButton from "./ExportButton";
+import LiveQueue from "./LiveQueue";
 
 type Mode = "ai" | "random" | "fixed" | "weighted" | "list";
 type QConf = {
@@ -473,7 +474,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           stoppedRef.current = true;
           return;
         }
-        pollRef.current = setTimeout(tick, POLL_MS);
+        // En fila la posición llega en vivo por LiveQueue: aquí basta un sondeo lento.
+        pollRef.current = setTimeout(tick, data.status === "queued" ? 10_000 : POLL_MS);
       };
 
       void tick();
@@ -1059,36 +1061,13 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       <div className="sheet">
         {stepsBar}
         <div className="sheet-body">
-          <div className="ticket" aria-live="polite">
-            <p className="ticket-label">{job.isPaid ? "Fila prioritaria" : "Tu turno en la fila"}</p>
-            <p className="ticket-number">{job.queuePosition > 0 ? job.queuePosition : "…"}</p>
-            <p className="ticket-sub">
-              {job.queuePosition > 0
-                ? job.queuePosition === 1
-                  ? "Eres el siguiente. Empieza apenas termine el envío actual."
-                  : `Hay ${job.queuePosition - 1} ${job.queuePosition - 1 === 1 ? "envío" : "envíos"} antes que el tuyo.`
-                : "Calculando tu lugar…"}
-            </p>
-          </div>
-          <div className="actions actions-center">
-            <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
-              {refreshing ? "Actualizando…" : "Actualizar"}
-            </button>
-          </div>
-          <p className="fine center">
-            La posición se actualiza sola. Puedes cerrar esta pestaña: tu envío se procesa en la nube y lo verás al volver.
-          </p>
-
-          {!job.isPaid && (
-            <div className="note">
-              <p>
-                <strong>¿Apurado?</strong> Con créditos comprados tu envío pasa a la fila prioritaria.
-              </p>
-              <button type="button" className="b b-small b-primary" onClick={goBuy}>
-                Comprar créditos
-              </button>
-            </div>
-          )}
+          <LiveQueue
+            jobId={job.jobId}
+            isPaid={job.isPaid}
+            initialPosition={job.queuePosition}
+            onState={(d) => applyJobData(job.jobId, d)}
+            onBuy={goBuy}
+          />
 
           {softwarePitch}
           {concierge}

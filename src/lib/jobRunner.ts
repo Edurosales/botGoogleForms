@@ -7,7 +7,7 @@
  * suma se pasaba del tiempo máximo de la función (502 sin rastro).
  */
 import { db, type FailureCode, type FailureDetail, type WebJob } from "./db";
-import { claimSlot, getQueuePosition } from "./queue";
+import { claimSlot, getQueuePosition, pauseState } from "./queue";
 import { generateProfiles, needsAi } from "./aiProfiles";
 import { failureCode, failureHint, submitOne, type SubmitResult } from "./formSubmitter";
 import { addCredits, spendCredits } from "./credits";
@@ -212,11 +212,31 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   if (job.status === "queued") {
     const claimed = await claimSlot(job);
     const queuePosition = await getQueuePosition(claimed);
-    return ok(statusPayload(claimed, { queuePosition }));
+    const pause = await pauseState();
+    return ok(
+      statusPayload(claimed, {
+        queuePosition,
+        paused: pause.all || (!job.is_paid && pause.free),
+        pauseMessage: pause.message || undefined,
+        lostTurns: claimed.lost_turns ?? 0,
+        promoted: (claimed.priority ?? 0) > 0,
+      })
+    );
   }
 
   if (job.status !== "processing") {
     return ok(statusPayload(job, { reason: job.moderation_reason || undefined }));
+  }
+
+  // Sistema en pausa: el envío en curso espera sin perder nada. Se marca
+  // como "con avance" para que la espera no cuente como envío trabado.
+  const pause = await pauseState();
+  if (pause.all) {
+    await supa
+      .from("web_jobs")
+      .update({ ...lockRelease, ...(progressSupported ? { progress_at: new Date().toISOString() } : {}) })
+      .eq("id", job.id);
+    return ok(statusPayload(job, { phase: "paused", paused: true, pauseMessage: pause.message || undefined }));
   }
 
   const lastProgress = Date.parse(job.progress_at || job.started_at || job.created_at);

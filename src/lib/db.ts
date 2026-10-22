@@ -73,6 +73,10 @@ export type WebJob = {
   fail_code?: string | null;
   /** Prioridad manual en la cola (admin); mayor = antes. */
   priority?: number;
+  // Ronda 17: fila en vivo
+  queue_at?: string | null;
+  last_seen_at?: string | null;
+  lost_turns?: number;
 };
 
 export type AppSettings = {
@@ -88,6 +92,12 @@ export type AppSettings = {
   max_signups_per_ip: number;
   /** Tope diario de respuestas de todo el servicio (Ronda 12). */
   global_daily_cap?: number;
+  // Ronda 17: pausa del sistema
+  service_paused?: boolean;
+  free_paused?: boolean;
+  auto_pause_free_at?: number;
+  pause_message?: string;
+  presence_grace_seconds?: number;
   updated_at: string;
 };
 

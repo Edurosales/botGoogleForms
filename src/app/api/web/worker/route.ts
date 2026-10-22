@@ -5,6 +5,7 @@ import { advanceJob, type AdvanceResult } from "@/lib/jobRunner";
 import { siteUrl } from "@/lib/config";
 import { sendNewsletterBatch } from "@/lib/mailer";
 import { hasColumn } from "@/lib/schemaFlags";
+import { sweepAbsent } from "@/lib/queue";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -42,7 +43,8 @@ async function activeJobs(limit: number): Promise<WebJob[]> {
     .order("status", { ascending: true })
     .order("is_paid", { ascending: false });
   if (await hasColumn("web_jobs", "priority")) q = q.order("priority", { ascending: false });
-  const { data } = await q.order("created_at", { ascending: true }).limit(limit);
+  const turnCol = (await hasColumn("web_jobs", "queue_at")) ? "queue_at" : "created_at";
+  const { data } = await q.order(turnCol, { ascending: true }).limit(limit);
   return (data ?? []) as WebJob[];
 }
 
@@ -50,6 +52,8 @@ export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const start = Date.now();
+  // Gratis que cerraron la ventana: al final de la fila (o cancelados tras 10 min).
+  const swept = await sweepAbsent().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     const jobs = await activeJobs(PARALLEL_JOBS * 2);
@@ -84,5 +88,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, ms: Date.now() - start });
 }

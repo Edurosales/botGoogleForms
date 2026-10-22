@@ -19,6 +19,7 @@ import {
   DEFAULT_BUY_SOFTWARE_URL,
 } from "@/lib/webConfig";
 import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
+import { pauseState } from "@/lib/queue";
 
 
 interface CreateJobBody {
@@ -81,6 +82,14 @@ export async function POST(request: Request) {
     return fail(403, {
       code: "CONSENT_REQUIRED",
       reason: "Actualizamos los Términos y la Privacidad: acéptalos para seguir usando la herramienta.",
+    });
+  }
+
+  const pause = await pauseState();
+  if (pause.all) {
+    return fail(503, {
+      code: "SERVICE_PAUSED",
+      reason: pause.message || "El servicio está en pausa por mantenimiento. Vuelve en un rato; tu saldo no se tocó.",
     });
   }
 
@@ -245,8 +254,9 @@ export async function POST(request: Request) {
       terms_version: TERMS_VERSION,
       terms_accepted_at: new Date().toISOString(),
       collects_email: form.collectsEmail,
+      last_seen_at: new Date().toISOString(),
     },
-    ["collects_email"]
+    ["collects_email", "last_seen_at"]
   );
   const { data: job, error } = await supa.from("web_jobs").insert(row).select().single<WebJob>();
 

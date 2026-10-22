@@ -25,12 +25,12 @@ export function emailLayout(opts: { title: string; bodyHtml: string; cta?: { lab
   return `<!doctype html><html lang="es"><body style="margin:0;background:#F4F1FA;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#21163F">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
 <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:14px;border-top:6px solid #5B2EA6" cellspacing="0" cellpadding="0"><tr><td style="padding:24px 26px">
-<p style="margin:0 0 6px;font-weight:800;font-size:18px;color:#5B2EA6">FormsBot</p>
+<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 14px"><tr><td><img src="${siteUrl()}/email-logo.png" width="40" height="40" alt="FormsBot" style="display:block;border:0;border-radius:10px"></td><td style="padding-left:10px;font-weight:800;font-size:18px;color:#5B2EA6">FormsBot</td></tr></table>
 <h1 style="margin:0 0 14px;font-size:21px;line-height:1.3">${escapeHtml(opts.title)}</h1>
 <div style="font-size:15px;line-height:1.6;color:#3B3354">${opts.bodyHtml}</div>
 ${cta}
 </td></tr></table>
-<p style="max-width:560px;margin:14px auto 0;font-size:12px;line-height:1.5;color:#6B6386">${opts.footerHtml ?? ""}FormsBot · <a href="${siteUrl()}/privacidad.html" style="color:#6B6386">Privacidad</a></p>
+<p style="max-width:560px;margin:14px auto 0;font-size:12px;line-height:1.5;color:#6B6386">${opts.footerHtml ?? ""}<br>Soporte: <a href="https://t.me/onPowerTec" style="color:#6B6386">Telegram</a> · <a href="mailto:edroservices@gmail.com" style="color:#6B6386">edroservices@gmail.com</a><br>FormsBot · <a href="${siteUrl()}/privacidad.html" style="color:#6B6386">Privacidad</a></p>
 </td></tr></table></body></html>`;
 }
 

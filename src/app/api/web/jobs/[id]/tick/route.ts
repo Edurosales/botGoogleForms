@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getWebUser } from "@/lib/googleAuth";
 import { db, type WebJob } from "@/lib/db";
 import { advanceJob } from "@/lib/jobRunner";
+import { touchPresence } from "@/lib/queue";
 
 // Ver lib/jobRunner.ts: generar y enviar nunca van en la misma invocación.
 export const maxDuration = 60;
@@ -19,6 +20,8 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/web/jobs/[id]/
     return NextResponse.json({ ok: false, error: "No encontrado." }, { status: 404 });
   }
 
+  // La ventana del cliente está abierta: conserva su turno en la fila gratis.
+  if (job.status === "queued" && !job.is_paid) await touchPresence(job.id);
   const res = await advanceJob(job);
   return NextResponse.json(res.body, { status: res.httpStatus });
 }

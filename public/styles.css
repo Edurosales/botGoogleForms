@@ -447,3 +447,40 @@ body.paying .support-fab{display:none}
 .xp-table th{background:#5B2EA6;color:#fff;text-align:left;padding:7px 9px;white-space:nowrap}
 .xp-table td{padding:7px 9px;border-top:1px solid var(--line);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
 .xp-blur td{filter:blur(4px);user-select:none}
+
+/* Ronda 17: fila en vivo */
+.lq{border:1px solid var(--line);border-radius:16px;padding:18px;background:linear-gradient(180deg,#FBF9FF,#fff)}
+.lq-paid{border-color:#C9B6F2;background:linear-gradient(180deg,#F3EDFF,#fff)}
+.lq-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.8125rem;font-weight:700;color:var(--mute)}
+.lq-live{display:inline-flex;align-items:center;gap:6px}
+.lq-live i{width:9px;height:9px;border-radius:50%;background:#B0A7C4}
+.lq-live.on i{background:#12A06A;box-shadow:0 0 0 0 rgba(18,160,106,.6);animation:lqPulse 1.6s infinite}
+.lq-kind{padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--acc)}
+.lq-ring{position:relative;margin:18px auto 8px;width:200px;height:200px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;box-shadow:inset 0 0 0 10px var(--soft)}
+.lq-ring::before{content:"";position:absolute;inset:-4px;border-radius:50%;border:4px solid transparent;border-top-color:var(--acc);border-right-color:var(--acc);animation:lqSpin 2.4s linear infinite}
+.lq-label{margin:0;font-size:.8125rem;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.lq-number{margin:0;font-size:4.2rem;line-height:1;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;animation:lqPop .45s cubic-bezier(.2,1.4,.4,1)}
+.lq-sub{margin:4px 12px 0;font-size:.875rem;color:var(--mute);text-align:center}
+.lq-line{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;margin:12px 0 4px}
+.lq-line span{width:14px;height:14px;border-radius:50%;background:#C9B6F2;animation:lqBob 1.8s ease-in-out infinite}
+.lq-line em{font-style:normal;font-size:.8125rem;color:var(--mute)}
+.lq-line b{padding:2px 10px;border-radius:999px;background:var(--acc);color:#fff;font-size:.8125rem}
+.lq-warn{margin-top:14px;padding:12px 14px;border-radius:12px;background:#FFF6E5;border:1px solid #F2D9A6}
+.lq-warn p{margin:0 0 10px;color:#6B4300}
+@keyframes lqSpin{to{transform:rotate(360deg)}}
+@keyframes lqPop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes lqBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes lqPulse{0%{box-shadow:0 0 0 0 rgba(18,160,106,.55)}70%{box-shadow:0 0 0 8px rgba(18,160,106,0)}100%{box-shadow:0 0 0 0 rgba(18,160,106,0)}}
+@media(prefers-reduced-motion:reduce){.lq-ring::before,.lq-line span,.lq-live.on i,.lq-number{animation:none}}
+
+/* Ronda 17: menú de soporte */
+.support{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:65;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.support .support-fab{position:static;border:0;cursor:pointer;font:inherit}
+.support-menu{width:260px;background:#fff;color:#21163F;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 40px -18px rgba(33,22,63,.55);padding:10px;animation:lqPop .25s ease-out}
+.support-menu p{margin:2px 6px 8px;font-size:.8125rem;font-weight:700;color:var(--mute)}
+.support-menu a{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;color:#21163F!important;text-decoration:none;font-weight:700;font-size:.9375rem;overflow-wrap:anywhere}
+.support-menu a:hover{background:var(--soft)}
+.sm-ico{width:30px;height:30px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:.8125rem;font-weight:800}
+.sm-wa{background:#0F7A41}.sm-tg{background:#229ED9}.sm-mail{background:#5B2EA6}
+body.paying .support{display:none}
+.fh-more{margin:4px 0 6px;font-size:.875rem;color:var(--mute)}

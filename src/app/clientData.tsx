@@ -112,6 +112,10 @@ export function safeHttpUrl(value: unknown): string {
   }
 }
 
+/** Canales de soporte (además del WhatsApp configurable en el admin). */
+export const SUPPORT_TELEGRAM = "https://t.me/onPowerTec";
+export const SUPPORT_EMAIL = "edroservices@gmail.com";
+
 export function whatsappLink(number: string, message: string): string {
   const digits = number.replace(/\D/g, "") || DEFAULT_PUBLIC_SETTINGS.whatsappNumber;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;

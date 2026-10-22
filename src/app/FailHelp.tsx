@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePublicSettings, whatsappLink } from "./clientData";
+import { SUPPORT_EMAIL, SUPPORT_TELEGRAM, usePublicSettings, whatsappLink } from "./clientData";
 
-export type FailCode = "NOT_PUBLIC" | "NEEDS_EMAIL" | "CLOSED" | "REQUIRED" | "VALIDATION" | "RATE_LIMIT" | "NETWORK" | "OTHER";
+export type FailCode = "NOT_PUBLIC" | "NEEDS_EMAIL" | "CLOSED" | "REQUIRED" | "VALIDATION" | "RATE_LIMIT" | "NETWORK" | "LOST_TURN" | "OTHER";
 
 export type FailHelpFailure = { index?: number; question?: string; message?: string; hint?: string; code?: string };
 
@@ -63,6 +63,15 @@ const HELP: Record<FailCode, { title: string; why: string; steps: string[] }> = 
     title: "No hubo conexión con Google",
     why: "Google tardó demasiado o no respondió. Suele ser algo pasajero.",
     steps: ["Espera unos minutos y vuelve a enviar."],
+  },
+  LOST_TURN: {
+    title: "Perdiste tu turno en la fila",
+    why: "La fila gratuita necesita que tu ventana siga abierta. Saliste por más de 10 minutos y el envío se canceló.",
+    steps: [
+      "Vuelve a enviar tu formulario: te devolvimos tus respuestas gratis.",
+      "Deja esta pestaña abierta mientras esperas tu turno.",
+      "Con créditos comprados vas en la fila prioritaria y puedes cerrar la pestaña.",
+    ],
   },
   OTHER: {
     title: "Google rechazó las respuestas",
@@ -141,9 +150,16 @@ export default function FailHelp({
             </button>
           )}
           <a className="b b-ghost" href={whatsappLink(settings.whatsappNumber, supportMsg)} target="_blank" rel="noopener noreferrer">
-            Contactar a soporte
+            Soporte por WhatsApp
           </a>
         </div>
+        <p className="fh-more">
+          También por{" "}
+          <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer">
+            Telegram
+          </a>{" "}
+          o a <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(help.title)}&body=${encodeURIComponent(supportMsg)}`}>{SUPPORT_EMAIL}</a>.
+        </p>
       </div>
     </div>
   );
