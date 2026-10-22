@@ -63,7 +63,7 @@ export default function MiCuentaClient() {
   const [redeemMsg, setRedeemMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!me) return;
@@ -73,7 +73,11 @@ export default function MiCuentaClient() {
       .catch(() => setJobs([]));
     fetch("/api/web/orders", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setOrders(Array.isArray(d?.orders) ? (d.orders as OrderRow[]) : []))
+      .then((d) => {
+        // La hora se toma al llegar los datos (no en el render: Next lo rechaza al prerenderizar).
+        setNow(Date.now());
+        setOrders(Array.isArray(d?.orders) ? (d.orders as OrderRow[]) : []);
+      })
       .catch(() => setOrders([]));
   }, [me]);
 
