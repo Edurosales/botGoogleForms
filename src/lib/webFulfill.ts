@@ -30,7 +30,7 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
 
   // Devolución hecha en el panel de Izipay: revertir el pedido y retirar los
   // créditos (función SQL atómica; idempotente si el aviso llega dos veces).
-  if (isRefundAnswer(answer)) {
+  if (isRefundAnswer(answer) && order.status !== "pending") {
     if (order.status !== "paid") return { ok: false, orderId, reason: `devolución ignorada (estado ${order.status})` };
     const { data, error } = await supa.rpc("web_refund_order", { p_order: orderId, p_note: "Devolución desde Izipay" });
     if (error) throw new Error(`No se pudo registrar la devolución: ${error.message}`);

@@ -91,7 +91,14 @@ export type IzipayAnswer = {
 export function isRefundAnswer(answer: IzipayAnswer): boolean {
   if (answer.orderStatus === "REFUNDED" || answer.orderStatus === "CANCELLED") return true;
   return (answer.transactions ?? []).some(
-    (t) => t.operationType === "CREDIT" && (t.status === "PAID" || t.detailedStatus === "CAPTURED" || t.detailedStatus === "AUTHORISED")
+    (t) =>
+      // Reembolso de un pago ya cobrado: transacción nueva de tipo CREDIT.
+      (t.operationType === "CREDIT" && (t.status === "PAID" || t.detailedStatus === "CAPTURED" || t.detailedStatus === "AUTHORISED")) ||
+      // Devolución ANTES de que Izipay cobre (pago solo autorizado): Izipay lo
+      // anula y avisa la MISMA transacción con estado CANCELLED. Visto en
+      // producción: pagos de S/ 1.65 en AUTHORISED devueltos el mismo día.
+      t.detailedStatus === "CANCELLED" ||
+      t.detailedStatus === "REFUNDED"
   );
 }
 

@@ -14,10 +14,17 @@ export const WEB_SESSION_COOKIE = "web_session";
 const STATE_COOKIE = "web_g_state";
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 días
 
-export type WebAuthUser = { id: string; email: string; name: string; credits: number; freeCredits: number };
+export type WebAuthUser = { id: string; email: string; name: string; credits: number; freeCredits: number; sessionVersion?: number };
 
 function toAuthUser(row: WebUser): WebAuthUser {
-  return { id: row.id, email: row.email, name: row.name, credits: row.credits, freeCredits: row.free_credits ?? 0 };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    credits: row.credits,
+    freeCredits: row.free_credits ?? 0,
+    sessionVersion: typeof row.session_version === "number" ? row.session_version : undefined,
+  };
 }
 
 export function redirectUri(): string {
@@ -150,12 +157,21 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
   }
 
   const { data: row } = await supa.from("web_users").select("*").eq("id", userId).single<WebUser>();
-  return row ? toAuthUser(row) : null;
+  if (!row) return null;
+
+  // Una sola sesión activa por cuenta: cada inicio de sesión sube la versión y
+  // la sesión anterior (otro navegador u otro dispositivo) deja de valer.
+  if (typeof row.session_version === "number") {
+    const next = row.session_version + 1;
+    await supa.from("web_users").update({ session_version: next }).eq("id", userId);
+    row.session_version = next;
+  }
+  return toAuthUser(row);
 }
 
 export async function setWebSession(u: WebAuthUser) {
   const jar = await cookies();
-  jar.set(WEB_SESSION_COOKIE, makeToken({ id: u.id, email: u.email, name: u.name }, SESSION_TTL), {
+  jar.set(WEB_SESSION_COOKIE, makeToken({ id: u.id, email: u.email, name: u.name, sv: u.sessionVersion ?? 0 }, SESSION_TTL), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -171,10 +187,12 @@ export async function clearWebSession() {
 /** Usuario de la sesión, con el saldo de créditos RE-LEÍDO de la base (no del cookie, que puede estar viejo). */
 export async function getWebUser(): Promise<WebAuthUser | null> {
   const jar = await cookies();
-  const data = readToken<{ id?: string; email?: string; name?: string }>(jar.get(WEB_SESSION_COOKIE)?.value);
+  const data = readToken<{ id?: string; email?: string; name?: string; sv?: number }>(jar.get(WEB_SESSION_COOKIE)?.value);
   if (!data?.id) return null;
   const { data: row } = await db().from("web_users").select("*").eq("id", data.id).maybeSingle<WebUser>();
   if (!row) return null;
+  // Se inició sesión en otro lado después de esta: esta sesión ya no vale.
+  if (typeof row.session_version === "number" && (data.sv ?? 0) !== row.session_version) return null;
   return toAuthUser(row);
 }
 

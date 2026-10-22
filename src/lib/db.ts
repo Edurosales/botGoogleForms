@@ -26,6 +26,8 @@ export type WebUser = {
   signup_ip: string;
   created_at: string;
   last_login_at: string;
+  /** Sube en cada inicio de sesión: invalida las sesiones anteriores (Ronda 14). */
+  session_version?: number;
 };
 
 export type WebJob = {
