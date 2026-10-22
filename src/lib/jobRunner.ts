@@ -15,6 +15,8 @@ import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { notifyUser } from "./notify";
 import { hasColumn, onlyExisting } from "./schemaFlags";
 import { audit } from "./audit";
+import { escapeHtml, sendServiceEmail } from "./mailer";
+import { siteUrl } from "./config";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
 const SUBMIT_BATCH = 12;
@@ -116,6 +118,25 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
       reason: patch.moderation_reason ?? "",
     },
     meta: { ip: "", country: "", userAgent: "", path: "" },
+  });
+  const failures = (patch.failure_details ?? job.failure_details ?? []) as FailureDetail[];
+  const lastHint = failures.length ? failures[failures.length - 1].hint : "";
+  const name = escapeHtml(job.title || "tu formulario");
+  await sendServiceEmail(job.user_id, patch.status === "done" ? "job_done" : "job_failed", {
+    subject:
+      patch.status === "done"
+        ? `Listo: ${sent} respuestas llegaron a ${job.title || "tu formulario"}`
+        : `Tu envío no se completó: ${job.title || "tu formulario"}`,
+    title: patch.status === "done" ? `Llegaron ${sent} de ${job.total} respuestas` : "Tu envío no se completó",
+    bodyHtml:
+      patch.status === "done"
+        ? `<p>Terminamos el envío de prueba a <strong>${name}</strong>: llegaron ${sent} de ${job.total} respuestas${failed > 0 ? ` y Google rechazó ${failed}` : ""}.</p>` +
+          `<p>Ya puedes revisar el resumen de respuestas en tu Google Form.</p>` +
+          (back > 0 ? `<p>Te devolvimos <strong>${back} ${job.is_paid ? "créditos" : "respuestas gratis"}</strong> por las que no llegaron.</p>` : "")
+        : `<p>No pudimos completar el envío a <strong>${name}</strong> (llegaron ${sent} de ${job.total}).</p>` +
+          (lastHint ? `<p><strong>Cómo arreglarlo:</strong> ${escapeHtml(lastHint)}</p>` : "") +
+          (back > 0 ? `<p>Te devolvimos <strong>${back} ${job.is_paid ? "créditos" : "respuestas gratis"}</strong>: no perdiste nada.</p>` : ""),
+    cta: { label: patch.status === "done" ? "Probar otro formulario" : "Ver qué falló y reintentar", url: `${siteUrl()}/` },
   });
   await notifyUser(job.user_id, {
     kind: patch.status === "done" ? "job_done" : "job_failed",

@@ -3,6 +3,8 @@ import { timingSafeEqual } from "node:crypto";
 import { db, type WebJob } from "@/lib/db";
 import { advanceJob, type AdvanceResult } from "@/lib/jobRunner";
 import { siteUrl } from "@/lib/config";
+import { sendNewsletterBatch } from "@/lib/mailer";
+import { hasColumn } from "@/lib/schemaFlags";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -31,13 +33,16 @@ function authorized(req: Request): boolean {
 }
 
 async function activeJobs(limit: number): Promise<WebJob[]> {
-  const { data } = await db()
+  // Los que ya están enviando primero ("processing" < "queued"), luego pagados,
+  // luego la prioridad que puso el admin y por último el más antiguo.
+  let q = db()
     .from("web_jobs")
     .select("*")
     .in("status", ["queued", "processing"])
-    .order("is_paid", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(limit);
+    .order("status", { ascending: true })
+    .order("is_paid", { ascending: false });
+  if (await hasColumn("web_jobs", "priority")) q = q.order("priority", { ascending: false });
+  const { data } = await q.order("created_at", { ascending: true }).limit(limit);
   return (data ?? []) as WebJob[];
 }
 
@@ -62,6 +67,10 @@ export async function POST(req: Request) {
     if (Date.now() - start > RUN_BUDGET_MS - 25_000) break;
   }
 
+  // Boletín: unos pocos correos por pasada con el tiempo que sobre.
+  const leftMs = RUN_BUDGET_MS - (Date.now() - start);
+  const newsletter = leftMs > 8_000 ? await sendNewsletterBatch(15, Date.now() + Math.min(20_000, leftMs - 5_000)).catch(() => null) : null;
+
   const remaining = (await activeJobs(1)).length > 0;
   if (remaining) {
     // Re-encadenar sin esperar: el cron de cada minuto es solo la red de seguridad.
@@ -75,5 +84,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, ms: Date.now() - start });
 }

@@ -10,6 +10,8 @@ import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
+import { sendServiceEmail } from "./mailer";
+import { siteUrl } from "./config";
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 
 type CreditOrder = {
@@ -48,6 +50,12 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
         title: `Te devolvimos ${pen(order.amount_cents)}`,
         body: `Pedido ${orderId}: se retiraron de tu saldo los créditos de esa compra que aún tenías.`,
         link: "/mi-cuenta",
+      });
+      await sendServiceEmail(order.user_id, "refund", {
+        subject: `Te devolvimos ${pen(order.amount_cents)} (pedido ${orderId})`,
+        title: `Devolución de ${pen(order.amount_cents)}`,
+        bodyHtml: `<p>Procesamos la devolución del pedido <strong>${orderId}</strong> a la misma tarjeta. Según tu banco, puede tardar unos días en verse.</p><p>Se retiraron de tu saldo los créditos de esa compra que aún tenías.</p>`,
+        cta: { label: "Ver mi cuenta", url: `${siteUrl()}/mi-cuenta` },
       });
       await notifyAdmin({
         kind: "refund",
@@ -115,6 +123,12 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
     title: `Compra confirmada: +${claimed.credits} créditos`,
     body: `Pagaste ${pen(claimed.amount_cents)} (pedido ${claimed.order_id}). Ya puedes usarlos.`,
     link: "/mi-cuenta",
+  });
+  await sendServiceEmail(claimed.user_id, "purchase", {
+    subject: `Compra confirmada: +${claimed.credits} créditos`,
+    title: `¡Gracias! Sumamos ${claimed.credits} créditos`,
+    bodyHtml: `<p>Pagaste <strong>${pen(claimed.amount_cents)}</strong> (pedido ${claimed.order_id}). Tus créditos ya están en tu saldo y tus envíos tienen prioridad en la fila.</p><p>Guarda este correo como comprobante de tu compra.</p>`,
+    cta: { label: "Usar mis créditos", url: `${siteUrl()}/` },
   });
   await notifyAdmin({
     kind: "purchase",
