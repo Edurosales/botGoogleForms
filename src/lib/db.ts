@@ -69,6 +69,8 @@ export type AppSettings = {
   free_daily_cap: number;
   free_signup_credits: number;
   max_signups_per_ip: number;
+  /** Tope diario de respuestas de todo el servicio (Ronda 12). */
+  global_daily_cap?: number;
   updated_at: string;
 };
 

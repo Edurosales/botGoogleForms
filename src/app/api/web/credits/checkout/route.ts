@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/config";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
 import { applyDiscount, checkDiscountCoupon, normalizeCouponCode } from "@/lib/coupons";
 import { rememberReturnTo, safeReturnPath } from "@/lib/returnTo";
+import { getCapacity } from "@/lib/capacity";
 
 /**
  * Crea la orden de créditos + formToken de Izipay.
@@ -35,6 +36,15 @@ export async function POST(req: Request) {
   const missing = CREDIT_PURCHASE_CHECKS.filter((c) => !checks.includes(c.id));
   if (missing.length) {
     return NextResponse.json({ message: "Debes aceptar todas las condiciones para continuar." }, { status: 400 });
+  }
+
+  // Con el servicio lleno por hoy no se vende (el cliente no podría usarlos hasta mañana).
+  const cap = await getCapacity().catch(() => null);
+  if (cap && cap.globalRemaining <= 0) {
+    return NextResponse.json(
+      { message: "El servicio llegó a su capacidad de hoy. La compra se reabre en unas horas." },
+      { status: 503 }
+    );
   }
 
   const settings = await getAppSettings();

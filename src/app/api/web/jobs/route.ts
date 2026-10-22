@@ -14,19 +14,9 @@ import {
   MAX_RESPONSES_PER_JOB,
   MAX_RESPONSES_PER_DAY,
   DEFAULT_BUY_SOFTWARE_URL,
-  globalDailyCap,
 } from "@/lib/webConfig";
+import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 
-type UsageRow = { total: number; sent: number; failed: number; status: WebJob["status"] };
-
-/** Respuestas "consumidas" en 24 h: los jobs activos cuentan completos; los
- * terminados, por intentos reales contra Google (enviadas + rechazadas). */
-function usage(rows: UsageRow[] | null): number {
-  return (rows ?? []).reduce(
-    (acc, r) => acc + (r.status === "queued" || r.status === "processing" ? r.total : r.sent + r.failed),
-    0
-  );
-}
 
 interface CreateJobBody {
   formUrl?: unknown;
@@ -157,7 +147,7 @@ export async function POST(request: Request) {
           : `Llegaste al límite de ${MAX_RESPONSES_PER_DAY} respuestas en 24 horas. Vuelve mañana, o usa FormsBot para Windows si necesitas más volumen.`,
     });
   }
-  if (usage(everyone as UsageRow[] | null) + total > globalDailyCap()) {
+  if (usage(everyone as UsageRow[] | null) + total > (await resolveGlobalCap())) {
     return fail(503, {
       code: "SERVICE_BUSY",
       ...balances,

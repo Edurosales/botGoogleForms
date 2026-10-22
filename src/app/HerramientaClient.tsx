@@ -1128,7 +1128,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           </div>
           <p className="fine center">
             {done} de {job.total} enviadas{job.failed > 0 ? `, ${job.failed} rechazadas` : ""}
-            {eta ? ` · quedan ${eta}` : ""}
+            {eta ? `. Quedan ${eta}.` : "."}
           </p>
           <p className="fine center">Puedes cerrar esta pestaña: el envío sigue en la nube y lo verás al volver.</p>
           <div className="actions actions-center">

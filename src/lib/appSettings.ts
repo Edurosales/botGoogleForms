@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   free_daily_cap: 30,
   free_signup_credits: 30,
   max_signups_per_ip: 1,
+  global_daily_cap: 20000,
   updated_at: new Date(0).toISOString(),
 };
 

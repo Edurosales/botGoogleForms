@@ -1,6 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+type Capacity = {
+  globalCap: number;
+  globalUsed: number;
+  globalRemaining: number;
+  perUserDaily: number;
+  userUsed: number | null;
+  userRemaining: number | null;
+  testPayments: boolean;
+};
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
@@ -45,6 +55,17 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const [err, setErr] = useState("");
   const [pay, setPay] = useState<Pay | null>(null);
   const [formReady, setFormReady] = useState(false);
+
+  const [capacity, setCapacity] = useState<Capacity | null>(null);
+  useEffect(() => {
+    fetch("/api/web/capacity", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => d?.ok && setCapacity(d as Capacity))
+      .catch(() => {});
+  }, []);
+  // Si el servicio llegó a su tope del día, no se vende: el cliente pagaría y
+  // no podría usar los créditos hasta mañana sin saberlo.
+  const serviceFull = !!capacity && capacity.globalRemaining <= 0;
 
   const [diyUrl, setDiyUrl] = useState("");
   const [diyCount, setDiyCount] = useState(50);
@@ -192,7 +213,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const allChecked = CREDIT_PURCHASE_CHECKS.every((c) => checks[c.id]);
   const couponBlocks = coupon.status === "checking" || coupon.status === "bad";
   const finalCents = selected ? (coupon.status === "ok" ? coupon.finalCents : selected.priceCents) : 0;
-  const canPay = !!me && !!selected && allChecked && !busy && !couponBlocks;
+  const canPay = !!me && !!selected && allChecked && !busy && !couponBlocks && !serviceFull;
 
   async function start() {
     if (!selected) return;
@@ -241,6 +262,23 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
         </div>
       )}
 
+      {capacity?.testPayments && (
+        <div className="note note-warn" role="status">
+          <p>
+            <strong>Pagos en modo prueba.</strong> Esta tienda usa credenciales de prueba de Izipay: ningún pago es real y no
+            se entregan créditos.
+          </p>
+        </div>
+      )}
+      {serviceFull && (
+        <div className="note note-warn" role="alert">
+          <p>
+            <strong>El servicio llegó a su capacidad de hoy.</strong> La compra se reabre en unas horas; mientras tanto puedes
+            pedir que llenemos tu formulario por WhatsApp o usar FormsBot para Windows.
+          </p>
+        </div>
+      )}
+
       <div className="sheet">
         <div className="sheet-body">
           {me === null && (
@@ -257,6 +295,13 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
             <>
               <fieldset className="group group-first">
                 <legend>Elige un paquete</legend>
+                <p className="fine">
+                  Puedes enviar hasta {capacity?.perUserDaily ?? 500} respuestas cada 24 horas por cuenta. Los créditos no
+                  vencen: un paquete grande se usa en varios días.
+                  {capacity?.userRemaining !== null && capacity?.userRemaining !== undefined
+                    ? ` Hoy te quedan ${capacity.userRemaining}.`
+                    : ""}
+                </p>
                 {packages.length === 0 && <p className="fine">Todavía no hay paquetes disponibles. Escríbenos por WhatsApp y te ayudamos.</p>}
                 <div className="packs" role="radiogroup" aria-label="Paquetes de créditos">
                   {packages.map((p, i) => {
@@ -267,7 +312,12 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                         <input type="radio" name="pkg" checked={isSel} onChange={() => changePackage(i)} />
                         <span className="pk-main">
                           <span className="pk-qty">{p.responses} respuestas</span>
-                          <span className="pk-rate">{fmtPen(perResponse)} por respuesta</span>
+                          <span className="pk-rate">
+                            {fmtPen(perResponse)} por respuesta
+                            {p.responses > (capacity?.perUserDaily ?? 500)
+                              ? `. Se usa en ${Math.ceil(p.responses / (capacity?.perUserDaily ?? 500))} días como mínimo`
+                              : ""}
+                          </span>
                         </span>
                         <span className="pk-side">
                           {i === bestIndex && <span className="pk-tag">Mejor precio</span>}
@@ -328,7 +378,9 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
               <button className="b b-primary b-block" type="button" onClick={start} disabled={!canPay}>
                 {busy
                   ? "Preparando el pago…"
-                  : !me
+                  : serviceFull
+                    ? "Compra pausada por hoy"
+                    : !me
                     ? "Inicia sesión para pagar"
                     : selected
                       ? `Pagar ${fmtPen(finalCents)} con tarjeta`
