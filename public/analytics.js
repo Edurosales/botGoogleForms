@@ -3,6 +3,12 @@
 // aceptó cookies en el sitio, se respeta su elección.
 (function () {
   var GA_ID = "G-4WCK4EME75";
+  // Sin "Aceptar" en el banner de cookies no se carga nada de Google.
+  try {
+    if (localStorage.getItem("formsbot-cookie-consent") !== "accepted") return;
+  } catch (e) {
+    return;
+  }
   window.dataLayer = window.dataLayer || [];
   function gtag() { dataLayer.push(arguments); }
   window.gtag = window.gtag || gtag;

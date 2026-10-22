@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (body.terms === true && !user.termsOk) {
     patch.terms_version = TERMS_VERSION;
     patch.terms_accepted_at = now;
-    await recordConsent(user, "terms", true, { via: "gate" });
+    await recordConsent(user, "terms", true, { via: "gate", age_16_or_more: true });
   }
   if (typeof body.marketing === "boolean" && body.marketing !== user.marketing) {
     patch.marketing_opt_in = body.marketing;

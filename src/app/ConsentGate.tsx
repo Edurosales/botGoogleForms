@@ -95,8 +95,8 @@ export default function ConsentGate() {
           <h2 id={`${id}-h`}>Actualizamos nuestros Términos y la Privacidad</h2>
         </div>
         <p className="fh-why">
-          Ahora te explicamos con más detalle qué datos guardamos, para qué y por cuánto tiempo, y puedes elegir si
-          quieres recibir novedades. Léelos y acepta para seguir usando FormsBot.
+          Ahora te explicamos con más detalle qué datos guardamos, para qué y por cuánto tiempo, y te pedimos confirmar
+          que tienes 16 años o más. Léelos y acepta para seguir usando FormsBot.
         </p>
         <ConsentChecks
           idPrefix={id}

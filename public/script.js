@@ -54,7 +54,7 @@ if(cookieBanner&&cookieButton){
   const grantConsent=()=>{if(typeof window.gtag==='function')window.gtag('consent','update',{analytics_storage:'granted',ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'})};
   let choice='';
   try{choice=localStorage.getItem('formsbot-cookie-consent')||''}catch(error){choice=''}
-  const save=v=>{cookieBanner.hidden=true;try{localStorage.setItem('formsbot-cookie-consent',v)}catch(error){}};
+  const save=v=>{cookieBanner.hidden=true;try{localStorage.setItem('formsbot-cookie-consent',v)}catch(error){};window.dispatchEvent(new Event('fb-consent'))};
   if(choice==='accepted'){cookieBanner.hidden=true;grantConsent()}
   else if(choice==='rejected'){cookieBanner.hidden=true}
   else{

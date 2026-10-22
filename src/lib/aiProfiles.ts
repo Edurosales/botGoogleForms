@@ -241,7 +241,11 @@ function resolveLocalPart(
     const cfg = qConfig[q.entry] ?? {};
     const mode = effectiveMode(q, cfg);
     if (mode === "list") {
-      const lines = listLines(cfg.value);
+      // En preguntas de opciones solo valen líneas que existen como opción
+      // (si no, Google rechaza la respuesta entera).
+      const all = listLines(cfg.value);
+      const valid = q.options.length ? all.filter((l) => q.options.includes(l)) : all;
+      const lines = valid.length ? valid : q.options.length ? q.options : all;
       part[q.entry] =
         cfg.order === "sequential" ? lines[index % lines.length] : lines[Math.floor(Math.random() * lines.length)];
       if (isNameField(q) && !q.options.length) resolvedName = part[q.entry];
@@ -282,9 +286,42 @@ function resolveLocalPart(
     }
 
     const value = (cfg.value ?? "").trim();
-    const opts = parseFixedOptions(value);
+    const parsed = parseFixedOptions(value) ?? (q.options.length ? [value] : null);
+    // En preguntas de opciones, "Fijo" son opciones elegidas en pantalla: se
+    // descartan las que no existen en el formulario.
+    const opts = parsed && q.options.length ? parsed.filter((o) => q.options.includes(o)) : parsed;
+    if (q.options.length && (q.type === 4 || q.type === 13) && opts?.length) {
+      // Casillas: se marcan TODAS las elegidas.
+      part[q.entry] = opts.join("|");
+      continue;
+    }
     if (opts && opts.length) {
       part[q.entry] = opts[Math.floor(Math.random() * opts.length)];
+      continue;
+    }
+    if (q.options.length) {
+      part[q.entry] = q.options[Math.floor(Math.random() * q.options.length)];
+      continue;
+    }
+    // Rango de fechas "2025-01-01~2025-12-31".
+    const dr = value.match(/^(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})$/);
+    if (dr) {
+      const a = Date.parse(`${dr[1]}T12:00:00Z`);
+      const b = Date.parse(`${dr[2]}T12:00:00Z`);
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        part[q.entry] = new Date(lo + Math.floor(Math.random() * ((hi - lo) / 86_400_000 + 1)) * 86_400_000).toISOString().slice(0, 10);
+        continue;
+      }
+    }
+    // Rango de horas "08:00~18:30".
+    const tr = value.match(/^(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})$/);
+    if (tr) {
+      const a = Number(tr[1]) * 60 + Number(tr[2]);
+      const b = Number(tr[3]) * 60 + Number(tr[4]);
+      const m = Math.min(a, b) + Math.floor(Math.random() * (Math.abs(b - a) + 1));
+      part[q.entry] = `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
       continue;
     }
     const rng = value.match(/^(\d{1,9})\s*[-–]\s*(\d{1,9})$/);

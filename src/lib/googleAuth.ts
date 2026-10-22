@@ -191,7 +191,7 @@ async function consentPatch(choices: SignupChoices | null, current?: WebUser): P
 
 async function recordChoices(userId: string, email: string, choices: SignupChoices | null, current?: WebUser) {
   const u = { id: userId, email };
-  if (choices?.terms && current?.terms_version !== TERMS_VERSION) await recordConsent(u, "terms", true, { via: "signin" });
+  if (choices?.terms && current?.terms_version !== TERMS_VERSION) await recordConsent(u, "terms", true, { via: "signin", age_16_or_more: true });
   if (choices?.marketing && !current?.marketing_opt_in) await recordConsent(u, "marketing", true, { via: "signin" });
   if (choices?.country) await recordConsent(u, "country", true, { via: "signin" });
 }

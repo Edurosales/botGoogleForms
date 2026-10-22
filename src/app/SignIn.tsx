@@ -119,7 +119,7 @@ export function ConsentChecks({
       <div className="check">
         <input id={`${idPrefix}-t`} type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} required />
         <label htmlFor={`${idPrefix}-t`}>
-          <strong>Obligatorio.</strong> Acepto los{" "}
+          <strong>Obligatorio.</strong> Tengo 16 años o más, acepto los{" "}
           <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
             términos del servicio
           </a>{" "}

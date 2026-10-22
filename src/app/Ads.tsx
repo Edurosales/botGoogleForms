@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useMe } from "./clientData";
+import { useCookieConsent, useMe } from "./clientData";
 
 const ADSENSE_CLIENT = "ca-pub-8213456831990505";
 
@@ -19,10 +19,13 @@ const NO_ADS = ["/comprar-creditos", "/mi-cuenta"];
 export default function Ads() {
   const pathname = usePathname() ?? "/";
   const { me } = useMe();
+  // Sin aceptar cookies no se carga ningún script publicitario (RGPD/ePrivacy).
+  const consent = useCookieConsent();
 
   if (NO_ADS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
   if (me === undefined) return null;
   if (me?.hasPaid) return null;
+  if (consent !== "accepted") return null;
 
   return (
     <>

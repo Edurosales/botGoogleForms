@@ -77,6 +77,8 @@ export type WebJob = {
   queue_at?: string | null;
   last_seen_at?: string | null;
   lost_turns?: number;
+  /** Ronda 18: hora de cada respuesta enviada (alineada con profiles). */
+  response_times?: string[];
 };
 
 export type AppSettings = {

@@ -8,7 +8,8 @@ import { requestMeta } from "./requestMeta";
 import { audit } from "./audit";
 
 /** Versión vigente de Términos + Privacidad. Cambiarla pide aceptar de nuevo. */
-export const TERMS_VERSION = "2026-10-22";
+// 2026-10-22.2: se agregó la declaración de tener 16 años o más.
+export const TERMS_VERSION = "2026-10-22.2";
 export const MARKETING_VERSION = "2026-10-22";
 
 export type ConsentKind = "terms" | "marketing" | "country" | "job_use";

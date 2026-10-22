@@ -22,11 +22,15 @@ function table(job: WebJob): { header: string[]; rows: string[][] } {
   const questions = (job.questions as Q[]).filter((q) => q?.entry);
   const failed = new Set((job.failure_details ?? []).map((f) => f.index));
   const withEmail = (job.profiles ?? []).some((p) => p.emailAddress);
-  const header = ["#", "Estado", ...(withEmail ? ["Correo"] : []), ...questions.map((q) => q.title || q.entry)];
+  const times = job.response_times ?? [];
+  const fmt = (iso?: string) =>
+    iso ? new Date(iso).toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "short", timeStyle: "medium" }) : "";
+  const header = ["#", "Estado", "Fecha y hora (Lima)", ...(withEmail ? ["Correo"] : []), ...questions.map((q) => q.title || q.entry)];
   const attempted = job.sent + job.failed;
   const rows = (job.profiles ?? []).slice(0, attempted).map((p, i) => [
     String(i + 1),
     failed.has(i + 1) ? "Rechazada" : "Enviada",
+    fmt(times[i]),
     ...(withEmail ? [p.emailAddress ?? ""] : []),
     ...questions.map((q) => (p[q.entry] ?? "").replace(/\|/g, ", ")),
   ]);

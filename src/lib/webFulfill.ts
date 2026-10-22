@@ -10,7 +10,7 @@ import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
-import { sendServiceEmail } from "./mailer";
+import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 
@@ -54,7 +54,15 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
       await sendServiceEmail(order.user_id, "refund", {
         subject: `Te devolvimos ${pen(order.amount_cents)} (pedido ${orderId})`,
         title: `Devolución de ${pen(order.amount_cents)}`,
-        bodyHtml: `<p>Procesamos la devolución del pedido <strong>${orderId}</strong> a la misma tarjeta. Según tu banco, puede tardar unos días en verse.</p><p>Se retiraron de tu saldo los créditos de esa compra que aún tenías.</p>`,
+        bodyHtml:
+          `<p>Procesamos la devolución a la misma tarjeta. Según tu banco, puede tardar unos días en verse.</p>` +
+          summaryTable([
+            ["Pedido", escapeHtml(orderId)],
+            ["Monto devuelto", escapeHtml(pen(order.amount_cents))],
+            ["Créditos de la compra", String(order.credits)],
+            ["Fecha", escapeHtml(mailDate())],
+          ]) +
+          `<p>Se retiraron de tu saldo los créditos de esa compra que aún tenías.</p>`,
         cta: { label: "Ver mi cuenta", url: `${siteUrl()}/mi-cuenta` },
       });
       await notifyAdmin({
@@ -127,7 +135,17 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
   await sendServiceEmail(claimed.user_id, "purchase", {
     subject: `Compra confirmada: +${claimed.credits} créditos`,
     title: `¡Gracias! Sumamos ${claimed.credits} créditos`,
-    bodyHtml: `<p>Pagaste <strong>${pen(claimed.amount_cents)}</strong> (pedido ${claimed.order_id}). Tus créditos ya están en tu saldo y tus envíos tienen prioridad en la fila.</p><p>Guarda este correo como comprobante de tu compra.</p>`,
+    bodyHtml:
+      `<p>Tus créditos ya están en tu saldo y tus envíos tienen prioridad en la fila.</p>` +
+      summaryTable([
+        ["Pedido", escapeHtml(claimed.order_id)],
+        ["Créditos comprados", `+${claimed.credits}`],
+        ["Total pagado", escapeHtml(pen(claimed.amount_cents))],
+        ...(claimed.coupon_code ? ([["Cupón", escapeHtml(claimed.coupon_code)]] as [string, string][]) : []),
+        ["Fecha", escapeHtml(mailDate())],
+        ["Medio de pago", "Tarjeta (Izipay)"],
+      ]) +
+      `<p>Incluye: fila prioritaria, respuestas con IA y exportar a Excel. Guarda este correo como comprobante.</p>`,
     cta: { label: "Usar mis créditos", url: `${siteUrl()}/` },
   });
   await notifyAdmin({

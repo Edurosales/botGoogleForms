@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 export type Me = {
   email: string;
@@ -159,4 +159,30 @@ export function SoftwareButton({ href, className, children }: { href: string; cl
       {children}
     </a>
   );
+}
+
+const COOKIE_KEY = "formsbot-cookie-consent";
+const COOKIE_EVENT = "fb-consent";
+
+function readCookieChoice(): "accepted" | "rejected" | "" {
+  try {
+    const v = localStorage.getItem(COOKIE_KEY);
+    return v === "accepted" || v === "rejected" ? v : "";
+  } catch {
+    return "";
+  }
+}
+
+function subscribeCookieChoice(cb: () => void) {
+  window.addEventListener(COOKIE_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(COOKIE_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+/** Elección del banner de cookies. Sin "Aceptar" no se carga NADA de medición ni de anuncios. */
+export function useCookieConsent(): "accepted" | "rejected" | "" {
+  return useSyncExternalStore(subscribeCookieChoice, readCookieChoice, () => "");
 }

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import Ads from "./Ads";
+import Analytics from "./Analytics";
 import SupportButton from "./SupportButton";
 import ConsentGate from "./ConsentGate";
 
-const GA_ID = "G-4WCK4EME75";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bot-google-forms-servicio.vercel.app"),
@@ -30,18 +30,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href="/styles.css" />
       </head>
       <body>
-        {/* Consent Mode debe fijarse ANTES de que carguen los scripts de GA/AdSense */}
-        <Script id="consent-default" strategy="beforeInteractive">
-          {`window.dataLayer = window.dataLayer || []; function gtag() { dataLayer.push(arguments) } gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', wait_for_update: 500 });`}
-        </Script>
-        <Script
-          id="ga-loader"
-          strategy="afterInteractive"
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-        />
-        <Script id="ga-config" strategy="afterInteractive">
-          {`gtag('js', new Date()); gtag('config', '${GA_ID}');`}
-        </Script>
+        {/* Medición y anuncios solo con "Aceptar" en el banner (ver Analytics.tsx y Ads.tsx). */}
+        <Analytics />
         {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el
             layout global: probado en vivo, el popunder abre una pestaña de
             publicidad en el primer clic (el campo del link, "Leer formulario") y

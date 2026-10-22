@@ -15,7 +15,7 @@ import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { notifyUser } from "./notify";
 import { hasColumn, onlyExisting } from "./schemaFlags";
 import { audit } from "./audit";
-import { escapeHtml, sendServiceEmail } from "./mailer";
+import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
@@ -129,13 +129,23 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
         : `Tu envío no se completó: ${job.title || "tu formulario"}`,
     title: patch.status === "done" ? `Llegaron ${sent} de ${job.total} respuestas` : "Tu envío no se completó",
     bodyHtml:
-      patch.status === "done"
-        ? `<p>Terminamos el envío de prueba a <strong>${name}</strong>: llegaron ${sent} de ${job.total} respuestas${failed > 0 ? ` y Google rechazó ${failed}` : ""}.</p>` +
-          `<p>Ya puedes revisar el resumen de respuestas en tu Google Form.</p>` +
-          (back > 0 ? `<p>Te devolvimos <strong>${back} ${job.is_paid ? "créditos" : "respuestas gratis"}</strong> por las que no llegaron.</p>` : "")
-        : `<p>No pudimos completar el envío a <strong>${name}</strong> (llegaron ${sent} de ${job.total}).</p>` +
-          (lastHint ? `<p><strong>Cómo arreglarlo:</strong> ${escapeHtml(lastHint)}</p>` : "") +
-          (back > 0 ? `<p>Te devolvimos <strong>${back} ${job.is_paid ? "créditos" : "respuestas gratis"}</strong>: no perdiste nada.</p>` : ""),
+      (patch.status === "done"
+        ? `<p>Terminamos el envío de prueba a <strong>${name}</strong>. Ya puedes revisar el resumen de respuestas en tu Google Form.</p>`
+        : `<p>No pudimos completar el envío a <strong>${name}</strong>.</p>`) +
+      summaryTable([
+        ["Formulario", name],
+        ["Inicio", escapeHtml(mailDate(job.started_at || job.created_at))],
+        ["Fin", escapeHtml(mailDate())],
+        ["Enviadas", `<span style="color:#0B8A5F">${sent} de ${job.total}</span>`],
+        ...(failed > 0 ? ([["Rechazadas por Google", `<span style="color:#9A2A20">${failed}</span>`]] as [string, string][]) : []),
+        ["Tipo", job.is_paid ? `Pagado (${job.credits_spent} créditos)` : "Gratis (bienvenida)"],
+        ...(back > 0 ? ([["Te devolvimos", `${back} ${job.is_paid ? "créditos" : "respuestas gratis"}`]] as [string, string][]) : []),
+      ]) +
+      (patch.status !== "done" || failed > 0
+        ? (patch.moderation_reason ? `<p><strong>Qué pasó:</strong> ${escapeHtml(String(patch.moderation_reason))}</p>` : "") +
+          (lastHint ? `<p><strong>Cómo arreglarlo:</strong> ${escapeHtml(lastHint)}</p>` : "")
+        : "") +
+      (job.is_paid && sent > 0 ? `<p>Como cliente premium puedes descargar todas las respuestas en Excel desde Mi cuenta.</p>` : ""),
     cta: { label: patch.status === "done" ? "Probar otro formulario" : "Ver qué falló y reintentar", url: `${siteUrl()}/` },
   });
   await notifyUser(job.user_id, {
@@ -335,6 +345,11 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   });
   const failureDetails = failures.slice(-MAX_FAILURE_DETAILS);
   const failFast = sent === 0 && failed >= FAIL_FAST_AFTER;
+  // Hora de cada respuesta de este lote (va al Excel). Solo si existe la columna.
+  const nowIso = new Date().toISOString();
+  const times = (await hasColumn("web_jobs", "response_times"))
+    ? { response_times: [...(job.response_times ?? []).slice(0, alreadyDone), ...results.map(() => nowIso)] }
+    : {};
 
   if (sent + failed >= job.total || failFast) {
     const status = sent === 0 ? "failed" : "done";
@@ -349,6 +364,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       sent,
       failed,
       failure_details: failureDetails,
+      ...times,
       ...(status === "failed" && code ? { fail_code: code } : {}),
       ...(reason ? { moderation_reason: reason } : {}),
     });
@@ -362,7 +378,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
 
   await supa
     .from("web_jobs")
-    .update({ sent, failed, failure_details: failureDetails, ...lockRelease })
+    .update({ sent, failed, failure_details: failureDetails, ...times, ...lockRelease })
     .eq("id", job.id)
     .eq("status", "processing");
   return ok(statusPayload({ ...job, sent, failed, failure_details: failureDetails }, { phase: "sending" }));

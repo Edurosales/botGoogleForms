@@ -54,13 +54,17 @@ export async function sendServiceEmail(
   kind: string,
   content: { subject: string; title: string; bodyHtml: string; cta?: { label: string; url: string } }
 ): Promise<void> {
-  if (!gmailConfigured()) return;
   const supa = db();
   let email = "";
   try {
     const { data: u } = await supa.from("web_users").select("email,deleted_at").eq("id", userId).maybeSingle<{ email: string; deleted_at?: string | null }>();
     if (!u?.email || u.deleted_at || u.email.endsWith(".invalid")) return;
     email = u.email;
+    // Antes se salía en silencio y nadie sabía por qué no llegaban los correos:
+    // ahora queda en el historial (Admin → Newsletter → Historial de correos).
+    if (!gmailConfigured()) {
+      throw new Error("Gmail no está configurado en el proyecto del servicio (faltan GMAIL_REFRESH_TOKEN / GMAIL_SENDER en Vercel).");
+    }
     if ((await sentLast24h()) >= DAILY_LIMIT) throw new Error("límite diario de Gmail alcanzado");
     await sendMail({
       to: email,
@@ -171,4 +175,20 @@ export async function sendNewsletterBatch(max = 15, deadline = Date.now() + 20_0
     await supa.from("web_newsletters").update({ sent_count: sentTotal ?? 0, failed_count: failedTotal ?? 0 }).eq("id", nl.id);
   }
   return result;
+}
+
+/** Fecha y hora legibles (hora de Lima) para los correos. */
+export function mailDate(d: Date | string = new Date()): string {
+  return new Date(d).toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
+}
+
+/** Tabla de resumen (comprobante) para los correos: [etiqueta, valor ya escapado]. */
+export function summaryTable(rows: [string, string][]): string {
+  const tr = rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:8px 10px;border-bottom:1px solid #ECE6F7;color:#6B6386;font-size:13px;white-space:nowrap">${escapeHtml(k)}</td><td style="padding:8px 10px;border-bottom:1px solid #ECE6F7;font-weight:700;font-size:14px">${v}</td></tr>`
+    )
+    .join("");
+  return `<table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="margin:14px 0;border:1px solid #ECE6F7;border-radius:10px;border-collapse:separate">${tr}</table>`;
 }

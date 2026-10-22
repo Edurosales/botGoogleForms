@@ -484,3 +484,15 @@ body.paying .support-fab{display:none}
 .sm-wa{background:#0F7A41}.sm-tg{background:#229ED9}.sm-mail{background:#5B2EA6}
 body.paying .support{display:none}
 .fh-more{margin:4px 0 6px;font-size:.875rem;color:var(--mute)}
+
+/* Ronda 18: controles por tipo de pregunta */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.chip{min-height:38px;padding:6px 14px;border-radius:999px;border:1.5px solid var(--line-strong,#C9BFDC);background:#fff;color:var(--ink);font:inherit;font-size:.875rem;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+.chip:hover{border-color:var(--acc)}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.chips .q-hint{flex-basis:100%;margin:2px 0 0}
+.range-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px}
+.range-row label{display:flex;flex-direction:column;gap:4px;font-size:.8125rem;font-weight:700;color:var(--mute)}
+.range-row input{width:160px}
+.range-row .q-hint{flex-basis:100%;margin:0}
+.lang-note{margin-top:8px}
