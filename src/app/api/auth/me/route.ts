@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearWebSession, getWebUser } from "@/lib/googleAuth";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 
 export async function GET() {
   const u = await getWebUser();
@@ -19,11 +20,23 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    user: { email: u.email, name: u.name, credits: u.credits, freeCredits: u.freeCredits, hasPaid },
+    user: {
+      email: u.email,
+      name: u.name,
+      credits: u.credits,
+      freeCredits: u.freeCredits,
+      hasPaid,
+      termsOk: u.termsOk,
+      marketing: u.marketing,
+      country: u.country,
+      countryOptIn: u.countryOptIn,
+    },
   });
 }
 
 export async function POST() {
+  const u = await getWebUser();
+  if (u) await audit({ action: "auth.logout", userId: u.id, email: u.email });
   await clearWebSession();
   return NextResponse.json({ ok: true });
 }

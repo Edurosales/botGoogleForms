@@ -24,6 +24,9 @@ export async function POST(req: Request) {
 
   const user = await getWebUser();
   if (!user) return NextResponse.json({ message: "Inicia sesión con Google para comprar." }, { status: 401 });
+  if (!user.termsOk) {
+    return NextResponse.json({ message: "Acepta los Términos y la Privacidad actualizados para comprar." }, { status: 403 });
+  }
 
   const body = (await req.json().catch(() => ({}))) as {
     packageIndex?: unknown;

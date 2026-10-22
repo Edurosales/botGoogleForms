@@ -416,3 +416,24 @@ body.paying .cookie{display:none!important}
 .support-fab:hover{background:#0b6635}
 body.paying .support-fab{display:none}
 @media(max-width:520px){.support-fab span{display:none}.support-fab{padding:0;width:50px;justify-content:center}}
+
+/* Ronda 16: consentimientos, privacidad y cookies */
+.consent-checks .check{margin-bottom:10px}
+.consent-checks strong{color:var(--ink)}
+.fh-err{color:var(--err,#9A2A20);font-weight:700;margin:6px 0 0}
+.cookie-actions{display:flex;gap:10px;flex-shrink:0}
+.btn-ghost{border-color:var(--line);color:var(--mute)}
+@media(max-width:600px){.cookie{flex-direction:column;align-items:stretch}.cookie-actions .btn{flex:1}}
+.login-alert{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:120;width:min(560px,calc(100% - 32px));background:#fff;color:#21163F;border:1px solid #F1C9C3;border-left:6px solid #9A2A20;border-radius:12px;padding:14px 16px;box-shadow:0 18px 40px -20px rgba(33,22,63,.6)}
+.login-alert p{margin:0 0 10px}
+.login-alert-actions{display:flex;gap:8px;flex-wrap:wrap}
+.privacy .toggle{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.privacy .toggle input{width:20px;height:20px;min-height:0;margin-top:3px;flex-shrink:0;accent-color:var(--acc)}
+.privacy .toggle small{display:block;color:var(--mute);font-size:.8125rem}
+.privacy-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.b-danger{border-color:#9A2A20!important;color:#9A2A20!important}
+.b-primary.b-danger{background:#9A2A20;color:#fff!important}
+.b-primary.b-danger:disabled{opacity:.45}
+.delete-box label{display:block;font-weight:700;margin:10px 0 4px}
+.delete-box input{margin-bottom:10px}
+.legal table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.9rem;display:block;overflow-x:auto}@media(min-width:760px){.legal table{display:table}}.legal th,.legal td{padding:9px 12px;border:1px solid var(--line);text-align:left;vertical-align:top;color:var(--mute)}.legal th{background:var(--soft);color:var(--ink);font-weight:700}

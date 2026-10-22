@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type Me = { email: string; name: string; credits: number; freeCredits: number; hasPaid: boolean };
+export type Me = {
+  email: string;
+  name: string;
+  credits: number;
+  freeCredits: number;
+  hasPaid: boolean;
+  /** Aceptó la versión vigente de Términos y Privacidad. */
+  termsOk: boolean;
+  marketing: boolean;
+  country: string;
+  countryOptIn: boolean;
+};
 
 export type PublicSettings = {
   creditPackages: { responses: number; priceCents: number }[];
@@ -37,6 +48,10 @@ function normalizeMe(raw: unknown): Me | null {
     credits: Number(u.credits) || 0,
     freeCredits: Number(u.freeCredits ?? u.free_credits) || 0,
     hasPaid: u.hasPaid === true,
+    termsOk: u.termsOk !== false,
+    marketing: u.marketing === true,
+    country: typeof u.country === "string" ? u.country : "",
+    countryOptIn: u.countryOptIn === true,
   };
 }
 
@@ -117,7 +132,13 @@ export function safeNextPath(value: string | null | undefined, fallback = "/"): 
   return value;
 }
 
-export const googleLoginHref = (next: string) => `/api/auth/google?next=${encodeURIComponent(safeNextPath(next))}`;
+/** Lo que marcó la persona antes de ir a Google (Términos, novedades, país). */
+export type LoginChoices = { terms: boolean; marketing: boolean; country: boolean };
+
+export const googleLoginHref = (next: string, c?: LoginChoices) =>
+  `/api/auth/google?next=${encodeURIComponent(safeNextPath(next))}${
+    c ? `&c=${c.terms ? 1 : 0}${c.marketing ? 1 : 0}${c.country ? 1 : 0}` : ""
+  }`;
 
 /** Botón del programa de escritorio. Mientras la venta no abra
  * (NEXT_PUBLIC_SOFTWARE_SALES_OPEN), muestra "Pronto" deshabilitado. */

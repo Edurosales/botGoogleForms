@@ -9,6 +9,7 @@ import { isRefundAnswer, paymentProblem, type IzipayAnswer } from "./izipay";
 import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 import { notifyAdmin, notifyUser } from "./notify";
+import { audit } from "./audit";
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 
 type CreditOrder = {
@@ -55,6 +56,14 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
         link: "/admin#web-orders",
       });
     }
+    await audit({
+      action: "payment.refund",
+      level: "warn",
+      userId: order.user_id,
+      target: orderId,
+      details: { amount_cents: order.amount_cents, credits: order.credits, message: row?.message ?? "", source: "izipay" },
+      meta: { ip: "", country: "", userAgent: "", path: "" },
+    });
     console.info(`[izipay-web] devolución ${orderId}:`, row?.message);
     return { ok: false, orderId, reason: "devolución registrada" };
   }
@@ -65,6 +74,14 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
     if (order.status === "pending" && answer.orderStatus !== "RUNNING") {
       await supa.from("web_credit_orders").update({ status: "failed", raw_answer: answer }).eq("id", order.id).eq("status", "pending");
     }
+    await audit({
+      action: "payment.rejected",
+      level: "security",
+      userId: order.user_id,
+      target: orderId,
+      details: { problem, orderStatus: answer.orderStatus ?? "" },
+      meta: { ip: "", country: "", userAgent: "", path: "" },
+    });
     console.error("[izipay-web] pago no válido, no se acredita:", orderId, problem);
     return { ok: false, orderId, reason: problem };
   }
@@ -106,5 +123,13 @@ export async function processPaidCreditOrder(answer: IzipayAnswer): Promise<{ ok
     link: "/admin#web-orders",
   });
 
+  await audit({
+    action: "payment.paid",
+    userId: claimed.user_id,
+    email: buyer?.email ?? "",
+    target: claimed.order_id,
+    details: { amount_cents: claimed.amount_cents, credits: claimed.credits, coupon: claimed.coupon_code || "" },
+    meta: { ip: "", country: "", userAgent: "", path: "" },
+  });
   return { ok: true, orderId };
 }

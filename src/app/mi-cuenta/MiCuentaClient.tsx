@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { announceBalanceChange, fmtPen, useMe, usePublicSettings } from "../clientData";
+import { announceBalanceChange, fmtPen, safeNextPath, useMe, usePublicSettings } from "../clientData";
 import { SignInCard } from "../SignIn";
+import PrivacyPanel from "./PrivacyPanel";
 
 type OrderRow = {
   order_id: string;
@@ -54,8 +55,23 @@ function fmtDate(iso: string): string {
   return d.toLocaleString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+const noSubscribe = () => () => {};
+
+/** ?volver=/ruta (desde "Iniciar sesión" del menú): a dónde volver tras entrar. */
+function useVolver(): string {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => {
+      const v = new URLSearchParams(window.location.search).get("volver");
+      return v ? safeNextPath(v) : "";
+    },
+    () => ""
+  );
+}
+
 export default function MiCuentaClient() {
-  const { me } = useMe();
+  const { me, refresh } = useMe();
+  const volver = useVolver();
   const settings = usePublicSettings();
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [code, setCode] = useState("");
@@ -132,7 +148,7 @@ export default function MiCuentaClient() {
     return (
       <div className="sheet">
         <div className="sheet-body">
-          <SignInCard next="/mi-cuenta" freeCredits={settings.freeSignupCredits} title="Inicia sesión para ver tu cuenta" />
+          <SignInCard next={volver || "/mi-cuenta"} freeCredits={settings.freeSignupCredits} title="Inicia sesión para ver tu cuenta" />
         </div>
       </div>
     );
@@ -258,6 +274,8 @@ export default function MiCuentaClient() {
             </ul>
           )}
         </section>
+
+        <PrivacyPanel me={me} onChange={refresh} />
 
         <div className="group">
           <button type="button" className="b b-ghost" onClick={logout} disabled={loggingOut}>

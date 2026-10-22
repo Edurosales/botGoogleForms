@@ -28,6 +28,15 @@ export type WebUser = {
   last_login_at: string;
   /** Sube en cada inicio de sesión: invalida las sesiones anteriores (Ronda 14). */
   session_version?: number;
+  // Ronda 16 (consentimientos; ausentes hasta correr ronda_16.sql)
+  terms_version?: string | null;
+  terms_accepted_at?: string | null;
+  marketing_opt_in?: boolean;
+  marketing_opt_in_at?: string | null;
+  country?: string | null;
+  country_opt_in?: boolean;
+  unsubscribe_token?: string | null;
+  deleted_at?: string | null;
 };
 
 export type WebJob = {

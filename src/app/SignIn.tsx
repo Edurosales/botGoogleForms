@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { googleLoginHref } from "./clientData";
+import { googleLoginHref, type LoginChoices } from "./clientData";
 
 function GoogleMark() {
   return (
@@ -20,11 +20,13 @@ function GoogleMark() {
  */
 export function GoogleButton({
   next,
+  choices,
   disabled = false,
   label = "Continuar con Google",
   onNavigate,
 }: {
   next: string;
+  choices?: LoginChoices;
   disabled?: boolean;
   label?: string;
   onNavigate?: () => void;
@@ -38,7 +40,7 @@ export function GoogleButton({
     );
   }
   return (
-    <a className="gbtn" href={googleLoginHref(next)} onClick={onNavigate}>
+    <a className="gbtn" href={googleLoginHref(next, choices)} onClick={onNavigate}>
       <GoogleMark />
       <span>{label}</span>
     </a>
@@ -60,6 +62,8 @@ export function SignInCard({
   onNavigate?: () => void;
 }) {
   const [accepted, setAccepted] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [country, setCountry] = useState(false);
   const checkId = useId();
 
   return (
@@ -73,10 +77,49 @@ export function SignInCard({
         <li>Las respuestas gratis son una sola vez por persona.</li>
         <li>Con créditos comprados se activan las respuestas con IA y la fila prioritaria.</li>
       </ul>
+      <ConsentChecks
+        idPrefix={checkId}
+        accepted={accepted}
+        setAccepted={setAccepted}
+        marketing={marketing}
+        setMarketing={setMarketing}
+        country={country}
+        setCountry={setCountry}
+      />
+      <GoogleButton next={next} choices={{ terms: accepted, marketing, country }} disabled={!accepted} onNavigate={onNavigate} />
+      {!accepted && <p className="signin-note">Marca la primera casilla para continuar. Las otras dos son opcionales.</p>}
+    </div>
+  );
+}
+
+/**
+ * Casillas de consentimiento (estilo RGPD): la primera es obligatoria para
+ * crear la cuenta; las opcionales vienen DESMARCADAS y se pueden cambiar
+ * cuando quieras en Mi cuenta.
+ */
+export function ConsentChecks({
+  idPrefix,
+  accepted,
+  setAccepted,
+  marketing,
+  setMarketing,
+  country,
+  setCountry,
+}: {
+  idPrefix: string;
+  accepted: boolean;
+  setAccepted: (v: boolean) => void;
+  marketing: boolean;
+  setMarketing: (v: boolean) => void;
+  country: boolean;
+  setCountry: (v: boolean) => void;
+}) {
+  return (
+    <div className="checks consent-checks">
       <div className="check">
-        <input id={checkId} type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-        <label htmlFor={checkId}>
-          Acepto los{" "}
+        <input id={`${idPrefix}-t`} type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} required />
+        <label htmlFor={`${idPrefix}-t`}>
+          <strong>Obligatorio.</strong> Acepto los{" "}
           <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
             términos del servicio
           </a>{" "}
@@ -84,11 +127,22 @@ export function SignInCard({
           <a href="/privacidad.html" target="_blank" rel="noopener">
             política de privacidad
           </a>
-          .
+          , y solo usaré la herramienta con formularios propios o con permiso de su dueño.
         </label>
       </div>
-      <GoogleButton next={next} disabled={!accepted} onNavigate={onNavigate} />
-      {!accepted && <p className="signin-note">Marca la casilla para continuar.</p>}
+      <div className="check">
+        <input id={`${idPrefix}-m`} type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
+        <label htmlFor={`${idPrefix}-m`}>
+          <strong>Opcional.</strong> Quiero recibir por correo novedades y ofertas de FormsBot. Puedo darme de baja con un
+          clic en cualquier correo.
+        </label>
+      </div>
+      <div className="check">
+        <input id={`${idPrefix}-c`} type="checkbox" checked={country} onChange={(e) => setCountry(e.target.checked)} />
+        <label htmlFor={`${idPrefix}-c`}>
+          <strong>Opcional.</strong> Guardar mi país (según mi conexión) para estadísticas del servicio.
+        </label>
+      </div>
     </div>
   );
 }

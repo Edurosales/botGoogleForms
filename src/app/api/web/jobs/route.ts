@@ -6,6 +6,8 @@ import { moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
 import { onlyExisting } from "@/lib/schemaFlags";
+import { audit } from "@/lib/audit";
+import { recordConsent, TERMS_VERSION } from "@/lib/consent";
 import { spendCredits } from "@/lib/credits";
 import { rateLimit } from "@/lib/ratelimit";
 import {
@@ -28,7 +30,6 @@ interface CreateJobBody {
   acceptedTerms?: unknown;
 }
 
-const TERMS_VERSION = "2026-10-20";
 
 function fail(status: number, payload: Record<string, unknown>) {
   const reason = (payload.reason ?? payload.error) as string | undefined;
@@ -75,6 +76,12 @@ export async function POST(request: Request) {
 
   if (body.acceptedTerms !== true) {
     return fail(400, { code: "TERMS_REQUIRED", reason: "Debes aceptar los términos del servicio." });
+  }
+  if (!user.termsOk) {
+    return fail(403, {
+      code: "CONSENT_REQUIRED",
+      reason: "Actualizamos los Términos y la Privacidad: acéptalos para seguir usando la herramienta.",
+    });
   }
 
   const formUrl = typeof body.formUrl === "string" ? body.formUrl.trim().slice(0, 500) : "";
@@ -270,6 +277,16 @@ export async function POST(request: Request) {
       });
     }
   }
+
+  // Prueba de lo que aceptó para ESTE formulario (link, fecha, IP, navegador).
+  await recordConsent(user, "job_use", true, { job_id: job.id, form_url: formUrl, title: job.title, total, is_paid: isPaid });
+  await audit({
+    action: "job.create",
+    userId: user.id,
+    email: user.email,
+    target: job.id,
+    details: { form_url: formUrl, title: job.title, total, is_paid: isPaid, questions: form.questions.length, collects_email: form.collectsEmail },
+  });
 
   const claimedJob = await claimSlot(job);
 

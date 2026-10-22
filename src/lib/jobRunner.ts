@@ -14,6 +14,7 @@ import { addCredits, spendCredits } from "./credits";
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { notifyUser } from "./notify";
 import { hasColumn, onlyExisting } from "./schemaFlags";
+import { audit } from "./audit";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
 const SUBMIT_BATCH = 12;
@@ -99,6 +100,23 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
   const failed = patch.failed ?? job.failed;
   await refundOnFinish(job, sent);
   const back = refundAmount(job, sent);
+  await audit({
+    action: patch.status === "done" ? "job.done" : "job.failed",
+    level: patch.status === "done" ? "info" : "warn",
+    userId: job.user_id,
+    target: job.id,
+    details: {
+      title: job.title,
+      total: job.total,
+      sent,
+      failed,
+      refunded: back,
+      is_paid: job.is_paid,
+      fail_code: patch.fail_code ?? null,
+      reason: patch.moderation_reason ?? "",
+    },
+    meta: { ip: "", country: "", userAgent: "", path: "" },
+  });
   await notifyUser(job.user_id, {
     kind: patch.status === "done" ? "job_done" : "job_failed",
     title:

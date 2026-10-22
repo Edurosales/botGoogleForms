@@ -48,10 +48,18 @@ if(contactForm)contactForm.addEventListener('submit',event=>{event.preventDefaul
 
 const cookieBanner=document.querySelector('.cookie');
 const cookieButton=document.querySelector('[data-cookie-accept]');
+const cookieReject=document.querySelector('[data-cookie-reject]');
 if(cookieBanner&&cookieButton){
+  // Rechazar es tan fácil como aceptar (RGPD / ePrivacy): sin elección no se mide.
   const grantConsent=()=>{if(typeof window.gtag==='function')window.gtag('consent','update',{analytics_storage:'granted',ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'})};
-  let consentGiven=false;
-  try{consentGiven=localStorage.getItem('formsbot-cookie-consent')==='accepted'}catch(error){consentGiven=false}
-  if(consentGiven){cookieBanner.hidden=true;grantConsent()}else{cookieButton.addEventListener('click',()=>{cookieBanner.hidden=true;grantConsent();try{localStorage.setItem('formsbot-cookie-consent','accepted')}catch(error){}})}
+  let choice='';
+  try{choice=localStorage.getItem('formsbot-cookie-consent')||''}catch(error){choice=''}
+  const save=v=>{cookieBanner.hidden=true;try{localStorage.setItem('formsbot-cookie-consent',v)}catch(error){}};
+  if(choice==='accepted'){cookieBanner.hidden=true;grantConsent()}
+  else if(choice==='rejected'){cookieBanner.hidden=true}
+  else{
+    cookieButton.addEventListener('click',()=>{save('accepted');grantConsent()});
+    if(cookieReject)cookieReject.addEventListener('click',()=>save('rejected'));
+  }
 }
 })();

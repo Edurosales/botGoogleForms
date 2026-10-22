@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMe, googleLoginHref } from "./clientData";
+import { useMe } from "./clientData";
 import NotificationsBell from "./NotificationsBell";
 
 const LINKS = [
@@ -66,7 +66,8 @@ export default function SiteNav() {
           {me === undefined && <span className="tn-placeholder" aria-hidden="true" />}
 
           {me === null && (
-            <a className="tn-login" href={googleLoginHref(pathname || "/")}>
+            // A la tarjeta con las casillas de consentimiento, no directo a Google.
+            <a className="tn-login" href={`/mi-cuenta?volver=${encodeURIComponent(pathname || "/")}`}>
               Iniciar sesión
             </a>
           )}

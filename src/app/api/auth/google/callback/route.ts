@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { completeGoogleLogin, setWebSession, takeStateCookie } from "@/lib/googleAuth";
+import { completeGoogleLogin, setWebSession, takeChoicesCookie, takeStateCookie } from "@/lib/googleAuth";
+import { decodeChoices } from "@/lib/consent";
 import { siteUrl } from "@/lib/config";
 
 function requestIp(req: Request): string {
@@ -12,11 +13,13 @@ export async function GET(req: Request) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const saved = await takeStateCookie();
+  const choices = decodeChoices(await takeChoicesCookie());
   const fail = (why: string) => NextResponse.redirect(`${siteUrl()}/?error=${why}`);
 
   if (!code || !state || !saved || state !== saved) return fail("estado");
-  const user = await completeGoogleLogin(code, requestIp(req));
-  if (!user) return fail("google");
+  const result = await completeGoogleLogin(code, requestIp(req), choices);
+  if ("error" in result) return fail(result.error === "terms" ? "terminos" : "google");
+  const user = result.user;
 
   await setWebSession(user);
   let next = "/";

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import Ads from "./Ads";
 import SupportButton from "./SupportButton";
+import ConsentGate from "./ConsentGate";
 
 const GA_ID = "G-4WCK4EME75";
 
@@ -51,15 +52,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Anuncios solo para visitantes gratuitos y fuera de las páginas de pago (ver Ads.tsx). */}
         <Ads />
         <SupportButton />
+        <ConsentGate />
 
         <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
           <p>
-            Usamos cookies necesarias y medición anónima para mejorar el sitio. Puedes consultar
-            nuestra <a href="/privacidad.html">política de privacidad</a>.
+            Usamos cookies necesarias para que el sitio funcione y, solo si aceptas, cookies de medición
+            (Google Analytics) y de publicidad. Puedes rechazarlas sin perder ninguna función. Más en la{" "}
+            <a href="/privacidad.html">política de privacidad</a>.
           </p>
-          <button className="btn" type="button" data-cookie-accept="">
-            Aceptar
-          </button>
+          <div className="cookie-actions">
+            <button className="btn btn-ghost" type="button" data-cookie-reject="">
+              Rechazar
+            </button>
+            <button className="btn" type="button" data-cookie-accept="">
+              Aceptar
+            </button>
+          </div>
         </div>
 
         <Script src="/script.js" strategy="afterInteractive" />

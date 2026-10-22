@@ -10,12 +10,35 @@ import { db, type WebUser } from "./db";
 import { getAppSettings } from "./appSettings";
 import { addCredits } from "./credits";
 import { notifyAdmin, notifyUser } from "./notify";
+import { createHash, randomBytes } from "node:crypto";
+import { onlyExisting } from "./schemaFlags";
+import { audit } from "./audit";
+import { recordConsent, TERMS_VERSION, type SignupChoices } from "./consent";
+import { requestMeta } from "./requestMeta";
 
 export const WEB_SESSION_COOKIE = "web_session";
 const STATE_COOKIE = "web_g_state";
+const CHOICES_COOKIE = "web_g_choices";
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 días
 
-export type WebAuthUser = { id: string; email: string; name: string; credits: number; freeCredits: number; sessionVersion?: number };
+export type WebAuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  credits: number;
+  freeCredits: number;
+  sessionVersion?: number;
+  /** Aceptó la versión vigente de Términos y Privacidad. */
+  termsOk: boolean;
+  marketing: boolean;
+  country: string;
+  countryOptIn: boolean;
+};
+
+/** Hash del correo (para recordar cuentas borradas sin guardar el correo). */
+export function emailHash(email: string): string {
+  return createHash("sha256").update(`formsbot:${email.trim().toLowerCase()}`).digest("hex");
+}
 
 function toAuthUser(row: WebUser): WebAuthUser {
   return {
@@ -25,6 +48,11 @@ function toAuthUser(row: WebUser): WebAuthUser {
     credits: row.credits,
     freeCredits: row.free_credits ?? 0,
     sessionVersion: typeof row.session_version === "number" ? row.session_version : undefined,
+    // Sin la columna (SQL de la ronda sin correr) no se bloquea a nadie.
+    termsOk: row.terms_version === undefined ? true : row.terms_version === TERMS_VERSION,
+    marketing: row.marketing_opt_in ?? false,
+    country: row.country ?? "",
+    countryOptIn: row.country_opt_in ?? false,
   };
 }
 
@@ -78,8 +106,15 @@ async function exchangeCode(code: string): Promise<GoogleProfile | null> {
  * respuestas gratis abriendo varias cuentas de Google desde la misma
  * conexión. Sin IP conocida no se regala nada (no se puede verificar).
  */
-async function signupBonus(ip: string): Promise<number> {
+async function signupBonus(ip: string, email: string): Promise<number> {
   if (!ip) return 0;
+  // Ya tuvo una cuenta y la borró: no se regala otra vez.
+  const { data: wasDeleted } = await db()
+    .from("web_deleted_accounts")
+    .select("email_hash")
+    .eq("email_hash", emailHash(email))
+    .maybeSingle();
+  if (wasDeleted) return 0;
   const settings = await getAppSettings();
   if (settings.free_signup_credits <= 0) return 0;
   const { count, error } = await db()
@@ -121,10 +156,57 @@ async function claimPendingGrants(userId: string, email: string): Promise<void> 
   }
 }
 
-/** Intercambia el code, crea/actualiza web_users y devuelve el usuario. */
-export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAuthUser | null> {
+export type LoginResult = { user: WebAuthUser } | { error: "google" | "terms" };
+
+/** Campos de consentimiento que se guardan en web_users al aceptar. */
+async function consentPatch(choices: SignupChoices | null, current?: WebUser): Promise<Record<string, unknown>> {
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = {};
+  if (choices?.terms && current?.terms_version !== TERMS_VERSION) {
+    patch.terms_version = TERMS_VERSION;
+    patch.terms_accepted_at = now;
+  }
+  if (choices?.marketing && !current?.marketing_opt_in) {
+    patch.marketing_opt_in = true;
+    patch.marketing_opt_in_at = now;
+  }
+  if (choices?.country) {
+    const { country } = await requestMeta();
+    if (country) {
+      patch.country = country;
+      patch.country_opt_in = true;
+    }
+  }
+  if (!current?.unsubscribe_token) patch.unsubscribe_token = randomBytes(24).toString("base64url");
+  return onlyExisting("web_users", patch, [
+    "terms_version",
+    "terms_accepted_at",
+    "marketing_opt_in",
+    "marketing_opt_in_at",
+    "country",
+    "country_opt_in",
+    "unsubscribe_token",
+  ]);
+}
+
+async function recordChoices(userId: string, email: string, choices: SignupChoices | null, current?: WebUser) {
+  const u = { id: userId, email };
+  if (choices?.terms && current?.terms_version !== TERMS_VERSION) await recordConsent(u, "terms", true, { via: "signin" });
+  if (choices?.marketing && !current?.marketing_opt_in) await recordConsent(u, "marketing", true, { via: "signin" });
+  if (choices?.country) await recordConsent(u, "country", true, { via: "signin" });
+}
+
+/**
+ * Intercambia el code, crea/actualiza web_users y devuelve el usuario.
+ * Una cuenta NUEVA solo se crea si aceptó Términos y Privacidad antes de ir
+ * a Google (`choices.terms`): sin eso no se guarda ningún dato suyo.
+ */
+export async function completeGoogleLogin(code: string, ip = "", choices: SignupChoices | null = null): Promise<LoginResult> {
   const profile = await exchangeCode(code);
-  if (!profile) return null;
+  if (!profile) {
+    await audit({ action: "auth.login_failed", level: "warn", details: { why: "google" } });
+    return { error: "google" };
+  }
 
   const supa = db();
   const email = profile.email.toLowerCase();
@@ -139,10 +221,21 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
     userId = existing.id;
     await supa
       .from("web_users")
-      .update({ last_login_at: new Date().toISOString(), email, name: profile.name || existing.name })
+      .update({
+        last_login_at: new Date().toISOString(),
+        email,
+        name: profile.name || existing.name,
+        ...(await consentPatch(choices, existing)),
+      })
       .eq("id", existing.id);
+    await recordChoices(userId, email, choices, existing);
+    await audit({ action: "auth.login", userId, email });
   } else {
-    const bonus = await signupBonus(ip);
+    if (!choices?.terms) {
+      await audit({ action: "auth.signup_blocked", level: "warn", email, details: { why: "terms_not_accepted" } });
+      return { error: "terms" };
+    }
+    const bonus = await signupBonus(ip, email);
     const { data: created, error } = await supa
       .from("web_users")
       .insert({
@@ -152,11 +245,17 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
         signup_ip: ip,
         free_credits: bonus,
         free_grant_used: bonus > 0,
+        ...(await consentPatch(choices)),
       })
       .select()
       .single<WebUser>();
-    if (error || !created) return null;
+    if (error || !created) {
+      await audit({ action: "auth.signup_failed", level: "error", email, details: { error: error?.message } });
+      return { error: "google" };
+    }
     userId = created.id;
+    await recordChoices(userId, email, choices);
+    await audit({ action: "auth.signup", userId, email, details: { bonus, marketing: choices.marketing, country: choices.country } });
     await notifyAdmin({
       kind: "signup",
       title: "Nuevo usuario",
@@ -172,7 +271,7 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
   }
 
   const { data: row } = await supa.from("web_users").select("*").eq("id", userId).single<WebUser>();
-  if (!row) return null;
+  if (!row) return { error: "google" };
 
   // Una sola sesión activa por cuenta: cada inicio de sesión sube la versión y
   // la sesión anterior (otro navegador u otro dispositivo) deja de valer.
@@ -181,7 +280,7 @@ export async function completeGoogleLogin(code: string, ip = ""): Promise<WebAut
     await supa.from("web_users").update({ session_version: next }).eq("id", userId);
     row.session_version = next;
   }
-  return toAuthUser(row);
+  return { user: toAuthUser(row) };
 }
 
 export async function setWebSession(u: WebAuthUser) {
@@ -205,7 +304,7 @@ export async function getWebUser(): Promise<WebAuthUser | null> {
   const data = readToken<{ id?: string; email?: string; name?: string; sv?: number }>(jar.get(WEB_SESSION_COOKIE)?.value);
   if (!data?.id) return null;
   const { data: row } = await db().from("web_users").select("*").eq("id", data.id).maybeSingle<WebUser>();
-  if (!row) return null;
+  if (!row || row.deleted_at) return null;
   // Se inició sesión en otro lado después de esta: esta sesión ya no vale.
   if (typeof row.session_version === "number" && (data.sv ?? 0) !== row.session_version) return null;
   return toAuthUser(row);
@@ -219,6 +318,24 @@ export async function setStateCookie(state: string) {
     path: "/",
     maxAge: 600,
   });
+}
+
+/** Lo que la persona marcó (términos / novedades / país) antes de ir a Google. */
+export async function setChoicesCookie(value: string) {
+  (await cookies()).set(CHOICES_COOKIE, value, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 600,
+  });
+}
+
+export async function takeChoicesCookie(): Promise<string | undefined> {
+  const jar = await cookies();
+  const v = jar.get(CHOICES_COOKIE)?.value;
+  jar.delete(CHOICES_COOKIE);
+  return v;
 }
 
 export async function takeStateCookie(): Promise<string | undefined> {
