@@ -20,7 +20,16 @@ const nextConfig: NextConfig = {
           // Nadie puede cargar el sitio dentro de un iframe ajeno (clickjacking
           // sobre "Enviar" o la compra).
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          // AdSense, Adsterra e Izipay cargan scripts de dominios que cambian: no se
+          // restringe script-src (no hay puntos de XSS: React escapa todo), sí lo
+          // que protege sin romper anuncios ni pagos.
+          {
+            key: "Content-Security-Policy",
+            value:
+              "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; upgrade-insecure-requests",
+          },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-site" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
