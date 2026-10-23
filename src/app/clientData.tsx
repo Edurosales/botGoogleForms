@@ -21,6 +21,8 @@ export type PublicSettings = {
   buySoftwareUrl: string;
   freeSignupCredits: number;
   maxFreeQuestions: number;
+  /** Medios de pago activos en la tienda (los elige el admin). */
+  paymentProviders: ("izipay" | "mercadopago")[];
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -29,6 +31,7 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   buySoftwareUrl: "https://licenses-forms.vercel.app/comprar",
   freeSignupCredits: 30,
   maxFreeQuestions: 30,
+  paymentProviders: ["izipay"],
 };
 
 /** Otros componentes disparan este evento cuando cambia el saldo (pago, cupón, envío). */
@@ -90,6 +93,9 @@ export function usePublicSettings(): PublicSettings {
           buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
           freeSignupCredits: Number(d.freeSignupCredits) || DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
           maxFreeQuestions: Number(d.maxFreeQuestions) || DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
+          paymentProviders: Array.isArray(d.paymentProviders)
+            ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
+            : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
         });
       })
       .catch(() => {});

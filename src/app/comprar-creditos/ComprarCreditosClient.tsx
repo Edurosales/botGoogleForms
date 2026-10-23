@@ -63,6 +63,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<CouponState>(IDLE_COUPON);
   const [busy, setBusy] = useState(false);
+  /** Medio de pago elegido (si el admin activó los dos). */
+  const [method, setMethod] = useState<"izipay" | "mercadopago" | "">("");
   const [err, setErr] = useState("");
   const [pay, setPay] = useState<Pay | null>(null);
   const [formReady, setFormReady] = useState(false);
@@ -84,6 +86,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const returnTo = searchParams.get("volver") ? "/" : "/comprar-creditos";
   const paidOrder = searchParams.get("pagado");
   const errorParam = searchParams.get("error");
+  const mpParam = searchParams.get("mp");
   const selected = packages[selectedIndex] ?? packages[0] ?? null;
 
   useEffect(() => {
@@ -242,6 +245,9 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const finalCents = selected ? (coupon.status === "ok" ? coupon.finalCents : selected.priceCents) : 0;
   const canPay = !!me && !!selected && allChecked && !busy && !couponBlocks && !serviceFull;
 
+  const providers = settings.paymentProviders.length ? settings.paymentProviders : (["izipay"] as const);
+  const payWith = method && (providers as readonly string[]).includes(method) ? method : providers[0];
+
   async function start() {
     if (!selected) return;
     setBusy(true);
@@ -256,9 +262,15 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
           couponCode: coupon.status === "ok" ? couponCode.trim() : undefined,
           returnTo,
           checks: Object.keys(checks).filter((k) => checks[k]),
+          provider: payWith,
         }),
       });
       const d = await r.json().catch(() => ({}));
+      if (r.ok && typeof d.redirectUrl === "string" && /^https:\/\/[a-z0-9.-]*mercadopago\.com(\.[a-z]{2})?\//i.test(d.redirectUrl)) {
+        // Mercado Pago: se paga en su página oficial y vuelve aquí.
+        window.location.assign(d.redirectUrl);
+        return;
+      }
       if (!r.ok || !d.formToken) setErr(String(d.message || d.reason || d.error || "No se pudo iniciar el pago."));
       else setPay(d as Pay);
     } catch {
@@ -397,6 +409,35 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                 </div>
               </fieldset>
 
+              {providers.length > 1 && (
+                <fieldset className="paymethods">
+                  <legend>Medio de pago</legend>
+                  <label className={`paymethod${payWith === "mercadopago" ? " on" : ""}`}>
+                    <input type="radio" name="paymethod" checked={payWith === "mercadopago"} onChange={() => setMethod("mercadopago")} />
+                    <span>
+                      <b>Mercado Pago</b>
+                      <small>Tarjeta, Yape, PagoEfectivo o saldo de Mercado Pago</small>
+                    </span>
+                  </label>
+                  <label className={`paymethod${payWith === "izipay" ? " on" : ""}`}>
+                    <input type="radio" name="paymethod" checked={payWith === "izipay"} onChange={() => setMethod("izipay")} />
+                    <span>
+                      <b>Tarjeta</b>
+                      <small>Visa, Mastercard, Amex, Diners (Izipay)</small>
+                    </span>
+                  </label>
+                </fieldset>
+              )}
+              {mpParam === "pendiente" && (
+                <div className="note note-warn" role="status">
+                  <p>Tu pago con Mercado Pago está pendiente (por ejemplo PagoEfectivo). Apenas se confirme sumamos tus créditos y te avisamos por correo.</p>
+                </div>
+              )}
+              {mpParam === "cancelado" && (
+                <div className="note note-warn" role="status">
+                  <p>No se completó el pago. No se te cobró nada; puedes intentarlo de nuevo.</p>
+                </div>
+              )}
               {err && (
                 <div className="note note-err" role="alert">
                   <p>{err}</p>
@@ -410,10 +451,16 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                     : !me
                     ? "Inicia sesión para pagar"
                     : selected
-                      ? `Pagar ${fmtPen(finalCents)} con tarjeta`
+                      ? payWith === "mercadopago"
+                        ? `Pagar ${fmtPen(finalCents)} con Mercado Pago`
+                        : `Pagar ${fmtPen(finalCents)} con tarjeta`
                       : "Elige un paquete"}
               </button>
-              <p className="fine">Pago procesado por Izipay. No guardamos los datos de tu tarjeta.</p>
+              <p className="fine">
+                {payWith === "mercadopago"
+                  ? "Pagas en la página oficial de Mercado Pago y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta."
+                  : "Pago procesado por Izipay. No guardamos los datos de tu tarjeta."}
+              </p>
           </>
 
           {pay && (

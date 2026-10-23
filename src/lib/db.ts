@@ -102,6 +102,8 @@ export type AppSettings = {
   presence_grace_seconds?: number;
   /** Ronda 19: cuentas que pueden llenar gratis un mismo formulario (0 = sin límite). */
   free_accounts_per_form?: number;
+  /** Ronda 20: medio de pago de la tienda. */
+  payment_provider?: "izipay" | "mercadopago" | "both";
   updated_at: string;
 };
 

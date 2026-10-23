@@ -1,6 +1,7 @@
 import { NextResponse, connection } from "next/server";
 import { getAppSettings } from "@/lib/appSettings";
 import { DEFAULT_BUY_SOFTWARE_URL, DEFAULT_WHATSAPP, MAX_FREE_QUESTIONS } from "@/lib/webConfig";
+import { activeProviders } from "@/lib/paymentProviders";
 
 /** Configuración pública (sin secretos) para la UI. */
 export async function GET() {
@@ -16,5 +17,6 @@ export async function GET() {
     buySoftwareUrl: s.buy_software_url || DEFAULT_BUY_SOFTWARE_URL,
     freeSignupCredits: s.free_signup_credits,
     maxFreeQuestions: MAX_FREE_QUESTIONS,
+    paymentProviders: activeProviders(s),
   });
 }

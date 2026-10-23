@@ -496,3 +496,11 @@ body.paying .support{display:none}
 .range-row input{width:160px}
 .range-row .q-hint{flex-basis:100%;margin:0}
 .lang-note{margin-top:8px}
+
+/* Ronda 20: elegir medio de pago */
+.paymethods{border:0;padding:0;margin:14px 0 10px;display:grid;gap:8px}
+.paymethods legend{font-weight:800;font-size:.875rem;margin-bottom:6px}
+.paymethod{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1.5px solid var(--line-strong,#C9BFDC);border-radius:12px;cursor:pointer;background:#fff}
+.paymethod input{width:18px;height:18px;min-height:0;accent-color:var(--acc)}
+.paymethod small{display:block;color:var(--mute);font-size:.8125rem}
+.paymethod.on{border-color:var(--acc);background:var(--soft,#F1ECF9)}

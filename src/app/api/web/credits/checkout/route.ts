@@ -10,6 +10,9 @@ import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
 import { applyDiscount, checkDiscountCoupon, normalizeCouponCode } from "@/lib/coupons";
 import { rememberReturnTo, safeReturnPath } from "@/lib/returnTo";
 import { getCapacity } from "@/lib/capacity";
+import { activeProviders } from "@/lib/paymentProviders";
+import { createPreference } from "@/lib/mercadopago";
+import { onlyExisting } from "@/lib/schemaFlags";
 
 /**
  * Crea la orden de créditos + formToken de Izipay.
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
     checks?: unknown;
     couponCode?: unknown;
     returnTo?: unknown;
+    provider?: unknown;
   };
   const checks = Array.isArray(body.checks) ? body.checks : [];
   const missing = CREDIT_PURCHASE_CHECKS.filter((c) => !checks.includes(c.id));
@@ -51,6 +55,12 @@ export async function POST(req: Request) {
   }
 
   const settings = await getAppSettings();
+  // Medio de pago: el que pidió el cliente si está activo; si no, el primero activo.
+  const providers = activeProviders(settings);
+  if (!providers.length) {
+    return NextResponse.json({ message: "Los pagos no están disponibles en este momento. Escríbenos a soporte." }, { status: 503 });
+  }
+  const provider = providers.find((p) => p === body.provider) ?? providers[0];
   // El precio SIEMPRE sale de app_settings (nunca del cliente).
   const idx = Number(body.packageIndex);
   const pkg = Number.isInteger(idx)
@@ -73,19 +83,53 @@ export async function POST(req: Request) {
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const orderId = `WB-${ymd}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
-  const { error: insertError } = await db().from("web_credit_orders").insert({
-    order_id: orderId,
-    user_id: user.id,
-    credits: pkg.responses,
-    amount_cents: amountCents,
-    currency: "PEN",
-    status: "pending",
-    coupon_code: couponCode,
-    discount_cents: pkg.priceCents - amountCents,
-  });
+  const { error: insertError } = await db()
+    .from("web_credit_orders")
+    .insert(
+      await onlyExisting(
+        "web_credit_orders",
+        {
+          order_id: orderId,
+          user_id: user.id,
+          credits: pkg.responses,
+          amount_cents: amountCents,
+          currency: "PEN",
+          status: "pending",
+          coupon_code: couponCode,
+          discount_cents: pkg.priceCents - amountCents,
+          provider,
+        },
+        ["provider"]
+      )
+    );
   if (insertError) {
     console.error("[web-checkout] insert", insertError.message);
     return NextResponse.json({ message: "No se pudo crear la orden. Intenta de nuevo en un momento." }, { status: 500 });
+  }
+
+  if (provider === "mercadopago") {
+    try {
+      const pref = await createPreference({
+        orderId,
+        title: `FormsBot — ${pkg.responses} créditos`,
+        amountCents,
+        email: user.email,
+        siteUrl: siteUrl(),
+      });
+      await rememberReturnTo(orderId, returnTo);
+      return NextResponse.json({
+        orderId,
+        provider,
+        amountCents,
+        originalCents: pkg.priceCents,
+        credits: pkg.responses,
+        redirectUrl: pref.url,
+      });
+    } catch (e) {
+      await db().from("web_credit_orders").update({ status: "failed" }).eq("order_id", orderId);
+      console.error("[web-checkout] mercadopago", e instanceof Error ? e.message : e);
+      return NextResponse.json({ message: "No se pudo iniciar el pago con Mercado Pago. Intenta de nuevo en unos minutos." }, { status: 502 });
+    }
   }
 
   try {
@@ -100,6 +144,7 @@ export async function POST(req: Request) {
     await rememberReturnTo(orderId, returnTo);
     return NextResponse.json({
       orderId,
+      provider,
       amountCents,
       originalCents: pkg.priceCents,
       credits: pkg.responses,
