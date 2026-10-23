@@ -806,7 +806,10 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           {notice && (
             <div className={notice.code === "CONFIRM" ? "note note-warn" : "note note-err"} role="alert">
               <p>{notice.reason}</p>
-              {(notice.code === "NO_CREDITS" || notice.code === "TOO_MANY_QUESTIONS" || notice.code === "AI_REQUIRES_PAID") && (
+              {(notice.code === "NO_CREDITS" ||
+                notice.code === "TOO_MANY_QUESTIONS" ||
+                notice.code === "AI_REQUIRES_PAID" ||
+                notice.code === "FORM_FREE_USED") && (
                 <div className="actions">
                   <button type="button" className="b b-small b-primary" onClick={goBuy}>
                     Comprar créditos

@@ -8,6 +8,14 @@ export const SUPPORTED_LANGUAGES = [
   { code: "francés", label: "Français" },
 ] as const;
 
+/**
+ * Cuántas cuentas distintas pueden llenar GRATIS un mismo formulario. Evita
+ * que alguien abra varias cuentas (otros dispositivos/correos) para llenar el
+ * mismo formulario gratis una y otra vez. Pagados y clientes que ya compraron
+ * no tienen este límite.
+ */
+export const FREE_ACCOUNTS_PER_FORM = 1;
+
 /** Máximo de preguntas de un formulario para usar respuestas gratis (de bienvenida). */
 export const MAX_FREE_QUESTIONS = 30;
 

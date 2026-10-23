@@ -17,6 +17,7 @@ import {
   MAX_RESPONSES_PER_JOB,
   MAX_RESPONSES_PER_DAY,
   DEFAULT_BUY_SOFTWARE_URL,
+  FREE_ACCOUNTS_PER_FORM,
 } from "@/lib/webConfig";
 import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
@@ -35,6 +36,46 @@ interface CreateJobBody {
 function fail(status: number, payload: Record<string, unknown>) {
   const reason = (payload.reason ?? payload.error) as string | undefined;
   return NextResponse.json({ ok: false, ...payload, reason, error: reason }, { status });
+}
+
+/** ID estable del formulario (igual con link largo, corto forms.gle o de edición). */
+function formIdOf(viewUrl: string): string | null {
+  const m = viewUrl.match(/\/forms\/d\/(?:e\/)?([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : null;
+}
+
+/** ¿Alguna vez compró? Créditos comprados en saldo o un pedido pagado. */
+async function hasEverPaid(userId: string, credits: number): Promise<boolean> {
+  if (credits > 0) return true;
+  const { count } = await db()
+    .from("web_credit_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "paid");
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Cuántas OTRAS cuentas ya llenaron gratis este formulario (envíos gratis que
+ * llegaron a enviar algo o que están en curso). Se compara por el ID del
+ * formulario, no por el texto del link.
+ */
+async function otherFreeAccountsOnForm(formId: string, userId: string): Promise<number> {
+  // "_" y "%" son comodines en LIKE: el ID puede traer "_".
+  const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const { data } = await db()
+    .from("web_jobs")
+    .select("user_id,status,sent")
+    .eq("is_paid", false)
+    .neq("user_id", userId)
+    .like("view_url", pattern)
+    .limit(200);
+  const users = new Set(
+    (data ?? [])
+      .filter((j) => j.status === "queued" || j.status === "processing" || (j.sent ?? 0) > 0)
+      .map((j) => j.user_id as string)
+  );
+  return users.size;
 }
 
 function sanitizeQConfig(raw: unknown): QuestionConfigMap {
@@ -195,6 +236,31 @@ export async function POST(request: Request) {
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
   const tooManyQuestions = form.questions.length > MAX_FREE_QUESTIONS;
   const isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
+
+  // Un mismo formulario solo se llena gratis una vez (por una cuenta). Otra
+  // cuenta gratuita con el mismo formulario debe comprar créditos.
+  if (!isPaid) {
+    const formId = formIdOf(form.viewUrl);
+    if (formId && !(await hasEverPaid(user.id, user.credits))) {
+      const others = await otherFreeAccountsOnForm(formId, user.id);
+      if (others >= FREE_ACCOUNTS_PER_FORM) {
+        await audit({
+          action: "job.free_form_reused",
+          level: "security",
+          userId: user.id,
+          email: user.email,
+          target: formId,
+          details: { form_url: formUrl, other_free_accounts: others },
+        });
+        return fail(402, {
+          code: "FORM_FREE_USED",
+          ...balances,
+          reason:
+            "Este formulario ya fue llenado gratis desde otra cuenta. El envío gratis es una vez por formulario: compra créditos para seguir llenándolo (además vas en la fila prioritaria y puedes usar IA).",
+        });
+      }
+    }
+  }
 
   if (isPaid && user.credits < total) {
     if (usesAi) {
