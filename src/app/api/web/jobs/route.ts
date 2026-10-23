@@ -235,28 +235,36 @@ export async function POST(request: Request) {
   // otra cosa se paga completa con créditos comprados (cola prioritaria).
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
   const tooManyQuestions = form.questions.length > MAX_FREE_QUESTIONS;
-  const isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
+  let isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
 
-  // Un mismo formulario solo se llena gratis una vez (por una cuenta). Otra
-  // cuenta gratuita con el mismo formulario debe comprar créditos.
+  // Un mismo formulario solo se llena gratis UNA vez. Si ya lo llenó gratis
+  // otra cuenta, este envío se cobra con créditos (también a quien ya compró
+  // antes); si no le alcanzan, debe comprar más.
   if (!isPaid) {
     const formId = formIdOf(form.viewUrl);
-    if (formId && !(await hasEverPaid(user.id, user.credits))) {
-      const others = await otherFreeAccountsOnForm(formId, user.id);
-      if (others >= FREE_ACCOUNTS_PER_FORM) {
+    const others = formId ? await otherFreeAccountsOnForm(formId, user.id) : 0;
+    if (formId && others >= FREE_ACCOUNTS_PER_FORM) {
+      if (user.credits >= total) {
+        isPaid = true; // se cobra de sus créditos comprados
+      } else {
         await audit({
           action: "job.free_form_reused",
           level: "security",
           userId: user.id,
           email: user.email,
           target: formId,
-          details: { form_url: formUrl, other_free_accounts: others },
+          details: { form_url: formUrl, other_free_accounts: others, credits: user.credits, total },
         });
+        const everPaid = await hasEverPaid(user.id, user.credits);
         return fail(402, {
           code: "FORM_FREE_USED",
           ...balances,
           reason:
-            "Este formulario ya fue llenado gratis desde otra cuenta. El envío gratis es una vez por formulario: compra créditos para seguir llenándolo (además vas en la fila prioritaria y puedes usar IA).",
+            user.credits > 0
+              ? `Este formulario ya se llenó gratis antes, así que este envío se paga con créditos: necesitas ${total} y te quedan ${user.credits}. Compra más créditos o baja la cantidad a ${user.credits}.`
+              : everPaid
+                ? `Este formulario ya se llenó gratis antes, así que este envío se paga con créditos y se te acabaron. Compra más créditos para llenarlo.`
+                : "Este formulario ya fue llenado gratis desde otra cuenta. El envío gratis es una vez por formulario: compra créditos para seguir llenándolo (además vas en la fila prioritaria y puedes usar IA).",
         });
       }
     }
