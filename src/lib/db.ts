@@ -100,6 +100,8 @@ export type AppSettings = {
   auto_pause_free_at?: number;
   pause_message?: string;
   presence_grace_seconds?: number;
+  /** Ronda 19: cuentas que pueden llenar gratis un mismo formulario (0 = sin límite). */
+  free_accounts_per_form?: number;
   updated_at: string;
 };
 

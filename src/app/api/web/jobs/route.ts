@@ -21,6 +21,7 @@ import {
 } from "@/lib/webConfig";
 import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
+import { getAppSettings } from "@/lib/appSettings";
 
 
 interface CreateJobBody {
@@ -241,9 +242,12 @@ export async function POST(request: Request) {
   // otra cuenta, este envío se cobra con créditos (también a quien ya compró
   // antes); si no le alcanzan, debe comprar más.
   if (!isPaid) {
-    const formId = formIdOf(form.viewUrl);
+    // Editable en Admin → Configuración (0 = sin límite); si la columna aún
+    // no existe se usa el valor por defecto del código.
+    const limit = (await getAppSettings()).free_accounts_per_form ?? FREE_ACCOUNTS_PER_FORM;
+    const formId = limit > 0 ? formIdOf(form.viewUrl) : null;
     const others = formId ? await otherFreeAccountsOnForm(formId, user.id) : 0;
-    if (formId && others >= FREE_ACCOUNTS_PER_FORM) {
+    if (formId && others >= limit) {
       if (user.credits >= total) {
         isPaid = true; // se cobra de sus créditos comprados
       } else {
