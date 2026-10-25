@@ -60,8 +60,12 @@ export async function createPreference(opts: {
   title: string;
   amountCents: number;
   email: string;
+  name?: string;
   siteUrl: string;
 }): Promise<{ id: string; url: string }> {
+  // Más datos del comprador y del producto = menos rechazos "por riesgo"
+  // (recomendación de calidad de integración de Mercado Pago).
+  const [firstName, ...rest] = (opts.name || "").trim().split(/\s+/);
   const back = `${opts.siteUrl}/api/web/mercadopago/return`;
   const pref = await mpFetch<{ id: string; init_point: string; sandbox_init_point?: string }>("/checkout/preferences", {
     method: "POST",
@@ -71,12 +75,14 @@ export async function createPreference(opts: {
         {
           id: opts.orderId,
           title: opts.title,
+          description: "Créditos para enviar respuestas de prueba a tu Google Form con FormsBot",
+          category_id: "services",
           quantity: 1,
           currency_id: "PEN",
           unit_price: Math.round(opts.amountCents) / 100,
         },
       ],
-      payer: { email: opts.email },
+      payer: { email: opts.email, ...(firstName ? { name: firstName } : {}), ...(rest.length ? { surname: rest.join(" ") } : {}) },
       external_reference: opts.orderId,
       back_urls: { success: back, pending: back, failure: back },
       auto_return: "approved",

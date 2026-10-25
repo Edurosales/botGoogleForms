@@ -114,6 +114,7 @@ export async function POST(req: Request) {
         title: `FormsBot — ${pkg.responses} créditos`,
         amountCents,
         email: user.email,
+        name: user.name,
         siteUrl: siteUrl(),
       });
       await rememberReturnTo(orderId, returnTo);
