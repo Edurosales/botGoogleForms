@@ -5,6 +5,7 @@ import { heuristicRecommendations } from "@/lib/recommend";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { getWebUser } from "@/lib/googleAuth";
 import { MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS } from "@/lib/webConfig";
+import { formIdOf } from "@/lib/formId";
 
 function err(code: string, reason: string, status = 400, extra: Record<string, unknown> = {}) {
   // `error` se mantiene por compatibilidad con la UI anterior.
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     form: {
+      formId: formIdOf(form.viewUrl),
       title: form.title,
       description: form.description,
       numSections: form.numSections,

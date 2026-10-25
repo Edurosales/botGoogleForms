@@ -76,6 +76,8 @@ export async function createPreference(opts: {
           id: opts.orderId,
           title: opts.title,
           description: "Créditos para enviar respuestas de prueba a tu Google Form con FormsBot",
+          // Checkout Pro muestra el título y la imagen (la descripción no se ve).
+          picture_url: `${opts.siteUrl}/email-logo.png`,
           category_id: "services",
           quantity: 1,
           currency_id: "PEN",

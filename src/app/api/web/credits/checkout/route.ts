@@ -111,7 +111,7 @@ export async function POST(req: Request) {
     try {
       const pref = await createPreference({
         orderId,
-        title: `FormsBot — ${pkg.responses} créditos`,
+        title: `FormsBot: ${pkg.responses} créditos (respuestas para tu Google Form)`,
         amountCents,
         email: user.email,
         name: user.name,

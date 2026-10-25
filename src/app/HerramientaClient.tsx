@@ -11,6 +11,7 @@ import ExportButton from "./ExportButton";
 import LiveQueue from "./LiveQueue";
 import { type Mode, type QConf, type QConfMap } from "./QuestionEditors";
 import { QuestionControls } from "./QuestionControls";
+import PresetsBar from "./PresetsBar";
 
 type Validation = {
   kind?: string;
@@ -34,6 +35,8 @@ interface QuestionView {
 }
 
 interface FormView {
+  /** ID estable del formulario (para configuraciones guardadas). */
+  formId?: string | null;
   title: string;
   description: string;
   numSections: number;
@@ -733,6 +736,25 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               </p>
             )}
           </fieldset>
+
+          {me && form.formId && (
+            <PresetsBar
+              formId={form.formId}
+              formTitle={form.title}
+              current={{ total, language, customInstructions, qConfig: effectiveQ }}
+              onApply={(p) => {
+                setTotal(p.total);
+                setLanguage(p.language);
+                setCustomInstructions(p.customInstructions);
+                // Solo preguntas que siguen existiendo en el formulario (pudo cambiar).
+                setQConfig((prev) => {
+                  const next = { ...prev };
+                  for (const q of form.questions) if (p.qConfig[q.entry]) next[q.entry] = p.qConfig[q.entry];
+                  return next;
+                });
+              }}
+            />
+          )}
 
           <fieldset className="group">
             <legend>Cómo se responde cada pregunta</legend>

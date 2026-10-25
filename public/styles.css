@@ -504,3 +504,11 @@ body.paying .support{display:none}
 .paymethod input{width:18px;height:18px;min-height:0;accent-color:var(--acc)}
 .paymethod small{display:block;color:var(--mute);font-size:.8125rem}
 .paymethod.on{border-color:var(--acc);background:var(--soft,#F1ECF9)}
+
+/* Ronda 21: configuraciones guardadas */
+.presets{border:1px dashed var(--line-strong,#C9BFDC);border-radius:12px;padding:12px 14px;margin:0 0 16px;background:#FBFAFD}
+.presets-title{margin:0 0 8px;font-weight:800;font-size:.9375rem}
+.presets-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.presets-row select,.presets-row input{flex:1 1 220px;width:auto}
+.presets-locked{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.presets-locked p{margin:0;flex:1 1 260px}

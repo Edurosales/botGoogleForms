@@ -22,6 +22,7 @@ import {
 import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
 import { getAppSettings } from "@/lib/appSettings";
+import { formIdOf } from "@/lib/formId";
 
 
 interface CreateJobBody {
@@ -37,12 +38,6 @@ interface CreateJobBody {
 function fail(status: number, payload: Record<string, unknown>) {
   const reason = (payload.reason ?? payload.error) as string | undefined;
   return NextResponse.json({ ok: false, ...payload, reason, error: reason }, { status });
-}
-
-/** ID estable del formulario (igual con link largo, corto forms.gle o de edición). */
-function formIdOf(viewUrl: string): string | null {
-  const m = viewUrl.match(/\/forms\/d\/(?:e\/)?([A-Za-z0-9_-]{10,})/);
-  return m ? m[1] : null;
 }
 
 /** ¿Alguna vez compró? Créditos comprados en saldo o un pedido pagado. */
