@@ -322,7 +322,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
       {/* Script de seguridad de Mercado Pago (huella del dispositivo para su
           antifraude): solo si Mercado Pago está activo en la tienda. */}
       {(providers as readonly string[]).includes("mercadopago") && (
-        <Script src="https://www.mercadopago.com/v2/security.js" strategy="afterInteractive" data-view="checkout" />
+        <Script src="https://www.mercadopago.com/v2/security.js" strategy="afterInteractive" {...{ view: "checkout" }} />
       )}
       {paidOrder && (
         <div className="note note-ok" role="status">
