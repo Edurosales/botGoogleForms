@@ -73,7 +73,7 @@ export function googleAuthUrl(state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
 }
 
-type GoogleProfile = { sub: string; email: string; email_verified?: boolean; name?: string };
+type GoogleProfile = { sub: string; email: string; email_verified?: boolean; name?: string; given_name?: string; family_name?: string };
 
 async function exchangeCode(code: string): Promise<GoogleProfile | null> {
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -156,6 +156,15 @@ async function claimPendingGrants(userId: string, email: string): Promise<void> 
   }
 }
 
+/** Nombre y apellido tal como los da Google (para pagos: siempre iguales). */
+async function namePatch(profile: GoogleProfile): Promise<Record<string, unknown>> {
+  return onlyExisting(
+    "web_users",
+    { given_name: (profile.given_name || "").slice(0, 80), family_name: (profile.family_name || "").slice(0, 80) },
+    ["given_name", "family_name"]
+  );
+}
+
 export type LoginResult = { user: WebAuthUser } | { error: "google" | "terms" };
 
 /** Campos de consentimiento que se guardan en web_users al aceptar. */
@@ -225,6 +234,7 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
         last_login_at: new Date().toISOString(),
         email,
         name: profile.name || existing.name,
+        ...(await namePatch(profile)),
         ...(await consentPatch(choices, existing)),
       })
       .eq("id", existing.id);
@@ -245,6 +255,7 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
         signup_ip: ip,
         free_credits: bonus,
         free_grant_used: bonus > 0,
+        ...(await namePatch(profile)),
         ...(await consentPatch(choices)),
       })
       .select()

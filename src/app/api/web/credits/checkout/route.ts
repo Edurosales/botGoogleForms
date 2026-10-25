@@ -19,6 +19,20 @@ import { onlyExisting } from "@/lib/schemaFlags";
  * No se pudo probar en vivo en esta sesión (faltan credenciales Izipay en
  * este entorno) — mismo patrón ya en producción en license-server/api/checkout/create.
  */
+/**
+ * Nombre y apellido del comprador para Mercado Pago: los de Google si están
+ * guardados; si no (cuentas anteriores), se separa el nombre completo.
+ */
+async function payerNames(userId: string, fullName: string): Promise<{ firstName: string; lastName: string; registeredAt?: string }> {
+  const { data } = await db().from("web_users").select("*").eq("id", userId).maybeSingle<Record<string, unknown>>();
+  const given = String(data?.given_name ?? "").trim();
+  const family = String(data?.family_name ?? "").trim();
+  const registeredAt = typeof data?.created_at === "string" ? data.created_at : undefined;
+  if (given && family) return { firstName: given, lastName: family, registeredAt };
+  const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
+  return { firstName: given || parts[0] || "", lastName: family || parts.slice(1).join(" "), registeredAt };
+}
+
 export async function POST(req: Request) {
   const ip = clientIp(req);
   if (!rateLimit(`web-checkout:${ip}`, 8, 10 * 60_000)) {
@@ -120,8 +134,9 @@ export async function POST(req: Request) {
         orderId,
         title: `FormsBot: ${pkg.responses} créditos (respuestas para tu Google Form)`,
         amountCents,
+        sku: `creditos-${pkg.responses}`,
         email: user.email,
-        name: user.name,
+        ...(await payerNames(user.id, user.name)),
         siteUrl: siteUrl(),
       });
       await rememberReturnTo(orderId, returnTo);

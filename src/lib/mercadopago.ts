@@ -59,13 +59,20 @@ export async function createPreference(opts: {
   orderId: string;
   title: string;
   amountCents: number;
+  /** Código fijo del producto (igual en todos los intentos del mismo paquete). */
+  sku: string;
   email: string;
-  name?: string;
+  firstName?: string;
+  lastName?: string;
+  /** Fecha de registro real del cliente. */
+  registeredAt?: string;
   siteUrl: string;
 }): Promise<{ id: string; url: string }> {
-  // Más datos del comprador y del producto = menos rechazos "por riesgo"
-  // (recomendación de calidad de integración de Mercado Pago).
-  const [firstName, ...rest] = (opts.name || "").trim().split(/\s+/);
+  // Datos del comprador y del producto SIEMPRE iguales entre intentos: el
+  // soporte de Mercado Pago (ticket WCS-56020) vio que el nombre llegaba en
+  // unos pagos y en otros no, y eso pesa en los rechazos cc_rejected_high_risk.
+  const firstName = (opts.firstName || "").trim();
+  const lastName = (opts.lastName || "").trim();
   const back = `${opts.siteUrl}/api/web/mercadopago/return`;
   const pref = await mpFetch<{ id: string; init_point: string; sandbox_init_point?: string }>("/checkout/preferences", {
     method: "POST",
@@ -73,7 +80,7 @@ export async function createPreference(opts: {
     body: JSON.stringify({
       items: [
         {
-          id: opts.orderId,
+          id: opts.sku,
           title: opts.title,
           description: "Créditos para enviar respuestas de prueba a tu Google Form con FormsBot",
           // Checkout Pro muestra el título y la imagen (la descripción no se ve).
@@ -84,7 +91,12 @@ export async function createPreference(opts: {
           unit_price: Math.round(opts.amountCents) / 100,
         },
       ],
-      payer: { email: opts.email, ...(firstName ? { name: firstName } : {}), ...(rest.length ? { surname: rest.join(" ") } : {}) },
+      payer: {
+        email: opts.email,
+        ...(firstName ? { name: firstName } : {}),
+        ...(lastName ? { surname: lastName } : {}),
+        ...(opts.registeredAt ? { date_created: opts.registeredAt } : {}),
+      },
       external_reference: opts.orderId,
       back_urls: { success: back, pending: back, failure: back },
       auto_return: "approved",

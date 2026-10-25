@@ -37,6 +37,9 @@ export type WebUser = {
   country_opt_in?: boolean;
   unsubscribe_token?: string | null;
   deleted_at?: string | null;
+  /** Ronda 22: nombre y apellido de Google (pagos). */
+  given_name?: string;
+  family_name?: string;
 };
 
 export type WebJob = {
