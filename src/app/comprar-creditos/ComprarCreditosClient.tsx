@@ -17,6 +17,7 @@ import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
 import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "../clientData";
 import { SignInCard } from "../SignIn";
 import PurchaseCelebration from "../PurchaseCelebration";
+import { MP_REJECT_REASONS } from "./mpReasons";
 
 type Pkg = { responses: number; priceCents: number };
 type Pay = {
@@ -87,6 +88,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const paidOrder = searchParams.get("pagado");
   const errorParam = searchParams.get("error");
   const mpParam = searchParams.get("mp");
+  const mpReason = searchParams.get("motivo") || "";
   const selected = packages[selectedIndex] ?? packages[0] ?? null;
 
   useEffect(() => {
@@ -431,6 +433,15 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
               {mpParam === "pendiente" && (
                 <div className="note note-warn" role="status">
                   <p>Tu pago con Mercado Pago está pendiente (por ejemplo PagoEfectivo). Apenas se confirme sumamos tus créditos y te avisamos por correo.</p>
+                </div>
+              )}
+              {mpParam === "rechazado" && (
+                <div className="note note-err" role="alert">
+                  <p>
+                    <strong>Mercado Pago rechazó el pago. No se te cobró nada.</strong>{" "}
+                    {MP_REJECT_REASONS[mpReason] ?? "Prueba con otra tarjeta u otro medio de pago dentro de Mercado Pago."}
+                  </p>
+                  {mpReason && <p className="fine">Código: {mpReason}</p>}
                 </div>
               )}
               {mpParam === "cancelado" && (
