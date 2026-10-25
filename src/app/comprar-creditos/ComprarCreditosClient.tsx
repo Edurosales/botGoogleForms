@@ -18,6 +18,7 @@ import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, w
 import { SignInCard } from "../SignIn";
 import PurchaseCelebration from "../PurchaseCelebration";
 import { MP_REJECT_REASONS } from "./mpReasons";
+import Script from "next/script";
 
 type Pkg = { responses: number; priceCents: number };
 type Pay = {
@@ -250,7 +251,34 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const providers = settings.paymentProviders.length ? settings.paymentProviders : (["izipay"] as const);
   const payWith = method && (providers as readonly string[]).includes(method) ? method : providers[0];
 
+  // Tras un rechazo de Mercado Pago no se reintenta enseguida con los mismos
+  // datos (su antifraude lo toma como patrón riesgoso): 3 minutos de espera.
+  const MP_COOLDOWN_MS = 3 * 60_000;
+  const [mpWaitUntil, setMpWaitUntil] = useState(0);
+  const [nowTs, setNowTs] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      let until = 0;
+      try {
+        if (mpParam === "rechazado") localStorage.setItem("fb-mp-cooldown", String(Date.now() + MP_COOLDOWN_MS));
+        until = Number(localStorage.getItem("fb-mp-cooldown")) || 0;
+      } catch {}
+      setMpWaitUntil(until);
+      setNowTs(Date.now());
+    }, 0);
+    const tick = setInterval(() => setNowTs(Date.now()), 15_000);
+    return () => {
+      clearTimeout(t);
+      clearInterval(tick);
+    };
+  }, [mpParam, MP_COOLDOWN_MS]);
+  const mpWaitMin = payWith === "mercadopago" && mpWaitUntil > nowTs ? Math.ceil((mpWaitUntil - nowTs) / 60_000) : 0;
+
   async function start() {
+    if (mpWaitMin > 0) {
+      setErr(`Espera ${mpWaitMin} min antes de volver a intentar con Mercado Pago, o elige otro medio de pago.`);
+      return;
+    }
     if (!selected) return;
     setBusy(true);
     setErr("");
@@ -291,6 +319,11 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   return (
     <div className="buy">
       <PurchaseCelebration orderId={paidOrder} onUse={() => router.push("/")} />
+      {/* Script de seguridad de Mercado Pago (huella del dispositivo para su
+          antifraude): solo si Mercado Pago está activo en la tienda. */}
+      {(providers as readonly string[]).includes("mercadopago") && (
+        <Script src="https://www.mercadopago.com/v2/security.js" strategy="afterInteractive" data-view="checkout" />
+      )}
       {paidOrder && (
         <div className="note note-ok" role="status">
           <p>

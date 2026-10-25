@@ -61,6 +61,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Los pagos no están disponibles en este momento. Escríbenos a soporte." }, { status: 503 });
   }
   const provider = providers.find((p) => p === body.provider) ?? providers[0];
+  // Muchos intentos seguidos con los mismos datos suben el riesgo en Mercado Pago.
+  if (provider === "mercadopago" && !rateLimit(`mp-checkout:${user.id}`, 3, 10 * 60_000)) {
+    return NextResponse.json(
+      { message: "Hiciste varios intentos seguidos con Mercado Pago. Espera unos minutos o elige otro medio de pago." },
+      { status: 429 }
+    );
+  }
   // El precio SIEMPRE sale de app_settings (nunca del cliente).
   const idx = Number(body.packageIndex);
   const pkg = Number.isInteger(idx)
