@@ -502,7 +502,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
               </button>
               <p className="fine">
                 {payWith === "mercadopago"
-                  ? "Pagas en la página oficial de Mercado Pago y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta."
+                  ? `Pagas en la página oficial de Mercado Pago${settings.mpRequiresLogin ? " con tu cuenta de Mercado Pago (inicia sesión para pagar)" : ""} y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta.`
                   : "Pago procesado por Izipay. No guardamos los datos de tu tarjeta."}
               </p>
           </>

@@ -135,6 +135,7 @@ export async function POST(req: Request) {
         title: `FormsBot: ${pkg.responses} créditos (respuestas para tu Google Form)`,
         amountCents,
         sku: `creditos-${pkg.responses}`,
+        requireLogin: settings.mp_require_login === true,
         email: user.email,
         ...(await payerNames(user.id, user.name)),
         siteUrl: siteUrl(),

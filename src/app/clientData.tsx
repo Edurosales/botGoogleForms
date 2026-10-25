@@ -23,6 +23,8 @@ export type PublicSettings = {
   maxFreeQuestions: number;
   /** Medios de pago activos en la tienda (los elige el admin). */
   paymentProviders: ("izipay" | "mercadopago")[];
+  /** Mercado Pago pide iniciar sesión en su cuenta para pagar. */
+  mpRequiresLogin: boolean;
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -32,6 +34,7 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   freeSignupCredits: 30,
   maxFreeQuestions: 30,
   paymentProviders: ["izipay"],
+  mpRequiresLogin: false,
 };
 
 /** Otros componentes disparan este evento cuando cambia el saldo (pago, cupón, envío). */
@@ -96,6 +99,7 @@ export function usePublicSettings(): PublicSettings {
           paymentProviders: Array.isArray(d.paymentProviders)
             ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
             : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
+          mpRequiresLogin: d.mpRequiresLogin === true,
         });
       })
       .catch(() => {});

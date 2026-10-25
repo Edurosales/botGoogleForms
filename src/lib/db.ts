@@ -107,6 +107,8 @@ export type AppSettings = {
   free_accounts_per_form?: number;
   /** Ronda 20: medio de pago de la tienda. */
   payment_provider?: "izipay" | "mercadopago" | "both";
+  /** Ronda 23: Mercado Pago solo con sesión iniciada (wallet_purchase). */
+  mp_require_login?: boolean;
   updated_at: string;
 };
 

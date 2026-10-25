@@ -66,6 +66,8 @@ export async function createPreference(opts: {
   lastName?: string;
   /** Fecha de registro real del cliente. */
   registeredAt?: string;
+  /** Solo con cuenta de Mercado Pago iniciada (sin compras como invitado). */
+  requireLogin?: boolean;
   siteUrl: string;
 }): Promise<{ id: string; url: string }> {
   // Datos del comprador y del producto SIEMPRE iguales entre intentos: el
@@ -102,6 +104,7 @@ export async function createPreference(opts: {
       auto_return: "approved",
       notification_url: `${opts.siteUrl}/api/web/mercadopago/webhook?source_news=webhooks`,
       statement_descriptor: "FORMSBOT",
+      ...(opts.requireLogin ? { purpose: "wallet_purchase" } : {}),
       binary_mode: false,
       metadata: { order_id: opts.orderId },
     }),

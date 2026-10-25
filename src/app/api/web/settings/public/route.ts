@@ -18,5 +18,6 @@ export async function GET() {
     freeSignupCredits: s.free_signup_credits,
     maxFreeQuestions: MAX_FREE_QUESTIONS,
     paymentProviders: activeProviders(s),
+    mpRequiresLogin: s.mp_require_login === true,
   });
 }
