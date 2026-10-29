@@ -14,6 +14,7 @@ import { notifyOwnerMessage } from "./alerts";
 import { randomBytes } from "node:crypto";
 import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
+import { emailHash } from "./googleAuth";
 
 export const USER_MSG_MAX_CHARS = 500;
 export const USER_MSG_PER_DAY = 2;
@@ -234,15 +235,18 @@ export async function paymentRecovery(): Promise<{ sent: number } | null> {
     const { data: user } = await supa.from("web_users").select("*").eq("id", userId).maybeSingle<Record<string, unknown>>();
     const email = String(user?.email ?? "");
     if (!user || user.deleted_at || user.banned_at || user.purchases_blocked || !email || email.endsWith(".invalid")) continue;
-    const [{ count: paidAfter }, { count: recentCoupon }] = await Promise.all([
+    const [{ count: paidAfter }, { count: recentCoupon }, { count: reRegistered }] = await Promise.all([
       supa.from("web_credit_orders").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["paid", "refunded"]).gt("created_at", newest.created_at),
       supa
         .from("web_coupons")
         .select("id", { count: "exact", head: true })
         .like("code", "VUELVE-%")
         .eq("allowed_email", email),
+      // Ese correo ya tuvo una cuenta y la borró: no se le da otro cupón por
+      // registrarse de nuevo (solo se guarda el hash del correo, no el correo).
+      supa.from("web_deleted_accounts").select("email_hash", { count: "exact", head: true }).eq("email_hash", emailHash(email)),
     ]);
-    if ((paidAfter ?? 0) > 0 || (recentCoupon ?? 0) > 0) continue;
+    if ((paidAfter ?? 0) > 0 || (recentCoupon ?? 0) > 0 || (reRegistered ?? 0) > 0) continue;
     // Una sola vez en la vida de la cuenta: se reclama de forma atómica.
     const { data: once, error: onceErr } = await supa
       .from("web_users")
