@@ -10,6 +10,7 @@
 import { db } from "./db";
 import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
+import { notifyOwnerMessage } from "./alerts";
 
 export const USER_MSG_MAX_CHARS = 500;
 export const USER_MSG_PER_DAY = 2;
@@ -73,6 +74,8 @@ export async function sendUserMessage(user: { id: string; email: string }, body:
     body: body.slice(0, 300),
     link: `/admin#mensajes`,
   });
+  // Correo al dueño (el tope de 2 por día ya limita cuántos llegan).
+  await notifyOwnerMessage({ email: user.email, body }).catch(() => {});
   await audit({ action: "message.user", userId: user.id, email: user.email, target: String(id), details: { chars: body.length } });
   return id;
 }

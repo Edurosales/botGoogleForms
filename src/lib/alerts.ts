@@ -55,6 +55,21 @@ export async function alertOwner(key: string, title: string, details: Record<str
   }
 }
 
+/** Mensaje nuevo de un cliente en el chat: correo al dueño (como mucho 2 por cliente al día). */
+export async function notifyOwnerMessage(info: { email: string; body: string }): Promise<void> {
+  const admin = (process.env.ADMIN_SITE_URL || "https://licenses-forms.vercel.app").replace(/\/+$/, "");
+  await mailOwner(
+    `💬 Mensaje de ${info.email}`,
+    "Un cliente te escribió",
+    summaryTable([
+      ["Cliente", escapeHtml(info.email)],
+      ["Fecha", escapeHtml(mailDate())],
+    ]) +
+      `<p style="white-space:pre-wrap;background:#F4F1FA;border-radius:10px;padding:12px 14px">${escapeHtml(info.body)}</p>` +
+      `<p><a href="${admin}/admin#mensajes" style="display:inline-block;background:#5B2EA6;color:#fff;text-decoration:none;font-weight:700;padding:10px 18px;border-radius:10px">Responder en el panel</a></p>`
+  );
+}
+
 /** Aviso de compra al dueño (siempre, sin límite). */
 export async function notifyOwnerPurchase(info: { email: string; credits: number; amount: string; orderId: string; provider: string }): Promise<void> {
   await mailOwner(
