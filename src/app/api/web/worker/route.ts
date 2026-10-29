@@ -7,6 +7,7 @@ import { sendNewsletterBatch } from "@/lib/mailer";
 import { hasColumn } from "@/lib/schemaFlags";
 import { sweepAbsent } from "@/lib/queue";
 import { scanBounces } from "@/lib/suppression";
+import { isSpreadWaiting } from "@/lib/jobRunner";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -59,7 +60,9 @@ export async function POST(req: Request) {
   const bounces = await scanBounces().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
-    const jobs = await activeJobs(PARALLEL_JOBS * 2);
+    // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
+    // saltan: si no, ocuparían las vueltas y frenarían a los demás.
+    const jobs = (await activeJobs(PARALLEL_JOBS * 6)).filter((j) => !isSpreadWaiting(j));
     if (!jobs.length) break;
     // Cada paso de envío dura hasta ~30 s: solo se arranca otra ronda si cabe.
     const round = jobs.slice(0, PARALLEL_JOBS);
@@ -70,7 +73,7 @@ export async function POST(req: Request) {
     );
     advanced += results.length;
     // Si todos estaban ocupados por otro proceso, no insistir en bucle.
-    if (results.every((r) => r.body.phase === "busy")) break;
+    if (results.every((r) => r.body.phase === "busy" || r.body.phase === "spreading")) break;
     if (Date.now() - start > RUN_BUDGET_MS - 25_000) break;
   }
 

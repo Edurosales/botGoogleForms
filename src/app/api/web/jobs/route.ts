@@ -15,6 +15,7 @@ import {
   MAX_RESPONSES_PER_JOB,
   DEFAULT_BUY_SOFTWARE_URL,
   FREE_ACCOUNTS_PER_FORM,
+  SPREAD_OPTIONS,
 } from "@/lib/webConfig";
 import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
@@ -30,6 +31,7 @@ interface CreateJobBody {
   customInstructions?: unknown;
   qConfig?: unknown;
   acceptedTerms?: unknown;
+  spreadMinutes?: unknown;
 }
 
 
@@ -343,8 +345,10 @@ export async function POST(request: Request) {
       terms_accepted_at: new Date().toISOString(),
       collects_email: form.collectsEmail,
       last_seen_at: new Date().toISOString(),
+      // Lapso de envío solo para envíos pagados (los gratis ocuparían la fila horas).
+      spread_minutes: isPaid && (SPREAD_OPTIONS as readonly number[]).includes(Number(body.spreadMinutes)) ? Number(body.spreadMinutes) : 0,
     },
-    ["collects_email", "last_seen_at"]
+    ["collects_email", "last_seen_at", "spread_minutes"]
   );
   const { data: job, error } = await supa.from("web_jobs").insert(row).select().single<WebJob>();
 

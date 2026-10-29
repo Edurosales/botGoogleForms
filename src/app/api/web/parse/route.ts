@@ -149,6 +149,8 @@ export async function POST(request: Request) {
         options: q.options,
         required: q.required,
         validation: q.validation ?? null,
+        section: q.section ?? 1,
+        jumps: q.jumps ?? null,
       })),
     },
     warnings,

@@ -27,6 +27,10 @@ export interface ParsedQuestion {
   options: string[];
   required: boolean;
   validation?: QuestionValidation;
+  /** Sección del formulario donde está (1 = la primera). */
+  section?: number;
+  /** Saltos de sección por respuesta: opción → número de sección a la que lleva. */
+  jumps?: Record<string, number>;
 }
 
 export interface ParsedForm {
@@ -382,6 +386,20 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
   const questions: ParsedQuestion[] = [];
   let numSections = 0;
 
+  // Secciones: cada encabezado (tipo 8) tiene un id; la sección 1 es la que
+  // está antes del primer encabezado. Las opciones con "ir a la sección según
+  // la respuesta" guardan ese id: así se sabe a qué sección lleva cada una.
+  const sectionById = new Map<number, number>();
+  {
+    let n = 1;
+    for (const it of items) {
+      if (Array.isArray(it) && it[3] === 8) {
+        n++;
+        if (typeof it[0] === "number") sectionById.set(it[0], n);
+      }
+    }
+  }
+
   for (const item of items) {
     if (!Array.isArray(item) || item.length < 4) continue;
 
@@ -404,6 +422,7 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
       if (typeof entryId !== "number" || entryId === 0) continue;
 
       const options: string[] = [];
+      const jumps: Record<string, number> = {};
       for (const optIdx of [1, 2]) {
         if (Array.isArray(qField[optIdx])) {
           for (const opt of qField[optIdx] as unknown[]) {
@@ -413,7 +432,13 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
                 const numVal = opt.find((v) => typeof v === "number" && v > 0 && v <= 100);
                 if (numVal !== undefined) text = String(numVal);
               }
-              if (text) options.push(text);
+              if (text) {
+                options.push(text);
+                // Solo se anota si apunta a una sección que existe (los códigos
+                // especiales de Google no se interpretan).
+                const goTo = opt[2];
+                if (typeof goTo === "number" && sectionById.has(goTo)) jumps[text] = sectionById.get(goTo) as number;
+              }
             }
           }
           if (options.length) break;
@@ -444,6 +469,8 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
         options,
         required,
         ...(validation ? { validation } : {}),
+        section: numSections + 1,
+        ...(Object.keys(jumps).length ? { jumps } : {}),
       });
     }
   }

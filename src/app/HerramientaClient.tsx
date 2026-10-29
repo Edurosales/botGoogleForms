@@ -33,6 +33,9 @@ interface QuestionView {
   options: string[];
   required: boolean;
   validation?: Validation | null;
+  /** Sección del formulario (1 = la primera) y a qué sección lleva cada opción. */
+  section?: number;
+  jumps?: Record<string, number> | null;
 }
 
 interface FormView {
@@ -61,6 +64,9 @@ type JobState = {
   reason: string;
   /** Respuestas ya preparadas (antes de enviarlas a Google). */
   generated?: number;
+  /** Envío repartido en el tiempo: minutos hasta la próxima respuesta. */
+  spreadNextMin?: number;
+  spreadMinutes?: number;
   /** Causa principal si falló (ventana de ayuda). */
   failCode?: string | null;
 };
@@ -167,6 +173,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const [parsedMaxFree, setParsedMaxFree] = useState<number | null>(null);
   const [language, setLanguage] = useState<string>(SUPPORTED_LANGUAGES[0].code);
   const [total, setTotal] = useState(10);
+  /** Lapso de envío (minutos; 0 = lo antes posible). Solo con créditos. */
+  const [spreadMinutes, setSpreadMinutes] = useState(0);
   const [customInstructions, setCustomInstructions] = useState("");
   const [qConfig, setQConfig] = useState<QConfMap>({});
   const [confirmUse, setConfirmUse] = useState(false);
@@ -321,6 +329,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       failures: Array.isArray(d.failures) ? (d.failures as Failure[]) : prev?.failures ?? [],
       reason: typeof d.reason === "string" ? d.reason : prev?.reason ?? "",
       generated: typeof d.generated === "number" ? d.generated : prev?.generated,
+      spreadNextMin: d.phase === "spreading" && typeof d.nextInMin === "number" ? d.nextInMin : undefined,
+      spreadMinutes: typeof d.spreadMinutes === "number" ? d.spreadMinutes : prev?.spreadMinutes,
       failCode: typeof d.failCode === "string" ? d.failCode : prev?.failCode ?? null,
     }));
     const status = String(d.status || "");
@@ -501,7 +511,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       const res = await fetch("/api/web/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig: effectiveQ, acceptedTerms: true }),
+        body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig: effectiveQ, acceptedTerms: true, spreadMinutes }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok && data.code === "ACTIVE_JOB" && data.activeJobId) {
@@ -748,6 +758,24 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   </p>
                 )}
               </div>
+              {me && me.credits >= total && (
+                <div className="field">
+                  <label htmlFor="spread">Ritmo de envío</label>
+                  <select id="spread" value={spreadMinutes} onChange={(e) => setSpreadMinutes(Number(e.target.value))}>
+                    <option value={0}>Lo antes posible</option>
+                    <option value={60}>Repartir en 1 hora</option>
+                    <option value={180}>Repartir en 3 horas</option>
+                    <option value={360}>Repartir en 6 horas</option>
+                    <option value={720}>Repartir en 12 horas</option>
+                    <option value={1440}>Repartir en 24 horas</option>
+                  </select>
+                  <p className="fine">
+                    {spreadMinutes
+                      ? `Llegará una respuesta cada ~${Math.max(1, Math.round(spreadMinutes / total))} min, como encuestados reales. Puedes cerrar la pestaña.`
+                      : "Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales."}
+                  </p>
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="lang">Idioma de las respuestas</label>
                 <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
@@ -827,7 +855,19 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                           {q.title}
                           {q.required && <span className="q-req" aria-label="obligatoria"> *</span>}
                         </p>
-                        <p className="q-type">{q.typeName}</p>
+                        <p className="q-type">
+                          {q.typeName}
+                          {form.numSections > 1 && q.section ? ` · Sección ${q.section}` : ""}
+                        </p>
+                        {q.jumps && Object.keys(q.jumps).length > 0 && (
+                          <p className="q-jumps">
+                            Según la respuesta salta:{" "}
+                            {Object.entries(q.jumps)
+                              .map(([opt, sec]) => `“${opt}” → sección ${sec}`)
+                              .join(" · ")}
+                            . Las preguntas de otras secciones pueden quedar sin mostrarse: usa una condición para dejarlas vacías.
+                          </p>
+                        )}
                       </div>
                     </div>
                     <QuestionControls
@@ -978,7 +1018,12 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         : 0;
     const left = job.total - done;
     const ratio = job.total > 0 ? done / job.total : 0;
-    const stage = preparing
+    const stage = job.spreadNextMin
+      ? {
+          title: "Enviando de a poco",
+          detail: `Repartiendo las respuestas${job.spreadMinutes ? ` en ${job.spreadMinutes >= 60 ? `${job.spreadMinutes / 60} h` : `${job.spreadMinutes} min`}` : ""}. La próxima sale en ~${job.spreadNextMin} min; puedes cerrar la pestaña.`,
+        }
+      : preparing
       ? {
           title: "Preparando las respuestas",
           detail:

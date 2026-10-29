@@ -87,6 +87,8 @@ export type WebJob = {
   lost_turns?: number;
   /** Ronda 18: hora de cada respuesta enviada (alineada con profiles). */
   response_times?: string[];
+  /** Ronda 26: repartir el envío en estos minutos (0 = lo antes posible). */
+  spread_minutes?: number;
 };
 
 export type AppSettings = {

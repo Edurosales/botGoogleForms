@@ -89,12 +89,15 @@ export async function claimSlot(job: WebJob): Promise<WebJob> {
   const cap = job.is_paid ? settings.paid_concurrency : settings.free_concurrency;
 
   const cutoff = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
-  const { count } = await db()
+  let busy = db()
     .from("web_jobs")
     .select("id", { count: "exact", head: true })
     .eq("status", "processing")
     .eq("is_paid", job.is_paid)
     .gte("started_at", cutoff);
+  // Los envíos repartidos en horas no ocupan cupo: casi siempre están esperando.
+  if (await hasColumn("web_jobs", "spread_minutes")) busy = busy.eq("spread_minutes", 0);
+  const { count } = await busy;
 
   const free = cap - (count ?? 0);
   if (free <= 0) return job; // sin cupo todavía

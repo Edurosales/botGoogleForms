@@ -37,6 +37,25 @@ const LOCK_MS = 55_000;
 // se explica y se reembolsa en vez de hacer esperar al cliente.
 const FAIL_FAST_AFTER = 6;
 
+/** Cuántas respuestas deberían haber salido ya según el lapso del envío. */
+function spreadDue(job: WebJob): number {
+  const spread = job.spread_minutes ?? 0;
+  if (spread <= 0 || !job.started_at) return job.total;
+  const elapsed = Math.max(0, (Date.now() - Date.parse(job.started_at)) / 60_000);
+  return Math.min(job.total, Math.ceil((job.total * elapsed) / spread) + 1);
+}
+
+/**
+ * Envío repartido en el tiempo que todavía no tiene nada para mandar: el
+ * worker lo salta (no gasta una vuelta ni bloquea a los demás).
+ */
+export function isSpreadWaiting(job: WebJob): boolean {
+  if (job.status !== "processing" || !(job.spread_minutes ?? 0)) return false;
+  const generated = (job.profiles ?? []).length;
+  if (generated < job.total) return false; // aún generando respuestas
+  return spreadDue(job) <= job.sent + job.failed;
+}
+
 export type AdvanceResult = { httpStatus: number; body: Record<string, unknown> };
 
 function jobToForm(job: WebJob): ParsedForm {
@@ -250,7 +269,10 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   }
 
   const lastProgress = Date.parse(job.progress_at || job.started_at || job.created_at);
-  const stuckAfter = job.progress_at ? STUCK_WITHOUT_PROGRESS_MS : STUCK_FALLBACK_MS;
+  // Envío repartido en el tiempo: entre respuesta y respuesta hay espera
+  // normal; solo está trabado si pasa mucho más que ese intervalo.
+  const spreadGapMs = (job.spread_minutes ?? 0) > 0 ? ((job.spread_minutes ?? 0) * 60_000) / Math.max(1, job.total) : 0;
+  const stuckAfter = (job.progress_at ? STUCK_WITHOUT_PROGRESS_MS : STUCK_FALLBACK_MS) + spreadGapMs * 2;
   if (Date.now() - lastProgress > stuckAfter) {
     const back = refundAmount(job, job.sent);
     const reason =
@@ -307,7 +329,24 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
 
   // ── Fase 2: enviar a Google ────────────────────────────────────────
   const alreadyDone = job.sent + job.failed;
-  const batch = generatedSoFar.slice(alreadyDone, alreadyDone + SUBMIT_BATCH);
+  // Lapso de envío: las respuestas se reparten parejo en `spread_minutes`
+  // (contando desde que empezó a enviar). Si ya va al día, espera sin gastar.
+  let room = SUBMIT_BATCH;
+  const spread = job.spread_minutes ?? 0;
+  if (spread > 0 && job.started_at) {
+    const elapsed = (Date.now() - Date.parse(job.started_at)) / 60_000;
+    room = Math.min(SUBMIT_BATCH, spreadDue(job) - alreadyDone);
+    if (room <= 0) {
+      // La siguiente respuesta toca cuando elapsed ≥ alreadyDone × spread / total.
+      const nextInMin = Math.max(1, Math.ceil((alreadyDone * spread) / job.total - elapsed));
+      await supa
+        .from("web_jobs")
+        .update({ ...lockRelease, ...(progressSupported ? { progress_at: new Date().toISOString() } : {}) })
+        .eq("id", job.id);
+      return ok(statusPayload(job, { phase: "spreading", nextInMin, spreadMinutes: spread }));
+    }
+  }
+  const batch = generatedSoFar.slice(alreadyDone, alreadyDone + room);
 
   const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, tickStart + SUBMIT_BUDGET_MS, (profile) =>
     submitOne(form, profile)

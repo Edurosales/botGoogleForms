@@ -16,6 +16,9 @@ export const SUPPORTED_LANGUAGES = [
  */
 export const FREE_ACCOUNTS_PER_FORM = 1;
 
+/** Lapsos de envío permitidos (minutos). 0 = lo antes posible. Solo envíos pagados. */
+export const SPREAD_OPTIONS = [0, 60, 180, 360, 720, 1440] as const;
+
 /** Máximo de preguntas de un formulario para usar respuestas gratis (de bienvenida). */
 export const MAX_FREE_QUESTIONS = 30;
 
