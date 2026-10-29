@@ -13,6 +13,7 @@ import { type Mode, type QConf, type QConfMap } from "./QuestionEditors";
 import { QuestionControls } from "./QuestionControls";
 import PresetsBar from "./PresetsBar";
 import { QuestionRules } from "./QuestionRules";
+import FlowSummary, { sectionGates } from "./FlowSummary";
 
 type Validation = {
   kind?: string;
@@ -839,8 +840,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               )}
             </div>
 
+            <FlowSummary questions={form.questions} qConfig={effectiveQ} />
+
             <ol className="qlist">
               {form.questions.map((q, i) => {
+                const gates = sectionGates(form.questions);
                 const conf = effectiveQ[q.entry] ?? { mode: "random" as Mode, value: "" };
                 const rec = recs[q.entry];
                 const vHint = validationHint(q.validation);
@@ -859,13 +863,16 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                           {q.typeName}
                           {form.numSections > 1 && q.section ? ` · Sección ${q.section}` : ""}
                         </p>
+                        {(q.section ?? 1) > 1 && gates.get(q.section ?? 1) && (
+                          <p className="q-gate">Solo se responde si {gates.get(q.section ?? 1)?.join(" o ")}.</p>
+                        )}
                         {q.jumps && Object.keys(q.jumps).length > 0 && (
                           <p className="q-jumps">
                             Según la respuesta salta:{" "}
                             {Object.entries(q.jumps)
                               .map(([opt, sec]) => `“${opt}” → sección ${sec}`)
                               .join(" · ")}
-                            . Las preguntas de otras secciones pueden quedar sin mostrarse: usa una condición para dejarlas vacías.
+                            . Cada respuesta sigue su camino solo: lo que no se abre queda vacío.
                           </p>
                         )}
                       </div>

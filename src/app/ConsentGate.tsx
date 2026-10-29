@@ -47,7 +47,7 @@ export default function ConsentGate() {
         <p>{errorText}</p>
         <div className="login-alert-actions">
           {loginError === "terminos" && (
-            <a className="b b-primary b-small" href={`/mi-cuenta?volver=${encodeURIComponent(path)}`}>
+            <a className="b b-primary b-small" href={`/mi-cuenta?modo=registro&volver=${encodeURIComponent(path)}`}>
               Crear mi cuenta
             </a>
           )}

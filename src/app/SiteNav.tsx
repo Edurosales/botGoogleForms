@@ -66,10 +66,15 @@ export default function SiteNav() {
           {me === undefined && <span className="tn-placeholder" aria-hidden="true" />}
 
           {me === null && (
-            // A la tarjeta con las casillas de consentimiento, no directo a Google.
-            <a className="tn-login" href={`/mi-cuenta?volver=${encodeURIComponent(pathname || "/")}`}>
-              Iniciar sesión
-            </a>
+            // Dos caminos claros: entrar (sin casillas) o crear cuenta (con términos).
+            <div className="tn-auth">
+              <a className="tn-login" href={`/mi-cuenta?modo=entrar&volver=${encodeURIComponent(pathname || "/")}`}>
+                Iniciar sesión
+              </a>
+              <a className="tn-signup" href={`/mi-cuenta?modo=registro&volver=${encodeURIComponent(pathname || "/")}`}>
+                Registrarse
+              </a>
+            </div>
           )}
 
           {me && (

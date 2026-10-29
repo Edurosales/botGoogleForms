@@ -14,6 +14,7 @@
 import type { ParsedForm } from "./formParser";
 import type { FailureCode } from "./db";
 import { createNameState, isNameField } from "./dataGen";
+import { PAGE_HISTORY_KEY } from "./formRoute";
 
 const UA_POOL = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
@@ -91,13 +92,16 @@ export function buildPayload(form: ParsedForm, profile: Record<string, string>):
   const typeByEntry = new Map(form.questions.map((q) => [q.entry, q.type]));
   const n = Math.max(1, form.numSections);
 
+  // Camino por secciones de esta respuesta (formRoute.ts); sin saltos, todas.
+  const route = profile[PAGE_HISTORY_KEY];
   const payload: [string, string][] = [
     ["fvv", "1"],
     ["fbzx", randomFbzx()],
-    ["pageHistory", Array.from({ length: n }, (_, i) => i).join(",")],
+    ["pageHistory", route && /^\d+(,\d+)*$/.test(route) ? route : Array.from({ length: n }, (_, i) => i).join(",")],
   ];
 
   for (const [entry, rawValue] of Object.entries(profile)) {
+    if (entry.startsWith("__")) continue;
     const qType = typeByEntry.get(entry) ?? 0;
     const val = String(rawValue ?? "");
 

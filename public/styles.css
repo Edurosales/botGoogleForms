@@ -551,3 +551,27 @@ body.paying .support{display:none}
 .qrules-row select,.qrules-row input{width:auto;min-height:38px;max-width:240px}
 
 .q-jumps{margin:4px 0 0;font-size:.8125rem;color:#6B4300;background:#FFF6E5;border-radius:8px;padding:6px 8px}
+
+/* Ronda 27: flujo del formulario */
+.flow{border:1px solid #F2D9A6;background:#FFFBF2;border-radius:12px;padding:12px 14px;margin:0 0 14px}
+.flow-title{margin:0 0 4px;font-weight:800}
+.flow-q{margin-top:10px}
+.flow-qtitle{margin:0 0 4px;font-weight:700;font-size:.9375rem}
+.flow ul{list-style:none;margin:0;padding:0}
+.flow li{display:grid;grid-template-columns:minmax(80px,auto) 16px 1fr 90px 40px;gap:8px;align-items:center;font-size:.875rem;padding:3px 0}
+.flow-opt{font-weight:700}
+.flow-arrow{color:var(--mute)}
+.flow-bar{height:8px;border-radius:99px;background:#F2E6CC;overflow:hidden}
+.flow-bar i{display:block;height:100%;background:var(--acc)}
+.flow-pct{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+@media(max-width:560px){.flow li{grid-template-columns:1fr 70px 36px}.flow-arrow{display:none}.flow li>span:nth-child(3){grid-column:1/-1;order:5;font-size:.8125rem;color:var(--mute)}}
+.q-gate{margin:4px 0 0;font-size:.8125rem;font-weight:700;color:var(--acc)}
+
+/* Ronda 27: iniciar sesión / registrarse */
+.tn-auth{display:flex;gap:8px;align-items:center}
+.tn-signup{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:10px;background:var(--acc);border:1.5px solid var(--acc);color:#fff!important;font-weight:700;font-size:.9375rem;text-decoration:none}
+.tn-signup:hover{filter:brightness(1.08)}
+@media(max-width:520px){.tn-auth{gap:6px}.tn-auth a{min-height:36px;padding:0 10px;font-size:.8125rem}}
+.signin-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 0 14px;border-radius:12px;background:var(--soft,#F1ECF9)}
+.signin-tabs button{min-height:42px;border:0;border-radius:9px;background:transparent;font:inherit;font-weight:700;color:var(--mute);cursor:pointer}
+.signin-tabs button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px -4px rgba(33,22,63,.4)}

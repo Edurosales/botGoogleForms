@@ -51,7 +51,7 @@ export function GoogleButton({
 export function SignInCard({
   next,
   freeCredits,
-  title = "Crea tu cuenta para enviar",
+  title,
   compact = false,
   onNavigate,
 }: {
@@ -65,66 +65,84 @@ export function SignInCard({
   const [marketing, setMarketing] = useState(false);
   const [country, setCountry] = useState(false);
   const checkId = useId();
-  // Quien ya tiene cuenta en este navegador entra directo, sin volver a ver
-  // las casillas de términos (ya los aceptó al registrarse).
-  const knownAccount = useSyncExternalStore(
+  // Pestaña inicial: la que se pidió (?modo=entrar|registro desde el menú) o,
+  // si este navegador ya tiene cuenta, "Iniciar sesión"; si no, "Crear cuenta".
+  const initial = useSyncExternalStore(
     noSubscribe,
     () => {
+      const modo = new URLSearchParams(window.location.search).get("modo");
+      if (modo === "entrar") return "login";
+      if (modo === "registro") return "register";
       try {
-        return localStorage.getItem(HAS_ACCOUNT_KEY) === "1";
+        return localStorage.getItem(HAS_ACCOUNT_KEY) === "1" ? "login" : "register";
       } catch {
-        return false;
+        return "register";
       }
     },
-    () => false
+    () => "register"
   );
-  const [newAccount, setNewAccount] = useState(false);
-
-  if (knownAccount && !newAccount) {
-    return (
-      <div className={compact ? "signin signin-compact" : "signin"}>
-        <h3>Bienvenido de nuevo</h3>
-        <p className="signin-offer">Entra con tu cuenta de Google para seguir.</p>
-        <GoogleButton next={next} label="Entrar con Google" onNavigate={onNavigate} />
-        <p className="signin-note">
-          ¿Vas a usar otra cuenta de Google nueva?{" "}
-          <button type="button" className="linkish" onClick={() => setNewAccount(true)}>
-            Crear cuenta
-          </button>
-        </p>
-      </div>
-    );
-  }
+  const [picked, setPicked] = useState<"login" | "register" | null>(null);
+  const tab = picked ?? initial;
 
   return (
     <div className={compact ? "signin signin-compact" : "signin"}>
-      <h3>{title}</h3>
-      <p className="signin-offer">
-        Tu primera vez: <strong>{freeCredits} respuestas gratis</strong> en modo aleatorio o fijo. Solo pedimos tu
-        cuenta de Google, sin contraseña.
-      </p>
-      <ul className="signin-points">
-        <li>Las respuestas gratis son una sola vez por persona.</li>
-        <li>Con créditos comprados se activan las respuestas con IA y la fila prioritaria.</li>
-      </ul>
-      <ConsentChecks
-        idPrefix={checkId}
-        accepted={accepted}
-        setAccepted={setAccepted}
-        marketing={marketing}
-        setMarketing={setMarketing}
-        country={country}
-        setCountry={setCountry}
-      />
-      <GoogleButton next={next} choices={{ terms: accepted, marketing, country }} disabled={!accepted} label="Crear cuenta con Google" onNavigate={onNavigate} />
-      {!accepted && <p className="signin-note">Marca la primera casilla para continuar. Las otras dos son opcionales.</p>}
-      <p className="signin-note signin-have">
-        ¿Ya tienes cuenta?{" "}
-        <a href={googleLoginHref(next)} onClick={onNavigate}>
-          Entrar con Google
-        </a>{" "}
-        (no necesitas volver a aceptar).
-      </p>
+      <div className="signin-tabs" role="tablist" aria-label="Acceso">
+        <button type="button" role="tab" aria-selected={tab === "login"} className={tab === "login" ? "on" : ""} onClick={() => setPicked("login")}>
+          Iniciar sesión
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "register"} className={tab === "register" ? "on" : ""} onClick={() => setPicked("register")}>
+          Crear cuenta
+        </button>
+      </div>
+
+      {tab === "login" ? (
+        <div role="tabpanel">
+          <h3>{title ?? "Bienvenido de nuevo"}</h3>
+          <p className="signin-offer">Entra con la cuenta de Google con la que te registraste. No necesitas volver a aceptar nada.</p>
+          <GoogleButton next={next} label="Entrar con Google" onNavigate={onNavigate} />
+          <p className="signin-note">
+            ¿Primera vez en FormsBot?{" "}
+            <button type="button" className="linkish" onClick={() => setPicked("register")}>
+              Crea tu cuenta gratis
+            </button>
+          </p>
+        </div>
+      ) : (
+        <div role="tabpanel">
+          <h3>Crea tu cuenta gratis</h3>
+          <p className="signin-offer">
+            Tu primera vez: <strong>{freeCredits} respuestas gratis</strong> en modo aleatorio o fijo. Solo pedimos tu cuenta de Google, sin
+            contraseña.
+          </p>
+          <ul className="signin-points">
+            <li>Las respuestas gratis son una sola vez por persona.</li>
+            <li>Con créditos comprados se activan las respuestas con IA y la fila prioritaria.</li>
+          </ul>
+          <ConsentChecks
+            idPrefix={checkId}
+            accepted={accepted}
+            setAccepted={setAccepted}
+            marketing={marketing}
+            setMarketing={setMarketing}
+            country={country}
+            setCountry={setCountry}
+          />
+          <GoogleButton
+            next={next}
+            choices={{ terms: accepted, marketing, country }}
+            disabled={!accepted}
+            label="Crear cuenta con Google"
+            onNavigate={onNavigate}
+          />
+          {!accepted && <p className="signin-note">Marca la primera casilla para continuar. Las otras dos son opcionales.</p>}
+          <p className="signin-note signin-have">
+            ¿Ya tienes cuenta?{" "}
+            <button type="button" className="linkish" onClick={() => setPicked("login")}>
+              Iniciar sesión
+            </button>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

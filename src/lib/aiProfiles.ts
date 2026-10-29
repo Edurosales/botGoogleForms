@@ -14,6 +14,7 @@ import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { createNameState, smartRandom, isNameField, isEmailField, conformToValidation, type NameState } from "./dataGen";
 import { answersFromCache, contextKey, normalizeQuestion, storeAnswers, type CacheKey } from "./aiCache";
 import { aiChat } from "./aiPool";
+import { routeProfile } from "./formRoute";
 
 export type QuestionMode = "ai" | "random" | "fixed" | "weighted" | "list";
 
@@ -469,7 +470,9 @@ export interface GenerateProfilesOptions {
 /** Genera las respuestas y aplica las condiciones entre preguntas. */
 export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesOptions): Promise<Record<string, string>[]> {
   const profiles = await generateProfilesRaw(form, opts);
-  return applyRules(profiles, form.questions, opts.qConfig ?? {});
+  // Primero las condiciones del usuario, después el recorrido por secciones
+  // (las preguntas de secciones que no se visitan quedan vacías).
+  return applyRules(profiles, form.questions, opts.qConfig ?? {}).map((p) => routeProfile(p, form.questions, form.numSections));
 }
 
 async function generateProfilesRaw(
