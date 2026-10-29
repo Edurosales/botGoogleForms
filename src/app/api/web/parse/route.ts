@@ -4,7 +4,10 @@ import { heuristicModeration, moderateFormSafe } from "@/lib/aiProfiles";
 import { heuristicRecommendations } from "@/lib/recommend";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { getWebUser } from "@/lib/googleAuth";
-import { MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS } from "@/lib/webConfig";
+import { FREE_ACCOUNTS_PER_FORM, MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS } from "@/lib/webConfig";
+import { limitsFor } from "@/lib/limits";
+import { getAppSettings } from "@/lib/appSettings";
+import { db } from "@/lib/db";
 import { formIdOf } from "@/lib/formId";
 
 function err(code: string, reason: string, status = 400, extra: Record<string, unknown> = {}) {
@@ -53,20 +56,74 @@ export async function POST(request: Request) {
     );
   }
 
-  if (form.questions.length > MAX_PAID_QUESTIONS) {
+  const settings = await getAppSettings();
+  const lim = user
+    ? await limitsFor(user.email)
+    : { maxPaidQuestions: settings.max_paid_questions ?? MAX_PAID_QUESTIONS, maxFreeQuestions: settings.max_free_questions ?? MAX_FREE_QUESTIONS };
+  if (form.questions.length > lim.maxPaidQuestions) {
     return err(
       "TOO_MANY_QUESTIONS_WEB",
-      `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${MAX_PAID_QUESTIONS}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
+      `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${lim.maxPaidQuestions}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
       400
     );
   }
 
   const warnings: { code: string; message: string }[] = [];
-  if (form.questions.length > MAX_FREE_QUESTIONS) {
+  if (form.questions.length > lim.maxFreeQuestions) {
     warnings.push({
       code: "TOO_MANY_QUESTIONS_FREE",
-      message: `Tu formulario tiene ${form.questions.length} preguntas. Con respuestas gratis el máximo es ${MAX_FREE_QUESTIONS}: para enviarlo necesitas créditos comprados.`,
+      message: `Tu formulario tiene ${form.questions.length} preguntas. Con respuestas gratis el máximo es ${lim.maxFreeQuestions}: para enviarlo necesitas créditos comprados.`,
     });
+  }
+
+  // Este formulario ya usó su envío gratis (desde otra cuenta): se avisa ANTES
+  // de configurar, no al final.
+  const formId = formIdOf(form.viewUrl);
+  const freeLimit = settings.free_accounts_per_form ?? FREE_ACCOUNTS_PER_FORM;
+  if (formId && freeLimit > 0) {
+    const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const { data: freeJobs } = await db()
+      .from("web_jobs")
+      .select("user_id,status,sent")
+      .eq("is_paid", false)
+      .like("view_url", pattern)
+      .limit(200);
+    const others = new Set(
+      (freeJobs ?? [])
+        .filter((j) => (j.status === "queued" || j.status === "processing" || (j.sent ?? 0) > 0) && j.user_id !== user?.id)
+        .map((j) => j.user_id as string)
+    );
+    if (others.size >= freeLimit) {
+      warnings.push({
+        code: "FORM_FREE_USED",
+        message:
+          "Este formulario ya fue respondido con un envío gratis. Para enviarle más respuestas necesitas créditos comprados (cualquier paquete). Si ya compraste, se descuentan de tus créditos.",
+      });
+    }
+  }
+
+  // La última configuración que esta persona usó con este mismo formulario:
+  // se aplica sola al volver a pegar el link.
+  let lastConfig: Record<string, unknown> | null = null;
+  if (user && formId) {
+    const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const { data: last } = await db()
+      .from("web_jobs")
+      .select("q_config,total,language,custom_instructions,created_at")
+      .eq("user_id", user.id)
+      .like("view_url", pattern)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last?.q_config && Object.keys(last.q_config as object).length) {
+      lastConfig = {
+        qConfig: last.q_config,
+        total: last.total,
+        language: last.language,
+        customInstructions: last.custom_instructions ?? "",
+        usedAt: last.created_at,
+      };
+    }
   }
   const required = form.questions.filter((q) => q.required).length;
   if (form.numSections > 1) {
@@ -96,6 +153,7 @@ export async function POST(request: Request) {
     },
     warnings,
     recommendations: heuristicRecommendations(form),
-    limits: { maxFreeQuestions: MAX_FREE_QUESTIONS },
+    limits: { maxFreeQuestions: lim.maxFreeQuestions, maxPaidQuestions: lim.maxPaidQuestions },
+    lastConfig,
   });
 }

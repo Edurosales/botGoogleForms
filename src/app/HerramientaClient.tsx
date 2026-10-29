@@ -6,12 +6,13 @@ import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { detectLanguage } from "@/lib/langDetect";
 import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
-import { announceBalanceChange, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
+import { announceBalanceChange, formatPhone, useDailyLimits, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
 import ExportButton from "./ExportButton";
 import LiveQueue from "./LiveQueue";
 import { type Mode, type QConf, type QConfMap } from "./QuestionEditors";
 import { QuestionControls } from "./QuestionControls";
 import PresetsBar from "./PresetsBar";
+import { QuestionRules } from "./QuestionRules";
 
 type Validation = {
   kind?: string;
@@ -151,6 +152,9 @@ function readDraft(): SavedDraft | null {
 
 export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: { initialUrl?: string; paidOrder?: string }) {
   const { me } = useMe();
+  const { limits: daily } = useDailyLimits(Boolean(me));
+  /** Fecha del último envío de este formulario cuya configuración se aplicó sola. */
+  const [restoredAt, setRestoredAt] = useState("");
   const settings = usePublicSettings();
 
   const [step, setStep] = useState<Step>("input");
@@ -242,8 +246,21 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           const fromRecs = sanitizeRecs(nextRecs, f.questions, true);
           for (const q of f.questions) merged[q.entry] = keep.qConfig[q.entry] ?? fromRecs[q.entry];
           setQConfig(merged);
+        } else if (data.lastConfig && typeof data.lastConfig === "object" && data.lastConfig.qConfig) {
+          // Ya usó este formulario antes: se aplica sola su última configuración
+          // (solo en las preguntas que siguen existiendo).
+          const last = data.lastConfig as { qConfig: QConfMap; total?: number; language?: string; customInstructions?: string; usedAt?: string };
+          const fromRecs = sanitizeRecs(nextRecs, f.questions, aiAllowed);
+          const merged: QConfMap = {};
+          for (const q of f.questions) merged[q.entry] = last.qConfig[q.entry] ?? fromRecs[q.entry];
+          setQConfig(merged);
+          if (last.total) setTotal(Math.min(500, Math.max(1, Number(last.total) || 10)));
+          if (last.language) setLanguage(last.language);
+          if (typeof last.customInstructions === "string") setCustomInstructions(last.customInstructions);
+          setRestoredAt(last.usedAt ?? "");
         } else {
           setQConfig(sanitizeRecs(nextRecs, f.questions, aiAllowed));
+          setRestoredAt("");
         }
         setStep("preview");
       } catch {
@@ -679,11 +696,25 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             {form.questions.length} preguntas{form.numSections > 1 ? ` en ${form.numSections} secciones` : ""}. Elige cuántas respuestas quieres y cómo se llena cada pregunta.
           </p>
 
+          {restoredAt && (
+            <div className="note note-ok">
+              <p>
+                Usamos la configuración de tu último envío de este formulario ({new Date(restoredAt).toLocaleDateString("es-PE")}). Puedes
+                cambiar lo que quieras.
+              </p>
+            </div>
+          )}
+
           {warnings.length > 0 && (
             <div className="note note-warn">
               {warnings.map((w) => (
                 <p key={w.code + w.message}>{w.message}</p>
               ))}
+              {warnings.some((w) => w.code === "FORM_FREE_USED") && !(me && me.credits >= total) && (
+                <button type="button" className="b b-small b-primary" onClick={goBuy}>
+                  Comprar créditos para este formulario
+                </button>
+              )}
             </div>
           )}
 
@@ -711,6 +742,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   value={total}
                   onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
                 />
+                {daily && (
+                  <p className="fine">
+                    Hoy te quedan <strong>{daily.responses.left}</strong> de {daily.responses.max} respuestas (se renueva cada 24 h).
+                  </p>
+                )}
               </div>
               <div className="field">
                 <label htmlFor="lang">Idioma de las respuestas</label>
@@ -802,6 +838,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                       total={total}
                       onChange={(patch) => setQ(q.entry, patch)}
                     />
+                    <QuestionRules q={q} index={i} conf={conf} all={form.questions} onChange={(patch) => setQ(q.entry, patch)} />
                     {vHint && <p className="q-hint q-hint-strong">{vHint}</p>}
                     {rec?.reason && <p className="q-hint">Recomendado: {rec.reason}</p>}
                   </li>

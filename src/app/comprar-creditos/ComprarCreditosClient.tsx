@@ -14,6 +14,7 @@ type Capacity = {
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
+import { useDailyLimits } from "../clientData";
 import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "../clientData";
 import { SignInCard } from "../SignIn";
 import PurchaseCelebration from "../PurchaseCelebration";
@@ -39,6 +40,21 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const searchParams = useSearchParams();
   const router = useRouter();
   const { me } = useMe();
+  const { limits: daily } = useDailyLimits(Boolean(me));
+  // Tipo de cambio aproximado (solo referencia: siempre se cobra en soles).
+  const [fx, setFx] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/web/fx")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d?.ok) setFx(d.rates ?? {});
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const settings = usePublicSettings();
 
   const packages = useMemo(
@@ -246,7 +262,10 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
   const allChecked = CREDIT_PURCHASE_CHECKS.every((c) => checks[c.id]);
   const couponBlocks = coupon.status === "checking" || coupon.status === "bad";
   const finalCents = selected ? (coupon.status === "ok" ? coupon.finalCents : selected.priceCents) : 0;
-  const canPay = !!me && !!selected && allChecked && !busy && !couponBlocks && !serviceFull;
+  const buyLeft = daily?.purchases.left ?? Infinity;
+  const overDailyCap = !!selected && selected.responses > buyLeft;
+  const buyBlocked = settings.purchasesPaused || !!me?.purchasesBlockedReason || !!me?.bannedReason;
+  const canPay = !!me && !!selected && allChecked && !busy && !couponBlocks && !serviceFull && !overDailyCap && !buyBlocked;
 
   const providers = settings.paymentProviders.length ? settings.paymentProviders : (["izipay"] as const);
   const payWith = method && (providers as readonly string[]).includes(method) ? method : providers[0];
@@ -377,13 +396,25 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                     : ""}
                 </p>
                 {packages.length === 0 && <p className="fine">Todavía no hay paquetes disponibles. Escríbenos por WhatsApp y te ayudamos.</p>}
+                {daily && (
+                  <div className="daycount">
+                    <span>
+                      Hoy puedes comprar <b>{daily.purchases.left}</b> de {daily.purchases.max} créditos
+                    </span>
+                    <span>
+                      Hoy puedes enviar <b>{daily.responses.left}</b> de {daily.responses.max} respuestas
+                    </span>
+                  </div>
+                )}
+                <p className="fine">Puedes comprar varios paquetes en el día mientras no pases de {daily?.purchases.max ?? settings.dailyPurchaseCap} créditos.</p>
                 <div className="packs" role="radiogroup" aria-label="Paquetes de créditos">
                   {packages.map((p, i) => {
                     const perResponse = p.priceCents / p.responses;
                     const isSel = i === selectedIndex;
+                    const tooBig = p.responses > buyLeft;
                     return (
-                      <label key={`${p.responses}-${p.priceCents}`} className={isSel ? "pk is-sel" : "pk"}>
-                        <input type="radio" name="pkg" checked={isSel} onChange={() => changePackage(i)} />
+                      <label key={`${p.responses}-${p.priceCents}`} className={`pk${isSel ? " is-sel" : ""}${tooBig ? " is-off" : ""}`}>
+                        <input type="radio" name="pkg" checked={isSel} disabled={tooBig} onChange={() => changePackage(i)} />
                         <span className="pk-main">
                           <span className="pk-qty">{p.responses} respuestas</span>
                           <span className="pk-rate">
@@ -394,7 +425,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                           </span>
                         </span>
                         <span className="pk-side">
-                          {i === bestIndex && <span className="pk-tag">Mejor precio</span>}
+                          {tooBig && <span className="pk-tag pk-tag-off">Supera tu tope de hoy</span>}
+                          {i === bestIndex && !tooBig && <span className="pk-tag">Mejor precio</span>}
                           <span className="pk-price">{fmtPen(p.priceCents)}</span>
                         </span>
                       </label>
@@ -402,6 +434,42 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                   })}
                 </div>
               </fieldset>
+
+              <div className="trust-box">
+                <p className="trust-title">Antes de comprar</p>
+                <ul>
+                  <li>
+                    Tu Google Form debe ser <b>público</b> (sin iniciar sesión, sin “Limitar a 1 respuesta”, sin correo verificado ni subir
+                    archivos).
+                  </li>
+                  <li>
+                    El servicio web llena formularios de hasta <b>{settings.maxPaidQuestions} preguntas</b>. Para más, usa el programa de
+                    escritorio.
+                  </li>
+                  <li>Si tenías respuestas gratis, al comprar se suman a tus créditos y tienen las mismas ventajas.</li>
+                  <li>Los créditos no vencen. Si un envío no llega a tu formulario, te devolvemos los créditos de lo que no llegó.</li>
+                </ul>
+              </div>
+
+              {selected && Object.keys(fx).length > 0 && (
+                <details className="fx">
+                  <summary>Precio en tu moneda (referencia)</summary>
+                  <p className="fine">
+                    Se cobra en <b>soles peruanos (PEN)</b>: {fmtPen(selected.priceCents)}. Tu banco convierte al tipo de cambio del día; estos
+                    montos son aproximados.
+                  </p>
+                  <table>
+                    <tbody>
+                      {Object.entries(fx).map(([cur, rate]) => (
+                        <tr key={cur}>
+                          <td>{cur}</td>
+                          <td>≈ {((selected.priceCents / 100) * rate).toLocaleString("es-PE", { maximumFractionDigits: cur === "CLP" || cur === "COP" || cur === "ARS" ? 0 : 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              )}
 
               <fieldset className="group">
                 <legend>Cupón</legend>
@@ -480,6 +548,25 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
               {mpParam === "cancelado" && (
                 <div className="note note-warn" role="status">
                   <p>No se completó el pago. No se te cobró nada; puedes intentarlo de nuevo.</p>
+                </div>
+              )}
+              {settings.purchasesPaused && (
+                <div className="note note-warn" role="status">
+                  <p>{settings.purchasesPauseMessage || "Las compras están en pausa por mantenimiento. Vuelve en un rato; tus créditos están seguros."}</p>
+                </div>
+              )}
+              {me?.purchasesBlockedReason && (
+                <div className="note note-err" role="status">
+                  <p>{me.purchasesBlockedReason}</p>
+                </div>
+              )}
+              {overDailyCap && (
+                <div className="note note-warn" role="status">
+                  <p>
+                    {buyLeft > 0
+                      ? `Hoy puedes comprar hasta ${buyLeft} créditos más. Elige un paquete más chico o vuelve mañana.`
+                      : "Ya compraste el máximo de créditos de hoy. Puedes comprar más mañana."}
+                  </p>
                 </div>
               )}
               {err && (

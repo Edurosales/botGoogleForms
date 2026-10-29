@@ -512,3 +512,40 @@ body.paying .support{display:none}
 .presets-row select,.presets-row input{flex:1 1 220px;width:auto}
 .presets-locked{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .presets-locked p{margin:0;flex:1 1 260px}
+
+/* Ronda 24: tira de aviso */
+.site-banner{position:relative;z-index:80;overflow:hidden;white-space:nowrap;font-weight:700;font-size:.875rem;padding:8px 0;color:#fff}
+.site-banner-info{background:#5B2EA6}.site-banner-warn{background:#9A6700}.site-banner-error{background:#9A2A20}
+.site-banner-track{display:inline-block;padding-left:100%;animation:bannerMove 22s linear infinite}
+@keyframes bannerMove{to{transform:translateX(-100%)}}
+@media(prefers-reduced-motion:reduce){.site-banner-track{animation:none;padding-left:16px;white-space:normal}}
+.daycount{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 0}
+.daycount span{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;background:var(--soft,#F1ECF9);font-size:.8125rem;font-weight:700;color:var(--ink)}
+.daycount b{color:var(--acc)}
+
+/* Ronda 24: tienda confiable */
+.pk.is-off{opacity:.55}
+.pk-tag-off{background:#FDF0EE!important;color:#9A2A20!important}
+.trust-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0;background:#FBFAFD}
+.trust-title{margin:0 0 6px;font-weight:800}
+.trust-box ul{margin:0;padding-left:20px}
+.trust-box li{margin:4px 0;font-size:.9rem;color:var(--mute)}
+.trust-box b{color:var(--ink)}
+.fx{margin:10px 0 14px;border:1px solid var(--line);border-radius:12px;padding:8px 14px}
+.fx summary{min-height:40px;font-weight:700}
+.fx table{width:100%;border-collapse:collapse;font-size:.9rem;margin:6px 0}
+.fx td{padding:5px 4px;border-top:1px solid var(--line)}
+.fx td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.trust-row{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin:10px 0 0;font-size:.8125rem;color:var(--mute)}
+.trust-row span::before{content:"✓ ";color:var(--ok);font-weight:800}
+
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--acc);font-weight:700;text-decoration:underline;cursor:pointer}
+.signin-have{margin-top:10px}
+
+/* Ronda 24: condiciones entre preguntas */
+.qrules{margin-top:8px}
+.qrules-flow{margin:0 0 4px;font-size:.8125rem;font-weight:700;color:var(--acc)}
+.qrules-box{border:1px dashed var(--line-strong,#C9BFDC);border-radius:10px;padding:8px 10px;margin-top:6px}
+.qrules-item{margin:4px 0;font-size:.875rem}
+.qrules-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.875rem}
+.qrules-row select,.qrules-row input{width:auto;min-height:38px;max-width:240px}

@@ -19,5 +19,11 @@ export async function GET() {
     maxFreeQuestions: MAX_FREE_QUESTIONS,
     paymentProviders: activeProviders(s),
     mpRequiresLogin: s.mp_require_login === true,
+    purchasesPaused: s.purchases_paused === true,
+    purchasesPauseMessage: s.purchases_pause_message || "",
+    banner: s.banner_message ? { message: s.banner_message, kind: s.banner_kind || "info" } : null,
+    maxPaidQuestions: s.max_paid_questions ?? 60,
+    maxDailyResponses: s.max_daily_responses ?? 500,
+    dailyPurchaseCap: s.daily_purchase_cap ?? 500,
   });
 }

@@ -33,6 +33,10 @@ export type WebAuthUser = {
   marketing: boolean;
   country: string;
   countryOptIn: boolean;
+  /** Cuenta bloqueada por el admin: motivo que ve la persona (vacío = activa). */
+  bannedReason: string;
+  /** Compras bloqueadas para esta cuenta (motivo). */
+  purchasesBlockedReason: string;
 };
 
 /** Hash del correo (para recordar cuentas borradas sin guardar el correo). */
@@ -53,6 +57,8 @@ function toAuthUser(row: WebUser): WebAuthUser {
     marketing: row.marketing_opt_in ?? false,
     country: row.country ?? "",
     countryOptIn: row.country_opt_in ?? false,
+    bannedReason: row.banned_at ? row.ban_reason || "Tu cuenta fue bloqueada." : "",
+    purchasesBlockedReason: row.purchases_blocked ? row.purchases_block_reason || "Las compras están bloqueadas para tu cuenta." : "",
   };
 }
 

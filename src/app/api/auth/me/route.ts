@@ -30,6 +30,8 @@ export async function GET() {
       marketing: u.marketing,
       country: u.country,
       countryOptIn: u.countryOptIn,
+      bannedReason: u.bannedReason,
+      purchasesBlockedReason: u.purchasesBlockedReason,
     },
   });
 }

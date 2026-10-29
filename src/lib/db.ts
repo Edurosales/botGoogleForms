@@ -40,6 +40,11 @@ export type WebUser = {
   /** Ronda 22: nombre y apellido de Google (pagos). */
   given_name?: string;
   family_name?: string;
+  // Ronda 24: bloqueos (con el motivo que ve la persona)
+  banned_at?: string | null;
+  ban_reason?: string;
+  purchases_blocked?: boolean;
+  purchases_block_reason?: string;
 };
 
 export type WebJob = {
@@ -109,6 +114,16 @@ export type AppSettings = {
   payment_provider?: "izipay" | "mercadopago" | "both";
   /** Ronda 23: Mercado Pago solo con sesión iniciada (wallet_purchase). */
   mp_require_login?: boolean;
+  // Ronda 24: límites y avisos configurables desde el panel
+  max_paid_questions?: number;
+  max_free_questions?: number;
+  max_daily_responses?: number;
+  daily_purchase_cap?: number;
+  purchases_paused?: boolean;
+  purchases_pause_message?: string;
+  banner_message?: string;
+  banner_kind?: "info" | "warn" | "error";
+  owner_alert_email?: string;
   updated_at: string;
 };
 

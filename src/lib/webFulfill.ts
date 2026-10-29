@@ -16,6 +16,7 @@ import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
 import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
+import { notifyOwnerPurchase } from "./alerts";
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 const NO_REQ = { ip: "", country: "", userAgent: "", path: "" };
 
@@ -39,6 +40,19 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 };
 
 export type FulfillResult = { ok: boolean; orderId?: string; reason?: string };
+
+/** Pasa las respuestas gratis que queden a créditos comprados (devuelve cuántas). */
+async function mergeFreeIntoCredits(userId: string): Promise<number> {
+  const supa = db();
+  const { data: u } = await supa.from("web_users").select("free_credits").eq("id", userId).maybeSingle<{ free_credits: number }>();
+  const free = Number(u?.free_credits) || 0;
+  if (free <= 0) return 0;
+  // Se descuenta primero (condicional) para que dos avisos a la vez no sumen dos veces.
+  const { data: spent } = await supa.rpc("web_spend_credits", { p_user: userId, p_paid: 0, p_free: free });
+  if (!spent || (Array.isArray(spent) && !spent.length)) return 0;
+  await addCredits(userId, free);
+  return free;
+}
 
 export async function findCreditOrder(orderId: string): Promise<CreditOrder | null> {
   const { data } = await db().from("web_credit_orders").select("*").eq("order_id", orderId).maybeSingle<CreditOrder>();
@@ -136,6 +150,9 @@ export async function creditPaidOrder(order: CreditOrder, provider: Provider, re
   // Suma atómica en SQL (antes era leer-sumar-escribir y dos pagos casi
   // simultáneos del mismo usuario podían pisarse y perder créditos).
   await addCredits(claimed.user_id, claimed.credits);
+  // Las respuestas gratis que le quedaban pasan a ser créditos: ya es cliente
+  // de pago, así que tienen sus mismas reglas (fila prioritaria, más preguntas).
+  const merged = await mergeFreeIntoCredits(claimed.user_id);
   if (claimed.coupon_code) await incrementCouponUse(claimed.coupon_code);
 
   const { data: buyer } = await supa.from("web_users").select("email").eq("id", claimed.user_id).maybeSingle<{ email: string }>();
@@ -153,6 +170,7 @@ export async function creditPaidOrder(order: CreditOrder, provider: Provider, re
       summaryTable([
         ["Pedido", escapeHtml(claimed.order_id)],
         ["Créditos comprados", `+${claimed.credits}`],
+        ...(merged > 0 ? ([["Regalo sumado", `+${merged} (tus respuestas gratis ahora son créditos)`]] as [string, string][]) : []),
         ["Total pagado", escapeHtml(pen(claimed.amount_cents))],
         ...(claimed.coupon_code ? ([["Cupón", escapeHtml(claimed.coupon_code)]] as [string, string][]) : []),
         ["Fecha", escapeHtml(mailDate())],
@@ -160,6 +178,13 @@ export async function creditPaidOrder(order: CreditOrder, provider: Provider, re
       ]) +
       `<p>Incluye: fila prioritaria, respuestas con IA y exportar a Excel. Guarda este correo como comprobante.</p>`,
     cta: { label: "Usar mis créditos", url: `${siteUrl()}/` },
+  });
+  await notifyOwnerPurchase({
+    email: buyer?.email ?? "",
+    credits: claimed.credits,
+    amount: pen(claimed.amount_cents),
+    orderId: claimed.order_id,
+    provider: PROVIDER_LABEL[provider],
   });
   await notifyAdmin({
     kind: "purchase",

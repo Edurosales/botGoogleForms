@@ -13,6 +13,9 @@ export type Me = {
   marketing: boolean;
   country: string;
   countryOptIn: boolean;
+  /** Cuenta bloqueada por el admin (motivo); vacío = activa. */
+  bannedReason: string;
+  purchasesBlockedReason: string;
 };
 
 export type PublicSettings = {
@@ -25,6 +28,13 @@ export type PublicSettings = {
   paymentProviders: ("izipay" | "mercadopago")[];
   /** Mercado Pago pide iniciar sesión en su cuenta para pagar. */
   mpRequiresLogin: boolean;
+  purchasesPaused: boolean;
+  purchasesPauseMessage: string;
+  /** Tira de aviso del admin en todo el sitio. */
+  banner: { message: string; kind: "info" | "warn" | "error" } | null;
+  maxPaidQuestions: number;
+  maxDailyResponses: number;
+  dailyPurchaseCap: number;
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -35,6 +45,12 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   maxFreeQuestions: 30,
   paymentProviders: ["izipay"],
   mpRequiresLogin: false,
+  purchasesPaused: false,
+  purchasesPauseMessage: "",
+  banner: null,
+  maxPaidQuestions: 60,
+  maxDailyResponses: 500,
+  dailyPurchaseCap: 500,
 };
 
 /** Otros componentes disparan este evento cuando cambia el saldo (pago, cupón, envío). */
@@ -58,17 +74,30 @@ function normalizeMe(raw: unknown): Me | null {
     marketing: u.marketing === true,
     country: typeof u.country === "string" ? u.country : "",
     countryOptIn: u.countryOptIn === true,
+    bannedReason: typeof u.bannedReason === "string" ? u.bannedReason : "",
+    purchasesBlockedReason: typeof u.purchasesBlockedReason === "string" ? u.purchasesBlockedReason : "",
   };
 }
 
 /** Sesión actual. `undefined` mientras carga, `null` sin sesión. */
+export const HAS_ACCOUNT_KEY = "fb-has-account";
+
 export function useMe(): { me: Me | null | undefined; refresh: () => void } {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
 
   const refresh = useCallback(() => {
     fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setMe(normalizeMe(d?.user)))
+      .then((d) => {
+        const m = normalizeMe(d?.user);
+        // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
+        if (m) {
+          try {
+            localStorage.setItem(HAS_ACCOUNT_KEY, "1");
+          } catch {}
+        }
+        setMe(m);
+      })
       .catch(() => setMe(null));
   }, []);
 
@@ -100,6 +129,15 @@ export function usePublicSettings(): PublicSettings {
             ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
             : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
           mpRequiresLogin: d.mpRequiresLogin === true,
+          purchasesPaused: d.purchasesPaused === true,
+          purchasesPauseMessage: typeof d.purchasesPauseMessage === "string" ? d.purchasesPauseMessage : "",
+          banner:
+            d.banner && typeof d.banner.message === "string" && d.banner.message
+              ? { message: d.banner.message, kind: d.banner.kind === "warn" || d.banner.kind === "error" ? d.banner.kind : "info" }
+              : null,
+          maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
+          maxDailyResponses: Number(d.maxDailyResponses) || 500,
+          dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
         });
       })
       .catch(() => {});
@@ -195,4 +233,36 @@ function subscribeCookieChoice(cb: () => void) {
 /** Elección del banner de cookies. Sin "Aceptar" no se carga NADA de medición ni de anuncios. */
 export function useCookieConsent(): "accepted" | "rejected" | "" {
   return useSyncExternalStore(subscribeCookieChoice, readCookieChoice, () => "");
+}
+
+export type DailyLimits = {
+  responses: { used: number; max: number; left: number };
+  purchases: { bought: number; max: number; left: number };
+  maxPaidQuestions: number;
+  maxFreeQuestions: number;
+  privileged: boolean;
+};
+
+/** Contadores del día de la cuenta (respuestas enviadas y créditos comprados en 24 h). */
+export function useDailyLimits(enabled: boolean): { limits: DailyLimits | null; reload: () => void } {
+  const [limits, setLimits] = useState<DailyLimits | null>(null);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    fetch("/api/web/limits", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d?.ok) setLimits(d as DailyLimits);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [enabled, n]);
+  useEffect(() => {
+    if (!enabled) return;
+    window.addEventListener(BALANCE_EVENT, () => setN((x) => x + 1));
+  }, [enabled]);
+  return { limits, reload: () => setN((x) => x + 1) };
 }

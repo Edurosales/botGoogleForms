@@ -14,6 +14,8 @@ export type QConf = {
   weights?: number[];
   /** "list": usar las líneas en orden o al azar. */
   order?: "random" | "sequential";
+  /** Condiciones: si la pregunta `entry` responde `equals`, esta responde `value` ("" = vacía). */
+  when?: { entry: string; equals: string; value: string }[];
 };
 export type QConfMap = Record<string, QConf>;
 

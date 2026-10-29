@@ -13,6 +13,7 @@ import { getCapacity } from "@/lib/capacity";
 import { activeProviders } from "@/lib/paymentProviders";
 import { createPreference } from "@/lib/mercadopago";
 import { onlyExisting } from "@/lib/schemaFlags";
+import { creditsBoughtToday, limitsFor } from "@/lib/limits";
 
 /**
  * Crea la orden de créditos + formToken de Izipay.
@@ -69,6 +70,18 @@ export async function POST(req: Request) {
   }
 
   const settings = await getAppSettings();
+  if (user.bannedReason) {
+    return NextResponse.json({ message: `Tu cuenta está bloqueada: ${user.bannedReason}` }, { status: 403 });
+  }
+  if (user.purchasesBlockedReason) {
+    return NextResponse.json({ message: user.purchasesBlockedReason }, { status: 403 });
+  }
+  if (settings.purchases_paused) {
+    return NextResponse.json(
+      { message: settings.purchases_pause_message || "Las compras están en pausa por mantenimiento. Vuelve en un rato; tus créditos están seguros." },
+      { status: 503 }
+    );
+  }
   // Medio de pago: el que pidió el cliente si está activo; si no, el primero activo.
   const providers = activeProviders(settings);
   if (!providers.length) {
@@ -88,6 +101,24 @@ export async function POST(req: Request) {
     ? settings.credit_packages[idx]
     : settings.credit_packages.find((p) => p.responses === Number(body.responses));
   if (!pkg) return NextResponse.json({ message: "Paquete de créditos no válido." }, { status: 400 });
+
+  // Tope de créditos que una cuenta puede comprar por día (puede comprar varios
+  // paquetes mientras no lo pase): coincide con lo que puede enviar por día.
+  const lim = await limitsFor(user.email);
+  const boughtToday = await creditsBoughtToday(user.id);
+  if (boughtToday + pkg.responses > lim.dailyPurchaseCap) {
+    const left = Math.max(0, lim.dailyPurchaseCap - boughtToday);
+    return NextResponse.json(
+      {
+        message:
+          left > 0
+            ? `Hoy puedes comprar hasta ${left} créditos más (el máximo es ${lim.dailyPurchaseCap} por día). Elige un paquete más chico o vuelve mañana.`
+            : `Ya compraste el máximo de ${lim.dailyPurchaseCap} créditos de hoy. Puedes comprar más mañana.`,
+        code: "DAILY_PURCHASE_CAP",
+      },
+      { status: 429 }
+    );
+  }
 
   let amountCents = pkg.priceCents;
   let couponCode = "";

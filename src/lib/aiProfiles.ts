@@ -13,6 +13,7 @@
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { createNameState, smartRandom, isNameField, isEmailField, conformToValidation, type NameState } from "./dataGen";
 import { answersFromCache, contextKey, normalizeQuestion, storeAnswers, type CacheKey } from "./aiCache";
+import { aiChat } from "./aiPool";
 
 export type QuestionMode = "ai" | "random" | "fixed" | "weighted" | "list";
 
@@ -24,6 +25,35 @@ export interface QuestionConfig {
   weights?: number[];
   /** Modo "list": usar las líneas en orden (respuesta 1 → línea 1…) o al azar. */
   order?: "random" | "sequential";
+  /**
+   * Condiciones: "si la pregunta `entry` responde `equals`, esta pregunta
+   * responde `value`" (value "" = dejarla vacía, p. ej. una pregunta que solo
+   * se abre si marcan "Sí"). La primera que se cumpla gana.
+   */
+  when?: { entry: string; equals: string; value: string }[];
+}
+
+/** Aplica las condiciones entre preguntas a cada respuesta ya generada. */
+function applyRules(profiles: Record<string, string>[], questions: ParsedQuestion[], qConfig: QuestionConfigMap): Record<string, string>[] {
+  const byEntry = new Map(questions.map((q) => [q.entry, q]));
+  const ruled = questions.filter((q) => (qConfig[q.entry]?.when ?? []).length);
+  if (!ruled.length) return profiles;
+  return profiles.map((p) => {
+    const out = { ...p };
+    for (const q of ruled) {
+      for (const r of qConfig[q.entry]?.when ?? []) {
+        const src = out[r.entry] ?? "";
+        // Casillas: la respuesta trae varias opciones separadas por "|".
+        const hit = src.split("|").map((v) => v.trim()).includes(r.equals.trim());
+        if (!hit) continue;
+        const target = byEntry.get(q.entry);
+        if (r.value === "") delete out[q.entry];
+        else if (!target?.options.length || target.options.includes(r.value)) out[q.entry] = r.value;
+        break;
+      }
+    }
+    return out;
+  });
 }
 
 /** Líneas de una lista pegada (una respuesta por línea; también acepta `|`). */
@@ -35,131 +65,22 @@ export function listLines(value: string | undefined): string[] {
 
 export type QuestionConfigMap = Record<string, QuestionConfig>;
 
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-// NOTA (2026-10-20): los modelos "llama-3.x" ya no existen en el catálogo
-// de Groq para esta cuenta (comprobado en vivo: "model_not_found"). Se
-// usan los modelos "openai/gpt-oss-*" que Groq sirve actualmente. Son
-// modelos de razonamiento: gastan tokens de "reasoning" antes del
-// contenido final, por eso maxTokens va holgado (ver callGroq).
-const GENERATION_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-const MODERATION_MODEL = process.env.GROQ_MODERATION_MODEL || "openai/gpt-oss-20b";
+// Modelos por defecto de Groq (solo para las claves de las variables de
+// entorno; las claves cargadas en el panel traen su propio modelo).
+const GENERATION_MODEL = "generate";
+const MODERATION_MODEL = "moderate";
 
-function groqApiKey(): string {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("Falta GROQ_API_KEY en el entorno del servidor.");
-  return key;
-}
-
-const GROQ_TIMEOUT_MS = 20_000;
-const GROQ_MAX_RETRY_WAIT_MS = 10_000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function callGroqOnly(
-  messages: { role: "system" | "user"; content: string }[],
-  model: string,
-  temperature: number,
-  maxTokens: number,
-  retriesLeft = 1
-): Promise<string> {
-  const res = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${groqApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    }),
-    // Peor caso dentro de maxDuration=60 s: 20 s + espera ≤10 s + 20 s.
-    signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    // Groq dice cuánto esperar ("Please try again in 10.22s"): se reintenta
-    // una vez solo si esa espera cabe en el tiempo de la función; si no
-    // (p. ej. límite diario agotado, "2m35s"), se falla de inmediato.
-    if (res.status === 429 && retriesLeft > 0) {
-      const wait = body.match(/try again in ([\d.]+)s/i);
-      const waitMs = wait ? Math.ceil(parseFloat(wait[1]) * 1000) + 500 : 5000;
-      if (waitMs <= GROQ_MAX_RETRY_WAIT_MS) {
-        console.error(`[callGroq] 429, reintentando en ${waitMs}ms:`, body.slice(0, 200));
-        await sleep(waitMs);
-        return callGroqOnly(messages, model, temperature, maxTokens, retriesLeft - 1);
-      }
-    }
-    throw new Error(`Groq respondió ${res.status}: ${body.slice(0, 300)}`);
-  }
-
-  const json = await res.json();
-  const text = json?.choices?.[0]?.message?.content;
-  if (typeof text !== "string" || !text.trim()) {
-    throw new Error("La respuesta de la IA llegó vacía.");
-  }
-  return text.trim();
-}
-
-// ── Respaldo NVIDIA (opcional) ───────────────────────────────────
-// Si Groq falla (saturado, límite diario, caído), se prueba la API
-// compatible de NVIDIA antes de cancelar el envío. Solo con NVIDIA_API_KEY
-// en el entorno; las claves de build.nvidia.com son "para pruebas" y vencen.
-const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const NVIDIA_TIMEOUT_MS = 25_000;
-
-async function callNvidia(
-  messages: { role: "system" | "user"; content: string }[],
-  temperature: number,
-  maxTokens: number,
-  timeoutMs: number
-): Promise<string> {
-  const key = (process.env.NVIDIA_API_KEY || "").trim();
-  const model = (process.env.NVIDIA_MODEL || "meta/llama-3.3-70b-instruct").trim();
-  const res = await fetch(NVIDIA_API_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ model, messages, temperature, max_tokens: Math.min(maxTokens, 4096) }),
-    signal: AbortSignal.timeout(timeoutMs),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`NVIDIA respondió ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const json = await res.json();
-  const text = json?.choices?.[0]?.message?.content;
-  if (typeof text !== "string" || !text.trim()) throw new Error("La respuesta de NVIDIA llegó vacía.");
-  return text.trim();
-}
-
-/** Groq primero; si falla y hay NVIDIA_API_KEY, NVIDIA como respaldo. */
+/**
+ * Llama a la IA con el grupo de claves del panel (aiPool.ts): prueba en
+ * orden de prioridad y cambia sola de clave/proveedor si una falla.
+ */
 async function callGroq(
   messages: { role: "system" | "user"; content: string }[],
   model: string,
   temperature: number,
   maxTokens: number
 ): Promise<string> {
-  const start = Date.now();
-  try {
-    return await callGroqOnly(messages, model, temperature, maxTokens);
-  } catch (groqErr) {
-    if (!(process.env.NVIDIA_API_KEY || "").trim()) throw groqErr;
-    // La función tiene 60 s en total: NVIDIA solo usa lo que quede.
-    const left = 55_000 - (Date.now() - start);
-    if (left < 8_000) throw groqErr;
-    console.error("[ai] Groq falló, probando NVIDIA:", groqErr instanceof Error ? groqErr.message : groqErr);
-    try {
-      return await callNvidia(messages, temperature, maxTokens, Math.min(NVIDIA_TIMEOUT_MS, left));
-    } catch (nvErr) {
-      console.error("[ai] NVIDIA también falló:", nvErr instanceof Error ? nvErr.message : nvErr);
-      throw groqErr;
-    }
-  }
+  return aiChat(messages, { purpose: model === MODERATION_MODEL ? "moderate" : "generate", temperature, maxTokens });
 }
 
 // ── Resolución local (sin IA) para preguntas "fixed"/"random" ────
@@ -545,7 +466,13 @@ export interface GenerateProfilesOptions {
 }
 
 /** Retorna perfiles como Record<entry, respuesta>, uno por respuesta a enviar. */
-export async function generateProfiles(
+/** Genera las respuestas y aplica las condiciones entre preguntas. */
+export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesOptions): Promise<Record<string, string>[]> {
+  const profiles = await generateProfilesRaw(form, opts);
+  return applyRules(profiles, form.questions, opts.qConfig ?? {});
+}
+
+async function generateProfilesRaw(
   form: ParsedForm,
   opts: GenerateProfilesOptions
 ): Promise<Record<string, string>[]> {

@@ -4,6 +4,8 @@ import Ads from "./Ads";
 import Analytics from "./Analytics";
 import SupportButton from "./SupportButton";
 import ConsentGate from "./ConsentGate";
+import SiteBanner from "./SiteBanner";
+import BannedGate from "./BannedGate";
 
 
 export const metadata: Metadata = {
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href="/styles.css" />
       </head>
       <body>
+        <SiteBanner />
         {/* Medición y anuncios solo con "Aceptar" en el banner (ver Analytics.tsx y Ads.tsx). */}
         <Analytics />
         {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el
@@ -43,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Ads />
         <SupportButton />
         <ConsentGate />
+        <BannedGate />
 
         <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
           <p>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
-import { googleLoginHref, type LoginChoices } from "./clientData";
+import { useId, useState, useSyncExternalStore } from "react";
+import { googleLoginHref, HAS_ACCOUNT_KEY, type LoginChoices } from "./clientData";
 
 function GoogleMark() {
   return (
@@ -65,6 +65,36 @@ export function SignInCard({
   const [marketing, setMarketing] = useState(false);
   const [country, setCountry] = useState(false);
   const checkId = useId();
+  // Quien ya tiene cuenta en este navegador entra directo, sin volver a ver
+  // las casillas de términos (ya los aceptó al registrarse).
+  const knownAccount = useSyncExternalStore(
+    noSubscribe,
+    () => {
+      try {
+        return localStorage.getItem(HAS_ACCOUNT_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false
+  );
+  const [newAccount, setNewAccount] = useState(false);
+
+  if (knownAccount && !newAccount) {
+    return (
+      <div className={compact ? "signin signin-compact" : "signin"}>
+        <h3>Bienvenido de nuevo</h3>
+        <p className="signin-offer">Entra con tu cuenta de Google para seguir.</p>
+        <GoogleButton next={next} label="Entrar con Google" onNavigate={onNavigate} />
+        <p className="signin-note">
+          ¿Vas a usar otra cuenta de Google nueva?{" "}
+          <button type="button" className="linkish" onClick={() => setNewAccount(true)}>
+            Crear cuenta
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={compact ? "signin signin-compact" : "signin"}>
@@ -86,11 +116,20 @@ export function SignInCard({
         country={country}
         setCountry={setCountry}
       />
-      <GoogleButton next={next} choices={{ terms: accepted, marketing, country }} disabled={!accepted} onNavigate={onNavigate} />
+      <GoogleButton next={next} choices={{ terms: accepted, marketing, country }} disabled={!accepted} label="Crear cuenta con Google" onNavigate={onNavigate} />
       {!accepted && <p className="signin-note">Marca la primera casilla para continuar. Las otras dos son opcionales.</p>}
+      <p className="signin-note signin-have">
+        ¿Ya tienes cuenta?{" "}
+        <a href={googleLoginHref(next)} onClick={onNavigate}>
+          Entrar con Google
+        </a>{" "}
+        (no necesitas volver a aceptar).
+      </p>
     </div>
   );
 }
+
+const noSubscribe = () => () => {};
 
 /**
  * Casillas de consentimiento (estilo RGPD): la primera es obligatoria para

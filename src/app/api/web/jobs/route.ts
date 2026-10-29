@@ -12,10 +12,7 @@ import { spendCredits } from "@/lib/credits";
 import { rateLimit } from "@/lib/ratelimit";
 import {
   SUPPORTED_LANGUAGES,
-  MAX_FREE_QUESTIONS,
-  MAX_PAID_QUESTIONS,
   MAX_RESPONSES_PER_JOB,
-  MAX_RESPONSES_PER_DAY,
   DEFAULT_BUY_SOFTWARE_URL,
   FREE_ACCOUNTS_PER_FORM,
 } from "@/lib/webConfig";
@@ -23,6 +20,7 @@ import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
 import { getAppSettings } from "@/lib/appSettings";
 import { formIdOf } from "@/lib/formId";
+import { limitsFor } from "@/lib/limits";
 
 
 interface CreateJobBody {
@@ -92,6 +90,18 @@ function sanitizeQConfig(raw: unknown): QuestionConfigMap {
         ? { weights: c.weights.slice(0, 60).map((w) => Math.min(100, Math.max(0, Math.round(Number(w) || 0)))) }
         : {}),
       ...(mode === "list" ? { order: c.order === "sequential" ? ("sequential" as const) : ("random" as const) } : {}),
+      // Condiciones entre preguntas (máx. 10 por pregunta, solo entradas válidas).
+      ...(Array.isArray(c.when)
+        ? {
+            when: c.when
+              .slice(0, 10)
+              .filter(
+                (r): r is { entry: string; equals: string; value: string } =>
+                  !!r && typeof r === "object" && /^entry\.\d{1,20}$/.test(String((r as { entry?: unknown }).entry))
+              )
+              .map((r) => ({ entry: r.entry, equals: String(r.equals ?? "").slice(0, 300), value: String(r.value ?? "").slice(0, 300) })),
+          }
+        : {}),
     };
   }
   return out;
@@ -101,6 +111,9 @@ export async function POST(request: Request) {
   const user = await getWebUser();
   if (!user) return fail(401, { code: "LOGIN_REQUIRED", reason: "Debes iniciar sesión con Google." });
 
+  if (user.bannedReason) {
+    return fail(403, { code: "ACCOUNT_BANNED", reason: `Tu cuenta está bloqueada: ${user.bannedReason}` });
+  }
   if (!rateLimit(`web-jobs:${user.id}`, 6, 10 * 60_000)) {
     return fail(429, { code: "RATE_LIMITED", reason: "Creaste varios envíos seguidos. Espera unos minutos." });
   }
@@ -187,12 +200,14 @@ export async function POST(request: Request) {
 
   const balances = { credits: user.credits, freeCredits: user.freeCredits };
 
-  if (form.questions.length > MAX_PAID_QUESTIONS) {
+  // Límites de esta cuenta (generales del panel o su privilegio por correo).
+  const lim = await limitsFor(user.email);
+  if (form.questions.length > lim.maxPaidQuestions) {
     return fail(400, {
       code: "TOO_MANY_QUESTIONS_WEB",
       ...balances,
       buySoftwareUrl: DEFAULT_BUY_SOFTWARE_URL,
-      reason: `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${MAX_PAID_QUESTIONS}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
+      reason: `Tu formulario tiene ${form.questions.length} preguntas y el servicio web llena hasta ${lim.maxPaidQuestions}. Para formularios más grandes usa FormsBot para Windows, sin límite de preguntas.`,
     });
   }
 
@@ -206,15 +221,15 @@ export async function POST(request: Request) {
     supaCheck.from("web_jobs").select("total,sent,failed,status").gte("created_at", since),
   ]);
   const usedToday = usage(mine as UsageRow[] | null);
-  if (usedToday + total > MAX_RESPONSES_PER_DAY) {
-    const left = Math.max(0, MAX_RESPONSES_PER_DAY - usedToday);
+  if (usedToday + total > lim.maxDailyResponses) {
+    const left = Math.max(0, lim.maxDailyResponses - usedToday);
     return fail(429, {
       code: "DAILY_LIMIT",
       ...balances,
       reason:
         left > 0
-          ? `El límite es de ${MAX_RESPONSES_PER_DAY} respuestas cada 24 horas por cuenta. Hoy te quedan ${left}: baja la cantidad o vuelve mañana.`
-          : `Llegaste al límite de ${MAX_RESPONSES_PER_DAY} respuestas en 24 horas. Vuelve mañana, o usa FormsBot para Windows si necesitas más volumen.`,
+          ? `El límite es de ${lim.maxDailyResponses} respuestas cada 24 horas por cuenta. Hoy te quedan ${left}: baja la cantidad o vuelve mañana.`
+          : `Llegaste al límite de ${lim.maxDailyResponses} respuestas en 24 horas. Vuelve mañana, o usa FormsBot para Windows si necesitas más volumen.`,
     });
   }
   if (usage(everyone as UsageRow[] | null) + total > (await resolveGlobalCap())) {
@@ -230,7 +245,7 @@ export async function POST(request: Request) {
   // hasta 30 preguntas. Lo que no se use en ese envío se pierde. Cualquier
   // otra cosa se paga completa con créditos comprados (cola prioritaria).
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
-  const tooManyQuestions = form.questions.length > MAX_FREE_QUESTIONS;
+  const tooManyQuestions = form.questions.length > lim.maxFreeQuestions;
   let isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
 
   // Un mismo formulario solo se llena gratis UNA vez. Si ya lo llenó gratis
@@ -281,7 +296,7 @@ export async function POST(request: Request) {
       return fail(402, {
         code: "TOO_MANY_QUESTIONS",
         ...balances,
-        reason: `Tu formulario tiene ${form.questions.length} preguntas y el máximo con respuestas gratis es ${MAX_FREE_QUESTIONS}. Necesitas ${total} créditos comprados (tienes ${user.credits}).`,
+        reason: `Tu formulario tiene ${form.questions.length} preguntas y el máximo con respuestas gratis es ${lim.maxFreeQuestions}. Necesitas ${total} créditos comprados (tienes ${user.credits}).`,
       });
     }
     return fail(402, {
@@ -349,14 +364,14 @@ export async function POST(request: Request) {
     .select("total,sent,failed,status")
     .eq("user_id", user.id)
     .gte("created_at", since);
-  if (usage(mineAfter as UsageRow[] | null) > MAX_RESPONSES_PER_DAY) {
+  if (usage(mineAfter as UsageRow[] | null) > lim.maxDailyResponses) {
     const { data: removed } = await supa.from("web_jobs").delete().eq("id", job.id).eq("status", "queued").select("id");
     if (removed?.length) {
       await spendCredits(user.id, -paidSpend, -freeSpend).catch((e) => console.error("[jobs] reembolso fallido:", e));
       return fail(429, {
         code: "DAILY_LIMIT",
         ...balances,
-        reason: `El límite es de ${MAX_RESPONSES_PER_DAY} respuestas cada 24 horas por cuenta. No se te cobró este envío.`,
+        reason: `El límite es de ${lim.maxDailyResponses} respuestas cada 24 horas por cuenta. No se te cobró este envío.`,
       });
     }
   }
