@@ -494,6 +494,14 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                     `${coupon.discountPercent}% de descuento: pagas ${fmtPen(coupon.finalCents)} en vez de ${fmtPen(selected.priceCents)}.`}
                   {coupon.status === "bad" && coupon.reason}
                 </p>
+                {coupon.status === "ok" && /^VUELVE-/i.test(couponCode.trim()) && (
+                  <p className="fine">
+                    Cupón personal: un solo uso, solo para tu cuenta e intransferible; no se acumula ni se canjea por dinero.{" "}
+                    <a href="/terminos-herramienta.html#cupones" target="_blank" rel="noopener">
+                      Condiciones
+                    </a>
+                  </p>
+                )}
               </fieldset>
 
               <fieldset className="group">

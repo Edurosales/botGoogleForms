@@ -186,13 +186,14 @@ export async function paymentFollowUps(): Promise<{ sent: number } | null> {
 }
 
 export const RECOVERY_PERCENT = 10;
+const COUPON_TERMS = "Es de un solo uso, solo para tu cuenta e intransferible; no se acumula con otros cupones ni se canjea por dinero.";
 const RECOVERY_HOURS = 72;
 
 /**
  * Cupón de "termina tu compra": a quien dejó un pago rechazado o sin completar
  * hace 24 h (y no pagó después), un cupón de 10 % solo para su correo, de un
- * uso y válido 72 h. Una vez por persona cada 30 días. Corre desde el worker
- * como mucho cada 30 min.
+ * uso, intransferible y válido 72 h. UNA sola vez en la vida de la cuenta
+ * (web_users.recovery_coupon_at). Corre desde el worker como mucho cada 30 min.
  */
 export async function paymentRecovery(): Promise<{ sent: number } | null> {
   const supa = db();
@@ -239,10 +240,17 @@ export async function paymentRecovery(): Promise<{ sent: number } | null> {
         .from("web_coupons")
         .select("id", { count: "exact", head: true })
         .like("code", "VUELVE-%")
-        .eq("allowed_email", email)
-        .gte("created_at", new Date(now - 30 * 86400_000).toISOString()),
+        .eq("allowed_email", email),
     ]);
     if ((paidAfter ?? 0) > 0 || (recentCoupon ?? 0) > 0) continue;
+    // Una sola vez en la vida de la cuenta: se reclama de forma atómica.
+    const { data: once, error: onceErr } = await supa
+      .from("web_users")
+      .update({ recovery_coupon_at: new Date().toISOString() })
+      .eq("id", userId)
+      .is("recovery_coupon_at", null)
+      .select("id");
+    if (onceErr || !once?.length) continue;
 
     const code = `VUELVE-${randomBytes(4).toString("hex").toUpperCase()}`;
     const expires = new Date(now + RECOVERY_HOURS * 3600_000);
@@ -262,13 +270,13 @@ export async function paymentRecovery(): Promise<{ sent: number } | null> {
     await supa.from("web_messages").insert({
       user_id: userId,
       sender: "system",
-      body: `Te guardamos un ${RECOVERY_PERCENT}% de descuento para terminar tu compra: usa el cupón ${code} al pagar (solo para tu cuenta, válido hasta el ${until}). Si algo falló al pagar, escríbenos aquí.`,
+      body: `Te guardamos un ${RECOVERY_PERCENT}% de descuento para terminar tu compra: usa el cupón ${code} al pagar (válido hasta el ${until}). ${COUPON_TERMS} Si algo falló al pagar, escríbenos aquí.`,
       order_id: newest.order_id,
     });
     await notifyUser(userId, {
       kind: "gift",
       title: `Tienes ${RECOVERY_PERCENT}% de descuento para terminar tu compra`,
-      body: `Cupón ${code}, válido 72 h.`,
+      body: `Cupón ${code}: un solo uso, solo para tu cuenta, válido 72 h.`,
       link: `/comprar-creditos?cupon=${code}`,
     });
     await sendServiceEmail(userId, "recovery", {
@@ -280,8 +288,12 @@ export async function paymentRecovery(): Promise<{ sent: number } | null> {
           ["Cupón", `<strong>${escapeHtml(code)}</strong>`],
           ["Descuento", `${RECOVERY_PERCENT}%`],
           ["Válido hasta", escapeHtml(until)],
+          ["Uso", "Una sola compra, solo con tu cuenta"],
         ]) +
-        `<p>Escríbelo en "Cupón" al elegir tu paquete. Si el pago te dio un error, respóndenos desde Mensajes en la página y te ayudamos.</p>`,
+        `<p>Escríbelo en "Cupón" al elegir tu paquete. Si el pago te dio un error, respóndenos desde Mensajes en la página y te ayudamos.</p>` +
+        `<p style="font-size:12px;color:#6B6386">Condiciones: cupón personal e intransferible, de un solo uso, válido solo para la cuenta ${escapeHtml(email)} y hasta la fecha indicada; ` +
+        `se aplica a un paquete de créditos; no es acumulable con otros cupones, no se canjea por dinero ni se reemplaza si vence. Se ofrece una sola vez por cuenta. ` +
+        `<a href="${siteUrl()}/terminos-herramienta.html#cupones" style="color:#6B6386">Términos completos</a>.</p>`,
       cta: { label: "Terminar mi compra", url: `${siteUrl()}/comprar-creditos?cupon=${code}` },
     });
     await audit({ action: "payments.recovery", userId, target: newest.order_id, details: { code }, meta: NO_REQ });

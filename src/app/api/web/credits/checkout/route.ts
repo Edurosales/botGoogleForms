@@ -126,6 +126,14 @@ export async function POST(req: Request) {
   if (rawCoupon) {
     const check = await checkDiscountCoupon(rawCoupon, user.email);
     if (!check.ok) return NextResponse.json({ message: check.reason }, { status: 400 });
+    if (check.coupon.max_uses === 1) {
+      const { count: usedIn } = await db()
+        .from("web_credit_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("coupon_code", check.coupon.code)
+        .in("status", ["paid", "refunded"]);
+      if ((usedIn ?? 0) > 0) return NextResponse.json({ message: "Este cupón ya se usó." }, { status: 400 });
+    }
     amountCents = applyDiscount(pkg.priceCents, check.discountPercent);
     couponCode = check.coupon.code;
   }
