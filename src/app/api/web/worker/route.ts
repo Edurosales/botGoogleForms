@@ -6,6 +6,7 @@ import { siteUrl } from "@/lib/config";
 import { sendNewsletterBatch } from "@/lib/mailer";
 import { hasColumn } from "@/lib/schemaFlags";
 import { sweepAbsent } from "@/lib/queue";
+import { scanBounces } from "@/lib/suppression";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -54,6 +55,8 @@ export async function POST(req: Request) {
   const start = Date.now();
   // Gratis que cerraron la ventana: al final de la fila (o cancelados tras 10 min).
   const swept = await sweepAbsent().catch(() => null);
+  // Rebotes de correo (buzón lleno, no existe…): como máximo una vez por hora.
+  const bounces = await scanBounces().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     const jobs = await activeJobs(PARALLEL_JOBS * 2);
@@ -88,5 +91,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, ms: Date.now() - start });
 }

@@ -10,6 +10,7 @@ import { db } from "./db";
 import { siteUrl } from "./config";
 import { gmailConfigured, sendMail } from "./gmail";
 import { hasColumn } from "./schemaFlags";
+import { noteFailure, suppressionReason } from "./suppression";
 
 const DAILY_LIMIT = Math.max(50, Number(process.env.GMAIL_DAILY_LIMIT) || 450);
 const SERVICE_RESERVE = 100;
@@ -66,6 +67,12 @@ export async function sendServiceEmail(
     if (!gmailConfigured()) {
       throw new Error("Gmail no está configurado en el proyecto del servicio (faltan GMAIL_REFRESH_TOKEN / GMAIL_SENDER en Vercel).");
     }
+    // Dirección que rebota (buzón lleno, no existe…): no se vuelve a intentar.
+    const blocked = await suppressionReason(email);
+    if (blocked) {
+      await supa.from("web_email_log").insert({ kind, user_id: userId, email, ok: false, error: `No se envía: ${blocked}` });
+      return;
+    }
     if ((await sentLast24h()) >= DAILY_LIMIT) throw new Error("límite diario de Gmail alcanzado");
     await sendMail({
       to: email,
@@ -81,6 +88,7 @@ export async function sendServiceEmail(
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     console.warn(`[mailer] ${kind} a ${email || userId}: ${error}`);
+    await noteFailure(email, error).catch(() => {});
     await supa.from("web_email_log").insert({ kind, user_id: userId, email, ok: false, error: error.slice(0, 300) }).then(
       () => {},
       () => {}
@@ -144,6 +152,11 @@ export async function sendNewsletterBatch(max = 15, deadline = Date.now() + 20_0
       .maybeSingle<{ email: string; marketing_opt_in: boolean; unsubscribe_token: string | null; deleted_at: string | null }>();
     // Aviso del servicio: basta con que la cuenta exista. Boletín: solo suscritos.
     const isService = nl.is_service === true;
+    const suppressed = u?.email ? await suppressionReason(u.email) : null;
+    if (suppressed) {
+      await supa.from("web_newsletter_sends").update({ status: "skipped", error: `dirección suspendida: ${suppressed}` }).eq("id", row.id);
+      continue;
+    }
     if (!u || u.deleted_at || (!isService && (!u.marketing_opt_in || !u.unsubscribe_token))) {
       await supa.from("web_newsletter_sends").update({ status: "skipped", error: "ya no está suscrito" }).eq("id", row.id);
       continue;

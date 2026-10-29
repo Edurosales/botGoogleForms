@@ -18,7 +18,7 @@ export function gmailConfigured(): boolean {
 
 let cached: { token: string; until: number } | null = null;
 
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   if (cached && cached.until > Date.now()) return cached.token;
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
