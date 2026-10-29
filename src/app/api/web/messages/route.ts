@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getWebUser } from "@/lib/googleAuth";
 import { db } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
-import { canMessage, cleanMessage, sendUserMessage, sentToday, thread, USER_MSG_MAX_CHARS, USER_MSG_PER_DAY } from "@/lib/messages";
+import { canMessage, cleanMessage, sendUserMessage, sentToday, splitConversations, thread, USER_MSG_MAX_CHARS, USER_MSG_PER_DAY } from "@/lib/messages";
 
 const missing = (m: string) => /does not exist|schema cache/i.test(m);
 
@@ -31,9 +31,12 @@ export async function GET() {
         () => 0
       ),
   ]);
+  // Conversación abierta (últimas 24 h) y las cerradas, para "Chats anteriores".
+  const { current, previous } = splitConversations(messages);
   return NextResponse.json({
     ok: true,
-    messages,
+    messages: current,
+    previous,
     unread,
     canSend: allowed && !user.bannedReason,
     left: Math.max(0, USER_MSG_PER_DAY - used),

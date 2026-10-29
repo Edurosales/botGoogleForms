@@ -8,7 +8,8 @@ import { hasColumn } from "@/lib/schemaFlags";
 import { sweepAbsent } from "@/lib/queue";
 import { scanBounces } from "@/lib/suppression";
 import { isSpreadWaiting } from "@/lib/jobRunner";
-import { paymentFollowUps } from "@/lib/messages";
+import { paymentFollowUps, paymentRecovery } from "@/lib/messages";
+import { ownerDailyDigest } from "@/lib/digest";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -61,6 +62,10 @@ export async function POST(req: Request) {
   const bounces = await scanBounces().catch(() => null);
   // Pagos rechazados o abandonados: un mensaje de ayuda (cada 10 min como mucho).
   const followUps = await paymentFollowUps().catch(() => null);
+  // A las 24 h: cupón de 10 % para terminar la compra (cada 30 min como mucho).
+  const recovery = await paymentRecovery().catch(() => null);
+  // Resumen del día anterior para el dueño, una vez al día desde las 8 a. m. (Lima).
+  const digest = await ownerDailyDigest().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
@@ -100,5 +105,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, ms: Date.now() - start });
 }

@@ -10,13 +10,47 @@ export function openSupportChat() {
   window.dispatchEvent(new Event(OPEN_CHAT_EVENT));
 }
 
-type Msg = { id: number; sender: "user" | "admin" | "system"; body: string; created_at: string; read_at: string | null };
-type Thread = { messages: Msg[]; unread: number; canSend: boolean; left: number; perDay: number; maxChars: number };
+type Msg = {
+  id: number;
+  sender: "user" | "admin" | "system";
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
+type Past = {
+  startedAt: string;
+  endedAt: string;
+  count: number;
+  preview: string;
+  messages: Msg[];
+};
+type Thread = {
+  messages: Msg[];
+  previous: Past[];
+  unread: number;
+  canSend: boolean;
+  left: number;
+  perDay: number;
+  maxChars: number;
+};
 
 const noSubscribe = () => () => {};
 
+function day(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function when(iso: string): string {
-  return new Date(iso).toLocaleString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("es-PE", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -32,7 +66,7 @@ export default function SupportButton() {
   const askedByUrl = useSyncExternalStore(
     noSubscribe,
     () => new URLSearchParams(window.location.search).get("chat") === "1",
-    () => false
+    () => false,
   );
   const [picked, setPicked] = useState<boolean | null>(null);
   const open = picked ?? (askedByUrl && Boolean(me));
@@ -40,6 +74,8 @@ export default function SupportButton() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  // null = conversación actual; "list" = lista de anteriores; número = una anterior abierta.
+  const [view, setView] = useState<null | "list" | number>(null);
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const logged = Boolean(me);
@@ -49,7 +85,11 @@ export default function SupportButton() {
       const r = await fetch("/api/web/messages", { cache: "no-store" });
       if (!r.ok) return;
       const d = await r.json();
-      if (d.ok) setThread(d as Thread);
+      if (d.ok)
+        setThread({
+          ...(d as Thread),
+          previous: Array.isArray(d.previous) ? d.previous : [],
+        });
     } catch {
       /* sin red: se reintenta */
     }
@@ -78,7 +118,7 @@ export default function SupportButton() {
   const count = thread?.messages.length ?? 0;
   useEffect(() => {
     if (open && list.current) list.current.scrollTop = list.current.scrollHeight;
-  }, [open, count]);
+  }, [open, count, view]);
 
   useEffect(() => {
     const onOpen = () => setPicked(true);
@@ -128,13 +168,22 @@ export default function SupportButton() {
   const channels = (
     <div className="support-channels">
       <a href={whatsappLink(settings.whatsappNumber, msg)} target="_blank" rel="noopener noreferrer">
-        <span className="sm-ico sm-wa" aria-hidden="true">W</span> WhatsApp
+        <span className="sm-ico sm-wa" aria-hidden="true">
+          W
+        </span>{" "}
+        WhatsApp
       </a>
       <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer">
-        <span className="sm-ico sm-tg" aria-hidden="true">T</span> Telegram
+        <span className="sm-ico sm-tg" aria-hidden="true">
+          T
+        </span>{" "}
+        Telegram
       </a>
       <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Ayuda con FormsBot")}&body=${encodeURIComponent(msg)}`}>
-        <span className="sm-ico sm-mail" aria-hidden="true">@</span> Correo
+        <span className="sm-ico sm-mail" aria-hidden="true">
+          @
+        </span>{" "}
+        Correo
       </a>
     </div>
   );
@@ -151,65 +200,128 @@ export default function SupportButton() {
       {open && logged && (
         <div className="support-chat" role="dialog" aria-label="Mensajes con soporte">
           <div className="sc-head">
-            <div>
-              <strong>Soporte FormsBot</strong>
-              <span>Te respondemos por aquí mismo</span>
+            {view !== null && (
+              <button type="button" className="sc-icon" aria-label="Volver" onClick={() => setView(typeof view === "number" ? "list" : null)}>
+                ←
+              </button>
+            )}
+            <div className="sc-title">
+              <strong>{view === null ? "Soporte FormsBot" : view === "list" ? "Chats anteriores" : "Chat anterior"}</strong>
+              <span>
+                {view === null
+                  ? "Te respondemos por aquí mismo"
+                  : view === "list"
+                    ? "Se guardan al pasar 24 h sin mensajes"
+                    : `${day(thread?.previous[view]?.startedAt ?? "")} · solo lectura`}
+              </span>
             </div>
+            {view === null && (thread?.previous.length ?? 0) > 0 && (
+              <button
+                type="button"
+                className="sc-icon sc-history"
+                aria-label={`Chats anteriores (${thread?.previous.length})`}
+                title="Chats anteriores"
+                onClick={() => setView("list")}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M13 3a9 9 0 0 0-9 9H1l3.9 3.9L9 12H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3Zm-1 5v5l4.25 2.52.77-1.28-3.52-2.09V8H12Z"
+                  />
+                </svg>
+                <b>{thread?.previous.length}</b>
+              </button>
+            )}
             <button type="button" className="sc-close" aria-label="Cerrar" onClick={() => setPicked(false)}>
               ×
             </button>
           </div>
-          <div className="sc-list" ref={list} aria-live="polite">
-            {thread === null && <p className="sc-empty">Cargando…</p>}
-            {thread && thread.messages.length === 0 && (
-              <p className="sc-empty">
-                {thread.canSend ? "¿En qué te ayudamos? Escribe tu consulta abajo." : "Aún no tienes mensajes. Si necesitas ayuda, escríbenos por WhatsApp, Telegram o correo."}
-              </p>
-            )}
-            {thread?.messages.map((m) => (
-              <div key={m.id} className={`sc-msg sc-${m.sender === "user" ? "me" : "them"}`}>
-                {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? "FormsBot (automático)" : "Soporte"}</span>}
-                <p>{m.body}</p>
-                <time dateTime={m.created_at}>{when(m.created_at)}</time>
+          {view === "list" && (
+            <ul className="sc-past">
+              {thread?.previous.map((p, i) => (
+                <li key={p.startedAt}>
+                  <button type="button" onClick={() => setView(i)}>
+                    <span className="sc-past-top">
+                      <b>{day(p.startedAt)}</b>
+                      <small>{p.count} mensajes</small>
+                    </span>
+                    <span className="sc-past-prev">{p.preview}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {typeof view === "number" && (
+            <div className="sc-list" ref={list}>
+              {thread?.previous[view]?.messages.map((m) => (
+                <div key={m.id} className={`sc-msg sc-${m.sender === "user" ? "me" : "them"}`}>
+                  {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? "FormsBot (automático)" : "Soporte"}</span>}
+                  <p>{m.body}</p>
+                  <time dateTime={m.created_at}>{when(m.created_at)}</time>
+                </div>
+              ))}
+              <p className="sc-closed">Conversación cerrada</p>
+            </div>
+          )}
+          {view === null && (
+            <>
+              <div className="sc-list" ref={list} aria-live="polite">
+                {thread === null && <p className="sc-empty">Cargando…</p>}
+                {thread && thread.messages.length === 0 && (
+                  <p className="sc-empty">
+                    {thread.canSend
+                      ? thread.previous.length
+                        ? "Nueva conversación. Tus chats anteriores están en el ícono del reloj, arriba."
+                        : "¿En qué te ayudamos? Escribe tu consulta abajo."
+                      : "Aún no tienes mensajes. Si necesitas ayuda, escríbenos por WhatsApp, Telegram o correo."}
+                  </p>
+                )}
+                {thread?.messages.map((m) => (
+                  <div key={m.id} className={`sc-msg sc-${m.sender === "user" ? "me" : "them"}`}>
+                    {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? "FormsBot (automático)" : "Soporte"}</span>}
+                    <p>{m.body}</p>
+                    <time dateTime={m.created_at}>{when(m.created_at)}</time>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {thread?.canSend ? (
-            <form className="sc-form" onSubmit={send}>
-              <label className="sr" htmlFor="sc-input">
-                Tu mensaje
-              </label>
-              <textarea
-                id="sc-input"
-                rows={2}
-                maxLength={maxChars}
-                placeholder={thread.left > 0 ? "Escribe tu mensaje…" : "Llegaste al máximo de mensajes de hoy"}
-                value={draft}
-                disabled={thread.left <= 0 || sending}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    e.currentTarget.form?.requestSubmit();
-                  }
-                }}
-              />
-              <div className="sc-foot">
-                <span>
-                  {draft.length}/{maxChars} · te quedan {thread.left} de {thread.perDay} mensajes hoy
-                </span>
-                <button type="submit" className="b b-primary b-small" disabled={!draft.trim() || sending || thread.left <= 0}>
-                  {sending ? "Enviando…" : "Enviar"}
-                </button>
-              </div>
-              {error && (
-                <p className="sc-err" role="alert">
-                  {error}
-                </p>
+              {thread?.canSend ? (
+                <form className="sc-form" onSubmit={send}>
+                  <label className="sr" htmlFor="sc-input">
+                    Tu mensaje
+                  </label>
+                  <textarea
+                    id="sc-input"
+                    rows={2}
+                    maxLength={maxChars}
+                    placeholder={thread.left > 0 ? "Escribe tu mensaje…" : "Llegaste al máximo de mensajes de hoy"}
+                    value={draft}
+                    disabled={thread.left <= 0 || sending}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                  />
+                  <div className="sc-foot">
+                    <span>
+                      {draft.length}/{maxChars} · te quedan {thread.left} de {thread.perDay} mensajes hoy
+                    </span>
+                    <button type="submit" className="b b-primary b-small" disabled={!draft.trim() || sending || thread.left <= 0}>
+                      {sending ? "Enviando…" : "Enviar"}
+                    </button>
+                  </div>
+                  {error && (
+                    <p className="sc-err" role="alert">
+                      {error}
+                    </p>
+                  )}
+                </form>
+              ) : (
+                thread && <p className="sc-note">El chat se activa cuando intentas comprar créditos. Mientras tanto:</p>
               )}
-            </form>
-          ) : (
-            thread && <p className="sc-note">El chat se activa cuando intentas comprar créditos. Mientras tanto:</p>
+            </>
           )}
           {channels}
         </div>

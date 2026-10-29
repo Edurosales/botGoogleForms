@@ -78,7 +78,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
 
   const [selectedIndex, setSelectedIndex] = useState(() => (serverPackages.length > 1 ? 1 : 0));
   const [checks, setChecks] = useState<Record<string, boolean>>({});
-  const [couponCode, setCouponCode] = useState("");
+  // ?cupon=CODIGO (enlace del correo "termina tu compra"): el cupón ya escrito.
+  const [couponCode, setCouponCode] = useState(() => (searchParams.get("cupon") ?? "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 40));
   const [coupon, setCoupon] = useState<CouponState>(IDLE_COUPON);
   const [busy, setBusy] = useState(false);
   /** Medio de pago elegido (si el admin activó los dos). */

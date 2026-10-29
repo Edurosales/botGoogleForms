@@ -654,3 +654,15 @@ body.paying .support{display:none}
   .acct-tabs{padding:0 10px}
   .acct-tabs button{font-size:.875rem;padding:12px 8px}
 }
+/* Chats anteriores */
+.sc-title{flex:1;min-width:0}
+.sc-icon{flex:none;display:inline-flex;align-items:center;gap:4px;border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:999px;padding:5px 9px;font:inherit;font-size:.8125rem;cursor:pointer}
+.sc-icon:hover{background:rgba(255,255,255,.28)}
+.sc-icon b{font-size:.75rem}
+.sc-past{list-style:none;margin:0;padding:0;flex:1;overflow-y:auto;min-height:120px;background:#F6F4FB}
+.sc-past button{display:grid;gap:3px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:11px 14px;font:inherit;color:#21163F;cursor:pointer}
+.sc-past button:hover{background:var(--soft)}
+.sc-past-top{display:flex;justify-content:space-between;gap:8px;font-size:.875rem}
+.sc-past-top small{color:var(--mute)}
+.sc-past-prev{font-size:.8125rem;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-closed{align-self:center;margin:6px 0 0;font-size:.75rem;color:var(--mute);background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 12px}

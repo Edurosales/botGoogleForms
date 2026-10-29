@@ -11,11 +11,47 @@ import { db } from "./db";
 import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
 import { notifyOwnerMessage } from "./alerts";
+import { randomBytes } from "node:crypto";
+import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
+import { siteUrl } from "./config";
 
 export const USER_MSG_MAX_CHARS = 500;
 export const USER_MSG_PER_DAY = 2;
 
 export type ChatMessage = { id: number; sender: "user" | "admin" | "system"; body: string; created_at: string; read_at: string | null };
+
+/** Una conversación se cierra sola tras 24 h sin mensajes; la siguiente empieza de cero. */
+export const CONVERSATION_GAP_MS = 24 * 3600_000;
+
+export type PastConversation = { startedAt: string; endedAt: string; count: number; preview: string; messages: ChatMessage[] };
+
+/**
+ * Separa los mensajes (de más viejo a más nuevo) en conversaciones: un hueco
+ * de 24 h o más cierra la anterior. La actual es la última solo si su último
+ * mensaje tiene menos de 24 h; si no, también va a "Chats anteriores".
+ */
+export function splitConversations(all: ChatMessage[], now = Date.now()): { current: ChatMessage[]; previous: PastConversation[] } {
+  const groups: ChatMessage[][] = [];
+  for (const m of all) {
+    const last = groups.at(-1);
+    const prev = last?.at(-1);
+    if (last && prev && Date.parse(m.created_at) - Date.parse(prev.created_at) < CONVERSATION_GAP_MS) last.push(m);
+    else groups.push([m]);
+  }
+  const tail = groups.at(-1);
+  const open = tail && now - Date.parse(tail.at(-1)!.created_at) < CONVERSATION_GAP_MS;
+  const current = open ? (groups.pop() as ChatMessage[]) : [];
+  const previous = groups
+    .reverse()
+    .map((g) => ({
+      startedAt: g[0].created_at,
+      endedAt: g.at(-1)!.created_at,
+      count: g.length,
+      preview: (g.find((m) => m.sender === "user") ?? g[0]).body.slice(0, 90),
+      messages: g,
+    }));
+  return { current, previous };
+}
 
 const NO_REQ = { ip: "", country: "", userAgent: "", path: "" };
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
@@ -57,7 +93,7 @@ export async function thread(userId: string): Promise<ChatMessage[]> {
     .select("id,sender,body,created_at,read_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(300);
   if (error) return [];
   return ((data ?? []) as ChatMessage[]).reverse();
 }
@@ -144,6 +180,111 @@ export async function paymentFollowUps(): Promise<{ sent: number } | null> {
       link: "/mi-cuenta?chat=1",
     });
     await audit({ action: "payments.followup", userId, target: newest.order_id, details: { status: newest.status }, meta: NO_REQ });
+    sent++;
+  }
+  return { sent };
+}
+
+export const RECOVERY_PERCENT = 10;
+const RECOVERY_HOURS = 72;
+
+/**
+ * Cupón de "termina tu compra": a quien dejó un pago rechazado o sin completar
+ * hace 24 h (y no pagó después), un cupón de 10 % solo para su correo, de un
+ * uso y válido 72 h. Una vez por persona cada 30 días. Corre desde el worker
+ * como mucho cada 30 min.
+ */
+export async function paymentRecovery(): Promise<{ sent: number } | null> {
+  const supa = db();
+  const since30m = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { data: ran, error: ranErr } = await supa.from("web_audit_log").select("id").eq("action", "payments.recovery_scan").gte("created_at", since30m).limit(1);
+  if (ranErr || ran?.length) return null;
+  await audit({ action: "payments.recovery_scan", meta: NO_REQ });
+
+  const now = Date.now();
+  // Entre 24 h y 46 h: los pendientes se borran solos a las 48 h.
+  const { data: orders, error } = await supa
+    .from("web_credit_orders")
+    .select("id,order_id,user_id,credits,amount_cents,status,created_at")
+    .is("recovery_at", null)
+    .in("status", ["pending", "failed"])
+    .gte("created_at", new Date(now - 46 * 3600_000).toISOString())
+    .lte("created_at", new Date(now - 24 * 3600_000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) return null; // falta ronda_28.sql
+  type O = { id: string; order_id: string; user_id: string; credits: number; amount_cents: number; status: string; created_at: string };
+  const byUser = new Map<string, O[]>();
+  for (const o of (orders ?? []) as O[]) byUser.set(o.user_id, [...(byUser.get(o.user_id) ?? []), o]);
+
+  let sent = 0;
+  for (const [userId, list] of byUser) {
+    if (sent >= 15) break;
+    const newest = list[0];
+    // Reclamo atómico: si dos workers corren a la vez, solo uno manda el cupón.
+    const { data: claimed } = await supa
+      .from("web_credit_orders")
+      .update({ recovery_at: new Date().toISOString() })
+      .in("id", list.map((o) => o.id))
+      .is("recovery_at", null)
+      .select("id");
+    if (!claimed?.length) continue;
+
+    const { data: user } = await supa.from("web_users").select("*").eq("id", userId).maybeSingle<Record<string, unknown>>();
+    const email = String(user?.email ?? "");
+    if (!user || user.deleted_at || user.banned_at || user.purchases_blocked || !email || email.endsWith(".invalid")) continue;
+    const [{ count: paidAfter }, { count: recentCoupon }] = await Promise.all([
+      supa.from("web_credit_orders").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["paid", "refunded"]).gt("created_at", newest.created_at),
+      supa
+        .from("web_coupons")
+        .select("id", { count: "exact", head: true })
+        .like("code", "VUELVE-%")
+        .eq("allowed_email", email)
+        .gte("created_at", new Date(now - 30 * 86400_000).toISOString()),
+    ]);
+    if ((paidAfter ?? 0) > 0 || (recentCoupon ?? 0) > 0) continue;
+
+    const code = `VUELVE-${randomBytes(4).toString("hex").toUpperCase()}`;
+    const expires = new Date(now + RECOVERY_HOURS * 3600_000);
+    const { error: cErr } = await supa.from("web_coupons").insert({
+      code,
+      description: `Recuperación de pago (pedido ${newest.order_id})`,
+      credits: 0,
+      discount_percent: RECOVERY_PERCENT,
+      max_uses: 1,
+      allowed_email: email,
+      expires_at: expires.toISOString(),
+      is_active: true,
+    });
+    if (cErr) continue;
+
+    const until = expires.toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
+    await supa.from("web_messages").insert({
+      user_id: userId,
+      sender: "system",
+      body: `Te guardamos un ${RECOVERY_PERCENT}% de descuento para terminar tu compra: usa el cupón ${code} al pagar (solo para tu cuenta, válido hasta el ${until}). Si algo falló al pagar, escríbenos aquí.`,
+      order_id: newest.order_id,
+    });
+    await notifyUser(userId, {
+      kind: "gift",
+      title: `Tienes ${RECOVERY_PERCENT}% de descuento para terminar tu compra`,
+      body: `Cupón ${code}, válido 72 h.`,
+      link: `/comprar-creditos?cupon=${code}`,
+    });
+    await sendServiceEmail(userId, "recovery", {
+      subject: `Tu ${RECOVERY_PERCENT}% de descuento en FormsBot te espera`,
+      title: `Termina tu compra con ${RECOVERY_PERCENT}% de descuento`,
+      bodyHtml:
+        `<p>Vimos que tu pago de ${escapeHtml(pen(newest.amount_cents))} (${newest.credits} créditos) no se completó. Te guardamos un descuento:</p>` +
+        summaryTable([
+          ["Cupón", `<strong>${escapeHtml(code)}</strong>`],
+          ["Descuento", `${RECOVERY_PERCENT}%`],
+          ["Válido hasta", escapeHtml(until)],
+        ]) +
+        `<p>Escríbelo en "Cupón" al elegir tu paquete. Si el pago te dio un error, respóndenos desde Mensajes en la página y te ayudamos.</p>`,
+      cta: { label: "Terminar mi compra", url: `${siteUrl()}/comprar-creditos?cupon=${code}` },
+    });
+    await audit({ action: "payments.recovery", userId, target: newest.order_id, details: { code }, meta: NO_REQ });
     sent++;
   }
   return { sent };

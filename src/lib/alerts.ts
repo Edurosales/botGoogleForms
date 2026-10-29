@@ -20,7 +20,7 @@ async function ownerEmail(): Promise<string> {
   return (s.owner_alert_email || process.env.OWNER_ALERT_EMAIL || process.env.SUPPORT_EMAIL || process.env.GMAIL_SENDER || "").trim();
 }
 
-async function mailOwner(subject: string, title: string, bodyHtml: string): Promise<void> {
+export async function mailOwner(subject: string, title: string, bodyHtml: string): Promise<void> {
   const to = await ownerEmail();
   if (!to || !gmailConfigured()) return;
   await sendMail({ to, subject, html: emailLayout({ title, bodyHtml, footerHtml: "Aviso interno de FormsBot para el administrador. " }) }).catch((e) =>
