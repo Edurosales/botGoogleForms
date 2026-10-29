@@ -596,14 +596,14 @@ export async function moderateForm(form: ParsedForm): Promise<ModerationResult> 
     .filter(Boolean)
     .join("\n");
 
-  const text = await callGroq(
+  // Tope corto: leer un formulario no puede esperar a una clave lenta. Si la
+  // IA no responde en ~8 s, se usa la revisión local (moderateFormSafe).
+  const text = await aiChat(
     [
       { role: "system", content: "Eres un moderador de contenido estricto. Responde solo JSON válido." },
       { role: "user", content: prompt },
     ],
-    MODERATION_MODEL,
-    0.1,
-    600
+    { purpose: "moderate", temperature: 0.1, maxTokens: 600, deadline: Date.now() + 8_500, perKeyTimeoutMs: 8_000 }
   );
 
   try {
@@ -636,9 +636,20 @@ export function heuristicModeration(form: ParsedForm): ModerationResult {
  * Moderación que nunca bloquea al usuario por una caída de Groq (límite
  * diario agotado, red): en ese caso cae a la revisión por palabras clave.
  */
+const moderationCache = new Map<string, { at: number; result: ModerationResult }>();
+const MODERATION_TTL_MS = 6 * 3600_000;
+
 export async function moderateFormSafe(form: ParsedForm): Promise<ModerationResult> {
+  // El mismo formulario (leer y luego enviar, o leerlo otra vez) no se revisa
+  // dos veces: la revisión de la IA es lo más lento de leer un formulario.
+  const key = `${form.viewUrl}|${form.title}|${form.questions.length}`;
+  const hit = moderationCache.get(key);
+  if (hit && Date.now() - hit.at < MODERATION_TTL_MS) return hit.result;
   try {
-    return await moderateForm(form);
+    const result = await moderateForm(form);
+    moderationCache.set(key, { at: Date.now(), result });
+    if (moderationCache.size > 500) moderationCache.delete(moderationCache.keys().next().value as string);
+    return result;
   } catch (e) {
     console.error("[moderation] Groq no disponible, usando revisión local:", e instanceof Error ? e.message : e);
     return heuristicModeration(form);

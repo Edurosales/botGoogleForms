@@ -119,7 +119,7 @@ export class AiUnavailableError extends Error {}
  */
 export async function aiChat(
   messages: ChatMessage[],
-  opts: { purpose: "generate" | "moderate"; temperature: number; maxTokens: number; deadline?: number }
+  opts: { purpose: "generate" | "moderate"; temperature: number; maxTokens: number; deadline?: number; perKeyTimeoutMs?: number }
 ): Promise<string> {
   const deadline = opts.deadline ?? Date.now() + 55_000;
   const list = await candidates();
@@ -128,14 +128,14 @@ export async function aiChat(
 
   for (const c of list) {
     const left = deadline - Date.now();
-    if (left < 6_000) break;
+    if (left < Math.min(6_000, opts.perKeyTimeoutMs ?? 6_000)) break;
     const model = opts.purpose === "moderate" && c.moderationModel ? c.moderationModel : c.model;
     try {
       const res = await fetch(`${c.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${c.key}`, "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ model, messages, temperature: opts.temperature, max_tokens: opts.maxTokens }),
-        signal: AbortSignal.timeout(Math.min(25_000, left)),
+        signal: AbortSignal.timeout(Math.min(opts.perKeyTimeoutMs ?? 25_000, left)),
         cache: "no-store",
       });
       if (!res.ok) {

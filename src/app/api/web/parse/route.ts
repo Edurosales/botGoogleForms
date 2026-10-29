@@ -46,7 +46,12 @@ export async function POST(request: Request) {
   // podría repetir lecturas anónimas y agotar la cuota diaria de Groq que
   // usan los clientes que pagan. La revisión con IA se repite igual al crear
   // el envío (con sesión y con su propio límite).
-  const moderation = user ? await moderateFormSafe(form) : heuristicModeration(form);
+  // Todo lo que no depende entre sí se pide a la vez (antes iba uno tras otro).
+  const [moderation, settings, userLimits] = await Promise.all([
+    user ? moderateFormSafe(form) : Promise.resolve(heuristicModeration(form)),
+    getAppSettings(),
+    user ? limitsFor(user.email) : Promise.resolve(null),
+  ]);
   if (!moderation.allowed) {
     return err(
       "BLOCKED_CONTENT",
@@ -56,9 +61,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const settings = await getAppSettings();
-  const lim = user
-    ? await limitsFor(user.email)
+  const lim = userLimits
+    ? userLimits
     : { maxPaidQuestions: settings.max_paid_questions ?? MAX_PAID_QUESTIONS, maxFreeQuestions: settings.max_free_questions ?? MAX_FREE_QUESTIONS };
   if (form.questions.length > lim.maxPaidQuestions) {
     return err(
