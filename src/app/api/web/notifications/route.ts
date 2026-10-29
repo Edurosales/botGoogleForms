@@ -46,11 +46,16 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-/** DELETE ?id= borra una notificación propia. */
+/** DELETE ?id= borra una notificación propia; ?all=1 borra todas las suyas. */
 export async function DELETE(req: Request) {
   const user = await getWebUser();
   if (!user) return NextResponse.json({ ok: false }, { status: 401 });
-  const id = new URL(req.url).searchParams.get("id") ?? "";
+  const params = new URL(req.url).searchParams;
+  if (params.get("all") === "1") {
+    await db().from("web_notifications").delete().eq("audience", "user").eq("user_id", user.id);
+    return NextResponse.json({ ok: true });
+  }
+  const id = params.get("id") ?? "";
   if (!UUID.test(id)) return NextResponse.json({ ok: false }, { status: 400 });
   await db().from("web_notifications").delete().eq("id", id).eq("audience", "user").eq("user_id", user.id);
   return NextResponse.json({ ok: true });

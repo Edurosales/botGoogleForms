@@ -764,15 +764,15 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   <label htmlFor="spread">Ritmo de envío</label>
                   <select id="spread" value={spreadMinutes} onChange={(e) => setSpreadMinutes(Number(e.target.value))}>
                     <option value={0}>Lo antes posible</option>
+                    <option value={15}>Repartir en 15 minutos</option>
+                    <option value={30}>Repartir en 30 minutos</option>
                     <option value={60}>Repartir en 1 hora</option>
-                    <option value={180}>Repartir en 3 horas</option>
-                    <option value={360}>Repartir en 6 horas</option>
-                    <option value={720}>Repartir en 12 horas</option>
-                    <option value={1440}>Repartir en 24 horas</option>
                   </select>
                   <p className="fine">
                     {spreadMinutes
-                      ? `Llegará una respuesta cada ~${Math.max(1, Math.round(spreadMinutes / total))} min, como encuestados reales. Puedes cerrar la pestaña.`
+                      ? spreadMinutes / total >= 1
+                        ? `Llegará una respuesta cada ~${Math.round(spreadMinutes / total)} min, como encuestados reales. Puedes cerrar la pestaña.`
+                        : `Llegarán unas ${Math.ceil(total / spreadMinutes)} respuestas por minuto durante ${spreadMinutes} min. Puedes cerrar la pestaña.`
                       : "Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales."}
                   </p>
                 </div>

@@ -8,6 +8,7 @@ import { hasColumn } from "@/lib/schemaFlags";
 import { sweepAbsent } from "@/lib/queue";
 import { scanBounces } from "@/lib/suppression";
 import { isSpreadWaiting } from "@/lib/jobRunner";
+import { paymentFollowUps } from "@/lib/messages";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -58,6 +59,8 @@ export async function POST(req: Request) {
   const swept = await sweepAbsent().catch(() => null);
   // Rebotes de correo (buzón lleno, no existe…): como máximo una vez por hora.
   const bounces = await scanBounces().catch(() => null);
+  // Pagos rechazados o abandonados: un mensaje de ayuda (cada 10 min como mucho).
+  const followUps = await paymentFollowUps().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
@@ -81,7 +84,10 @@ export async function POST(req: Request) {
   const leftMs = RUN_BUDGET_MS - (Date.now() - start);
   const newsletter = leftMs > 8_000 ? await sendNewsletterBatch(15, Date.now() + Math.min(20_000, leftMs - 5_000)).catch(() => null) : null;
 
-  const remaining = (await activeJobs(1)).length > 0;
+  // Solo se re-encadena si hay algo que hacer YA. Los envíos repartidos que
+  // esperan su próxima respuesta los retoma el cron de cada minuto; antes el
+  // worker se volvía a llamar sin pausa durante horas y saturaba Vercel.
+  const remaining = (await activeJobs(PARALLEL_JOBS * 6)).some((j) => !isSpreadWaiting(j));
   if (remaining) {
     // Re-encadenar sin esperar: el cron de cada minuto es solo la red de seguridad.
     after(async () => {
@@ -94,5 +100,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, ms: Date.now() - start });
 }

@@ -29,12 +29,12 @@ async function mailOwner(subject: string, title: string, bodyHtml: string): Prom
 }
 
 /**
- * Emergencia: aviso en la campana del admin + correo, como máximo una vez por
- * hora para la misma `key` (ej. "ai-all-failed").
+ * Emergencia: aviso en la campana del admin + correo, como máximo una vez cada
+ * `everyMin` minutos (1 h por defecto) para la misma `key` (ej. "ai-all-failed").
  */
-export async function alertOwner(key: string, title: string, details: Record<string, string>): Promise<void> {
+export async function alertOwner(key: string, title: string, details: Record<string, string>, everyMin = 60): Promise<void> {
   try {
-    const since = new Date(Date.now() - 60 * 60_000).toISOString();
+    const since = new Date(Date.now() - everyMin * 60_000).toISOString();
     const { data: recent } = await db()
       .from("web_audit_log")
       .select("id")

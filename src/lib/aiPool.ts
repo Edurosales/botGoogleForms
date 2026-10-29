@@ -28,7 +28,9 @@ type ProviderRow = {
   model: string;
   moderation_model: string;
   priority: number;
+  status: string;
   cooldown_until: string | null;
+  last_ok_at: string | null;
   fail_count: number;
 };
 
@@ -40,7 +42,7 @@ async function loadRows(): Promise<ProviderRow[]> {
   if (cache && Date.now() - cache.at < 30_000) return cache.rows;
   const { data, error } = await db()
     .from("ai_providers")
-    .select("id,provider,label,base_url,api_key_enc,model,moderation_model,priority,cooldown_until,fail_count")
+    .select("id,provider,label,base_url,api_key_enc,model,moderation_model,priority,status,cooldown_until,last_ok_at,fail_count")
     .eq("enabled", true)
     .neq("status", "invalid")
     .order("priority", { ascending: true });
@@ -72,10 +74,14 @@ function envCandidates(): Candidate[] {
 async function candidates(): Promise<Candidate[]> {
   const now = Date.now();
   const fromDb: Candidate[] = [];
+  const resting: Candidate[] = [];
   for (const r of await loadRows()) {
-    if (r.cooldown_until && Date.parse(r.cooldown_until) > now) continue;
+    const cooling = Boolean(r.cooldown_until && Date.parse(r.cooldown_until) > now);
+    // Agotada (429) se respeta; "failing" (lenta o error 5xx) se reintenta al
+    // final: una sola respuesta lenta no debe dejar sin IA a todo el servicio.
+    if (cooling && r.status !== "failing") continue;
     try {
-      fromDb.push({
+      (cooling ? resting : fromDb).push({
         id: r.id,
         name: r.label || r.provider,
         baseUrl: r.base_url.replace(/\/+$/, ""),
@@ -87,8 +93,9 @@ async function candidates(): Promise<Candidate[]> {
       // Clave que no se puede descifrar (cambió el secreto): se ignora.
     }
   }
-  // Las de la base van primero; las del entorno quedan como último respaldo.
-  return [...fromDb, ...envCandidates()];
+  // Las de la base van primero; luego las del entorno y, al final, las que
+  // descansan por un fallo pasajero.
+  return [...fromDb, ...envCandidates(), ...resting];
 }
 
 async function mark(id: string | null, patch: Record<string, unknown>): Promise<void> {
@@ -125,6 +132,10 @@ export async function aiChat(
   const list = await candidates();
   if (!list.length) throw new AiUnavailableError("No hay claves de IA configuradas.");
   const errors: string[] = [];
+  // Errores definitivos (clave vencida, modelo retirado, cuota agotada): solo
+  // estos justifican avisar al dueño. Lentitud o cortes por tiempo no.
+  let definitive = 0;
+  const shortTimeout = (opts.perKeyTimeoutMs ?? 25_000) < 20_000;
 
   for (const c of list) {
     const left = deadline - Date.now();
@@ -141,6 +152,7 @@ export async function aiChat(
       if (!res.ok) {
         const body = (await res.text().catch(() => "")).slice(0, 300);
         const k = classify(res.status);
+        if (k.status !== "failing") definitive++;
         errors.push(`${c.name}: ${res.status}`);
         console.error(`[ai] ${c.name} (${model}) respondió ${res.status}: ${body}`);
         await mark(c.id, {
@@ -163,6 +175,9 @@ export async function aiChat(
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`${c.name}: ${msg}`);
       console.error(`[ai] ${c.name} falló:`, msg);
+      // Con un tope corto (revisión de formularios) el corte por tiempo es
+      // nuestro, no de la clave: no se la manda a descansar.
+      if (shortTimeout && /abort|timeout/i.test(msg)) continue;
       await mark(c.id, {
         status: "failing",
         last_error: msg.slice(0, 300),
@@ -172,10 +187,15 @@ export async function aiChat(
     }
   }
 
-  await alertOwner("ai-all-failed", "Ninguna clave de IA responde", {
-    Uso: opts.purpose === "moderate" ? "Revisión de formularios" : "Generar respuestas",
+  // Aviso al dueño solo si es un problema real y sostenido: hubo errores
+  // definitivos, es para generar respuestas (la revisión tiene respaldo
+  // local) y ninguna clave respondió bien en los últimos 15 min. Antes
+  // bastaba una respuesta lenta para mandar el correo aunque "Probar" funcionara.
+  const recentOk = (await loadRows()).some((r) => r.last_ok_at && Date.now() - Date.parse(r.last_ok_at) < 15 * 60_000);
+  if (opts.purpose === "generate" && definitive > 0 && !recentOk) await alertOwner("ai-all-failed", "Ninguna clave de IA responde", {
+    Uso: "Generar respuestas",
     Errores: errors.join(" | ").slice(0, 600) || "sin claves disponibles",
     "Qué hacer": "Admin → Claves de IA: agrega una clave nueva o cambia el modelo.",
-  });
+  }, 180);
   throw new AiUnavailableError(`Ninguna clave de IA respondió (${errors.join(" | ").slice(0, 300)})`);
 }

@@ -70,6 +70,10 @@ export async function POST(req: Request) {
       .update({ form_url: "", view_url: "", submit_url: "", title: "", questions: [], profiles: null, custom_instructions: "", q_config: {} })
       .eq("user_id", user.id),
     supa.from("web_notifications").delete().eq("user_id", user.id),
+    supa.from("web_messages").delete().eq("user_id", user.id).then(
+      () => {},
+      () => {}
+    ),
     supa.from("web_consents").update({ email: anon, ip: "", user_agent: "" }).eq("user_id", user.id),
     supa.from("web_audit_log").update({ email: anon, ip: "", user_agent: "" }).eq("user_id", user.id),
   ]);

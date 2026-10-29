@@ -7,6 +7,18 @@ type Item = { id: string; kind: string; title: string; body: string; link: strin
 
 const POLL_MS = 15_000;
 
+/** Ícono según el tipo de aviso (solo decorativo). */
+const KIND_ICON: Record<string, string> = {
+  job: "✓",
+  refund: "↩",
+  purchase: "★",
+  credits: "★",
+  gift: "🎁",
+  message: "💬",
+  account: "!",
+  alert: "!",
+};
+
 function ago(iso: string): string {
   const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
   if (s < 60) return "ahora";
@@ -73,6 +85,12 @@ export default function NotificationsBell() {
     }).catch(() => {});
   }
 
+  async function removeAll() {
+    setItems([]);
+    setUnread(0);
+    await fetch("/api/web/notifications?all=1", { method: "DELETE" }).catch(() => {});
+  }
+
   async function remove(n: Item) {
     setItems((prev) => prev.filter((x) => x.id !== n.id));
     if (!n.read_at) setUnread((u) => Math.max(0, u - 1));
@@ -108,11 +126,21 @@ export default function NotificationsBell() {
         <div className="nb-panel" role="dialog" aria-label="Notificaciones">
           <div className="nb-head">
             <strong>Notificaciones</strong>
-            {unread > 0 && (
-              <button type="button" className="nb-link" onClick={() => markRead({ all: true })}>
-                Marcar todo como leído
+            <div className="nb-head-actions">
+              {unread > 0 && (
+                <button type="button" className="nb-link" onClick={() => markRead({ all: true })}>
+                  Marcar leídas
+                </button>
+              )}
+              {items.length > 0 && (
+                <button type="button" className="nb-link nb-link-mute" onClick={removeAll}>
+                  Borrar todas
+                </button>
+              )}
+              <button type="button" className="nb-close" aria-label="Cerrar notificaciones" onClick={() => setOpen(false)}>
+                ×
               </button>
-            )}
+            </div>
           </div>
           {items.length === 0 ? (
             <p className="nb-empty">No tienes notificaciones.</p>
@@ -120,6 +148,9 @@ export default function NotificationsBell() {
             <ul className="nb-list">
               {items.map((n) => (
                 <li key={n.id} className={n.read_at ? "nb-item" : "nb-item is-unread"}>
+                  <span className={`nb-ico nb-ico-${n.kind}`} aria-hidden="true">
+                    {KIND_ICON[n.kind] ?? "•"}
+                  </span>
                   <button type="button" className="nb-main" onClick={() => openItem(n)}>
                     <span className="nb-title">{n.title}</span>
                     {n.body && <span className="nb-body">{n.body}</span>}

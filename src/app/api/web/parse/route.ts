@@ -84,7 +84,9 @@ export async function POST(request: Request) {
   // de configurar, no al final.
   const formId = formIdOf(form.viewUrl);
   const freeLimit = settings.free_accounts_per_form ?? FREE_ACCOUNTS_PER_FORM;
-  if (formId && freeLimit > 0) {
+  // Quien ya tiene créditos (comprados o regalados) no necesita el aviso: el
+  // envío se cobra de sus créditos sin problema.
+  if (formId && freeLimit > 0 && !(user && user.credits > 0)) {
     const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const { data: freeJobs } = await db()
       .from("web_jobs")
