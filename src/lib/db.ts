@@ -126,6 +126,14 @@ export type AppSettings = {
   banner_message?: string;
   banner_kind?: "info" | "warn" | "error";
   owner_alert_email?: string;
+  // Ronda 29: referidos y aviso de pocos créditos
+  referral_enabled?: boolean;
+  referral_reward_referrer?: number;
+  referral_reward_referred?: number;
+  referral_min_purchase_cents?: number;
+  referral_monthly_cap?: number;
+  low_credits_enabled?: boolean;
+  low_credits_threshold?: number;
   updated_at: string;
 };
 

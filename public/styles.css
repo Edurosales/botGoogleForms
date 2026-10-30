@@ -666,3 +666,27 @@ body.paying .support{display:none}
 .sc-past-top small{color:var(--mute)}
 .sc-past-prev{font-size:.8125rem;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-closed{align-self:center;margin:6px 0 0;font-size:.75rem;color:var(--mute);background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 12px}
+
+/* Invita y gana */
+.ref{overflow:hidden}
+.ref-hero{display:flex;align-items:center;justify-content:center;gap:18px;padding:28px 20px;background:linear-gradient(135deg,#0F7A41,#16A05A);color:#fff;flex-wrap:wrap}
+.ref-gift{text-align:center;min-width:120px}
+.ref-gift strong{display:block;font-size:2.6rem;font-weight:900;line-height:1;letter-spacing:-.03em}
+.ref-gift span{font-size:.875rem;font-weight:700;opacity:.9}
+.ref-plus{font-size:2rem;font-weight:900;opacity:.6}
+.ref-label{display:block;font-weight:800;font-size:.875rem;margin-bottom:6px}
+.ref #ref-link{font-variant-numeric:tabular-nums}
+.ref-share{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}
+.ref-stats{border:1px solid var(--line);border-radius:12px;margin:6px 0 4px}
+.ref-steps{margin:8px 0 10px;padding-left:20px;display:grid;gap:6px}
+.ref-card{display:flex;align-items:center;gap:14px;margin:16px 0;padding:14px 16px;border:1.5px solid #0F7A41;border-radius:12px;background:#EAF7EF;color:var(--ink)!important;text-decoration:none}
+.ref-card strong{display:block;font-size:.9375rem}
+.ref-card small{display:block;font-size:.8125rem;color:var(--mute)}
+.ref-card>span:nth-child(2){flex:1}
+.ref-card-ico{font-size:1.6rem}
+.acct-low{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.acct-low p{flex:1;min-width:220px}
+.invited-note{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:10px 44px 10px 16px;background:#EAF7EF;border-bottom:1px solid #BFE5CD;color:#0B3D22;font-size:.9375rem;text-align:center}
+.invited-note p{margin:0}
+.invited-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:1.3rem;cursor:pointer;color:inherit}
+@media(prefers-color-scheme:dark){.ref-card{background:#12301F}.invited-note{background:#12301F;color:#DDF6E8;border-color:#1F4D33}}

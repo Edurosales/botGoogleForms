@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMe } from "./clientData";
+import { useMe, usePublicSettings } from "./clientData";
 import NotificationsBell from "./NotificationsBell";
 
 const LINKS = [
@@ -14,6 +14,7 @@ const LINKS = [
 
 export default function SiteNav() {
   const { me } = useMe();
+  const { referral } = usePublicSettings();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -113,6 +114,11 @@ export default function SiteNav() {
                     <Link role="menuitem" href="/comprar-creditos" onClick={() => setOpen(false)}>
                       Comprar créditos
                     </Link>
+                    {referral && (
+                      <Link role="menuitem" href="/invita" onClick={() => setOpen(false)}>
+                        Invita y gana +{referral.referrerCredits}
+                      </Link>
+                    )}
                     <button role="menuitem" type="button" onClick={logout} disabled={loggingOut}>
                       {loggingOut ? "Cerrando sesión…" : "Cerrar sesión"}
                     </button>

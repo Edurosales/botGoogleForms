@@ -15,6 +15,7 @@ import { onlyExisting } from "./schemaFlags";
 import { audit } from "./audit";
 import { recordConsent, TERMS_VERSION, type SignupChoices } from "./consent";
 import { requestMeta } from "./requestMeta";
+import { attachReferral, REFERRAL_COOKIE } from "./referrals";
 
 export const WEB_SESSION_COOKIE = "web_session";
 const STATE_COOKIE = "web_g_state";
@@ -272,6 +273,13 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
     }
     userId = created.id;
     await recordChoices(userId, email, choices);
+    // Invitación (Invita y gana): solo al crear la cuenta, nunca al iniciar sesión.
+    const jar = await cookies();
+    const refCode = jar.get(REFERRAL_COOKIE)?.value;
+    if (refCode) {
+      jar.delete(REFERRAL_COOKIE);
+      await attachReferral({ id: userId, email, signupIp: ip }, refCode);
+    }
     await audit({ action: "auth.signup", userId, email, details: { bonus, marketing: choices.marketing, country: choices.country } });
     await notifyAdmin({
       kind: "signup",

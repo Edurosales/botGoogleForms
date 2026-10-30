@@ -15,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Ya descargaste tus datos varias veces. Intenta en una hora." }, { status: 429 });
   }
   const supa = db();
-  const [account, jobs, orders, consents, notifications, messages] = await Promise.all([
+  const [account, jobs, orders, consents, notifications, messages, referrals] = await Promise.all([
     supa.from("web_users").select("*").eq("id", user.id).maybeSingle(),
     supa
       .from("web_jobs")
@@ -26,6 +26,7 @@ export async function GET() {
     supa.from("web_consents").select("kind,granted,version,ip,user_agent,context,created_at").eq("user_id", user.id),
     supa.from("web_notifications").select("kind,title,body,read_at,created_at").eq("user_id", user.id),
     supa.from("web_messages").select("sender,body,created_at,read_at").eq("user_id", user.id),
+    supa.from("web_referrals").select("status,referrer_credits,referred_credits,created_at,rewarded_at").or(`referrer_id.eq.${user.id},referred_id.eq.${user.id}`),
   ]);
   const a = (account.data ?? {}) as Record<string, unknown>;
   // Datos internos que no son "sobre la persona" (control de sesión y de baja).
@@ -41,6 +42,7 @@ export async function GET() {
     consents: consents.data ?? [],
     notifications: notifications.data ?? [],
     messages: messages.data ?? [],
+    referrals: referrals.data ?? [],
   };
   return new NextResponse(JSON.stringify(payload, null, 2), {
     headers: {

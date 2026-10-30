@@ -10,6 +10,7 @@ import { scanBounces } from "@/lib/suppression";
 import { isSpreadWaiting } from "@/lib/jobRunner";
 import { paymentFollowUps, paymentRecovery } from "@/lib/messages";
 import { ownerDailyDigest } from "@/lib/digest";
+import { lowCreditsAlerts } from "@/lib/referrals";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -66,6 +67,8 @@ export async function POST(req: Request) {
   const recovery = await paymentRecovery().catch(() => null);
   // Resumen del día anterior para el dueño, una vez al día desde las 8 a. m. (Lima).
   const digest = await ownerDailyDigest().catch(() => null);
+  // Clientes con pocos créditos: aviso con recarga en un clic (cada 30 min como mucho).
+  const lowCredits = await lowCreditsAlerts().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
@@ -105,5 +108,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, lowCredits, ms: Date.now() - start });
 }

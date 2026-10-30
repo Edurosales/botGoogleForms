@@ -35,6 +35,10 @@ export type PublicSettings = {
   maxPaidQuestions: number;
   maxDailyResponses: number;
   dailyPurchaseCap: number;
+  /** Programa de referidos (null = apagado). */
+  referral: { referrerCredits: number; referredCredits: number; minPurchaseCents: number } | null;
+  /** Saldo por debajo del cual se sugiere recargar (0 = sin aviso). */
+  lowCreditsThreshold: number;
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -51,6 +55,8 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   maxPaidQuestions: 60,
   maxDailyResponses: 500,
   dailyPurchaseCap: 500,
+  referral: null,
+  lowCreditsThreshold: 0,
 };
 
 /** Otros componentes disparan este evento cuando cambia el saldo (pago, cupón, envío). */
@@ -138,6 +144,15 @@ export function usePublicSettings(): PublicSettings {
           maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
           maxDailyResponses: Number(d.maxDailyResponses) || 500,
           dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
+          referral:
+            d.referral && typeof d.referral === "object"
+              ? {
+                  referrerCredits: Number(d.referral.referrerCredits) || 0,
+                  referredCredits: Number(d.referral.referredCredits) || 0,
+                  minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
+                }
+              : null,
+          lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
         });
       })
       .catch(() => {});

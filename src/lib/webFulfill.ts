@@ -17,6 +17,7 @@ import { audit } from "./audit";
 import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
 import { notifyOwnerPurchase } from "./alerts";
+import { rewardReferral } from "./referrals";
 const pen = (c: number) => `S/ ${(c / 100).toFixed(2)}`;
 const NO_REQ = { ip: "", country: "", userAgent: "", path: "" };
 
@@ -154,6 +155,8 @@ export async function creditPaidOrder(order: CreditOrder, provider: Provider, re
   // de pago, así que tienen sus mismas reglas (fila prioritaria, más preguntas).
   const merged = await mergeFreeIntoCredits(claimed.user_id);
   if (claimed.coupon_code) await incrementCouponUse(claimed.coupon_code);
+  // Invita y gana: si esta es la compra que vale para su invitación, premio a los dos.
+  await rewardReferral(claimed);
 
   const { data: buyer } = await supa.from("web_users").select("email").eq("id", claimed.user_id).maybeSingle<{ email: string }>();
   await notifyUser(claimed.user_id, {

@@ -25,5 +25,14 @@ export async function GET() {
     maxPaidQuestions: s.max_paid_questions ?? 60,
     maxDailyResponses: s.max_daily_responses ?? 500,
     dailyPurchaseCap: s.daily_purchase_cap ?? 500,
+    // Solo cifras públicas del programa (lo mismo que dice la página "Invita y gana").
+    referral: s.referral_enabled
+      ? {
+          referrerCredits: s.referral_reward_referrer ?? 20,
+          referredCredits: s.referral_reward_referred ?? 10,
+          minPurchaseCents: s.referral_min_purchase_cents ?? 1500,
+        }
+      : null,
+    lowCreditsThreshold: s.low_credits_enabled === false ? 0 : (s.low_credits_threshold ?? 20),
   });
 }

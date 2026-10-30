@@ -5,6 +5,7 @@ import Analytics from "./Analytics";
 import SupportButton from "./SupportButton";
 import ConsentGate from "./ConsentGate";
 import SiteBanner from "./SiteBanner";
+import InvitedNote from "./InvitedNote";
 import BannedGate from "./BannedGate";
 
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         <SiteBanner />
+        <InvitedNote />
         {/* Medición y anuncios solo con "Aceptar" en el banner (ver Analytics.tsx y Ads.tsx). */}
         <Analytics />
         {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el

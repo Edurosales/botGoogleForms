@@ -188,6 +188,11 @@ export default function MiCuentaClient() {
   const totalSent = (jobs ?? []).reduce((n, j) => n + j.sent, 0);
   const paidOrders = (orders ?? []).filter((o) => o.status === "paid");
   const initial = (me.name || me.email).trim().charAt(0).toUpperCase();
+  // Recarga en un clic: el último paquete que compró, ya elegido en la tienda.
+  const lastPaid = (orders ?? []).find((o) => o.status === "paid");
+  const rechargeIdx = lastPaid ? settings.creditPackages.findIndex((p) => p.responses === lastPaid.credits) : -1;
+  const rechargePack = rechargeIdx >= 0 ? settings.creditPackages[rechargeIdx] : null;
+  const rechargeHref = `/comprar-creditos${rechargeIdx >= 0 ? `?paquete=${rechargeIdx}` : ""}`;
 
   const jobsList = (limit?: number) => (
     <>
@@ -295,6 +300,17 @@ export default function MiCuentaClient() {
 
         {tab === "resumen" && (
           <>
+            {me.hasPaid && settings.lowCreditsThreshold > 0 && me.credits < settings.lowCreditsThreshold && (
+              <div className="note note-warn acct-low" role="status">
+                <p>
+                  <strong>{me.credits > 0 ? `Te quedan ${me.credits} créditos.` : "Te quedaste sin créditos."}</strong> Recarga antes de tu
+                  próxima prueba para que no se quede a medias.
+                </p>
+                <Link className="b b-primary b-small" href={rechargeHref}>
+                  Recargar{rechargePack ? ` ${rechargePack.responses} créditos` : ""}
+                </Link>
+              </div>
+            )}
             <div className="balances">
               <div className="balance">
                 <p className="balance-label">Créditos</p>
@@ -334,6 +350,17 @@ export default function MiCuentaClient() {
                 </p>
               )}
             </form>
+
+            {settings.referral && (
+              <Link className="ref-card" href="/invita">
+                <span className="ref-card-ico" aria-hidden="true">🎁</span>
+                <span>
+                  <strong>Invita y gana {settings.referral.referrerCredits} créditos</strong>
+                  <small>Por cada persona que se registre con tu enlace y haga su primera compra.</small>
+                </span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
 
             <section className="group" aria-labelledby="recent-h">
               <div className="acct-sec-head">
