@@ -36,7 +36,7 @@ export type PublicSettings = {
   maxDailyResponses: number;
   dailyPurchaseCap: number;
   /** Programa de referidos (null = apagado). */
-  referral: { referrerCredits: number; referredCredits: number; minPurchaseCents: number } | null;
+  referral: { referrerCredits: number; referredCredits: number; minPurchaseCents: number; days: number } | null;
   /** Saldo por debajo del cual se sugiere recargar (0 = sin aviso). */
   lowCreditsThreshold: number;
 };
@@ -150,6 +150,7 @@ export function usePublicSettings(): PublicSettings {
                   referrerCredits: Number(d.referral.referrerCredits) || 0,
                   referredCredits: Number(d.referral.referredCredits) || 0,
                   minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
+                  days: Number(d.referral.days) || 30,
                 }
               : null,
           lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,

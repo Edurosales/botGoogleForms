@@ -31,6 +31,7 @@ export async function GET() {
           referrerCredits: s.referral_reward_referrer ?? 20,
           referredCredits: s.referral_reward_referred ?? 10,
           minPurchaseCents: s.referral_min_purchase_cents ?? 1500,
+          days: s.referral_cookie_days ?? 30,
         }
       : null,
     lowCreditsThreshold: s.low_credits_enabled === false ? 0 : (s.low_credits_threshold ?? 20),

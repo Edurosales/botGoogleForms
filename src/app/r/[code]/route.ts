@@ -22,7 +22,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: REFERRAL_COOKIE_DAYS * 86400,
+    maxAge: Math.min(365, Math.max(1, settings.referral_cookie_days ?? REFERRAL_COOKIE_DAYS)) * 86400,
   });
   return home;
 }

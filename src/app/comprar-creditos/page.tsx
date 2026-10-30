@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { getAppSettings } from "@/lib/appSettings";
 import ComprarCreditosClient from "./ComprarCreditosClient";
 import SiteNav from "../SiteNav";
+import ReferralFab from "./ReferralFab";
 
 export const metadata: Metadata = {
   title: "Comprar créditos",
@@ -21,6 +22,7 @@ export default function ComprarCreditosPage() {
   return (
     <main className="tool-page">
       <SiteNav />
+      <ReferralFab />
       <div className="tool-wrap tool-wrap-wide">
         <div className="intro">
           <h1>Comprar créditos</h1>

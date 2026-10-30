@@ -24,6 +24,7 @@ import { siteUrl } from "./config";
 
 const NO_REQ = { ip: "", country: "", userAgent: "", path: "" };
 export const REFERRAL_COOKIE = "fb_ref";
+/** Días por defecto que vale el enlace (el admin lo cambia en Configuración). */
 export const REFERRAL_COOKIE_DAYS = 30;
 /** Sin 0/O ni 1/I/L: se dictan y se copian sin confusiones. */
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";

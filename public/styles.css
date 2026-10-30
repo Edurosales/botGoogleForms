@@ -690,3 +690,26 @@ body.paying .support{display:none}
 .invited-note p{margin:0}
 .invited-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:1.3rem;cursor:pointer;color:inherit}
 @media(prefers-color-scheme:dark){.ref-card{background:#12301F}.invited-note{background:#12301F;color:#DDF6E8;border-color:#1F4D33}}
+
+/* Invita y gana: colores legibles (texto oscuro sobre verde claro) */
+.ref-hero{background:#E3F6EA!important;color:#0B3D22!important;border-bottom:1px solid #BFE5CD}
+.ref-gift strong{color:#0F7A41!important}
+.ref-gift span{color:#0B3D22!important;opacity:1}
+.ref-plus{color:#0F7A41!important;opacity:1}
+.ref-rules{margin:6px 0 4px;padding-left:20px;display:grid;gap:4px;font-size:.875rem;color:var(--mute)}
+/* Regalo flotante en la tienda */
+.gift-fab{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:64;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.gift-btn{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 16px 0 8px;border-radius:999px;border:2px solid #0F7A41;background:#fff;color:#0B3D22;font:inherit;font-weight:700;font-size:.9375rem;cursor:pointer;box-shadow:0 10px 24px -10px rgba(15,122,65,.55);animation:giftBob 2.6s ease-in-out infinite}
+.gift-btn b{color:#0F7A41}
+.gift-ico{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#E3F6EA;font-size:1.15rem}
+.gift-pop{position:relative;width:min(320px,calc(100vw - 32px));background:#fff;color:#21163F;border:1px solid #D6EADD;border-radius:14px;padding:16px 16px 12px;box-shadow:0 18px 40px -18px rgba(33,22,63,.5);animation:lqPop .25s ease-out}
+.gift-pop ul{margin:6px 0 12px;padding-left:18px;display:grid;gap:4px;font-size:.8125rem;color:#4F4666}
+.gift-title{margin:0 22px 0 0;font-weight:800;font-size:1rem}
+.gift-title b{color:#0F7A41}
+.gift-x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:1.3rem;line-height:1;color:#4F4666;cursor:pointer}
+.gift-terms{margin:10px 0 0;font-size:.75rem;color:#4F4666}
+.gift-terms a{color:#4F4666}
+@keyframes giftBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@media(prefers-reduced-motion:reduce){.gift-btn{animation:none}}
+@media(max-width:520px){.gift-txt{display:none}.gift-btn{padding:0 6px}}
+body.paying .gift-fab{display:none}

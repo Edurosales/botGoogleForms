@@ -9,7 +9,7 @@ type Data = {
   enabled: boolean;
   code?: string;
   link?: string;
-  rules: { referrerCredits: number; referredCredits: number; minPurchaseCents: number; monthlyCap: number };
+  rules: { referrerCredits: number; referredCredits: number; minPurchaseCents: number; monthlyCap: number; days: number };
   stats?: { registered: number; purchased: number; earned: number; thisMonth: number };
   invited?: { who: string; status: string; credits: number; date: string }[];
 };
@@ -122,15 +122,24 @@ export default function InvitaClient() {
           <h3>Cómo funciona</h3>
           <ol className="ref-steps">
             <li>Comparte tu enlace con quien necesite probar su formulario.</li>
-            <li>Tu invitado crea su cuenta entrando por tu enlace (en los próximos 30 días).</li>
+            <li>
+              Tu invitado crea su cuenta entrando por tu enlace. El enlace le vale <b>{r.days} días</b> desde que lo abre.
+            </li>
             <li>
               Cuando hace su primera compra de {fmtPen(r.minPurchaseCents)} o más, tú recibes <b>{r.referrerCredits} créditos</b> y tu invitado{" "}
               <b>{r.referredCredits} créditos</b> extra, al instante.
             </li>
           </ol>
+          <ul className="ref-rules">
+            <li>Cada invitado te da premio <b>una sola vez</b> (en su primera compra de {fmtPen(r.minPurchaseCents)} o más), y él recibe su regalo una sola vez.</li>
+            <li>Hasta <b>{r.monthlyCap} premios por mes</b>.</li>
+            <li>No cuentan tus propias cuentas, las creadas desde tu misma conexión ni correos que ya tuvieron cuenta.</li>
+            <li>Si la compra se devuelve, el premio se retira. Los créditos de premio no se cambian por dinero.</li>
+          </ul>
           <p className="fine">
-            Hasta {r.monthlyCap} premios por mes. No cuentan las cuentas propias ni las creadas desde tu misma conexión, y si la compra se devuelve
-            el premio se retira. <a href="/terminos-herramienta.html#referidos" target="_blank" rel="noopener">Condiciones</a>
+            <a href="/terminos-herramienta.html#referidos" target="_blank" rel="noopener">
+              Términos y condiciones de Invita y gana
+            </a>
           </p>
         </section>
 

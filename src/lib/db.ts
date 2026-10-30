@@ -132,6 +132,7 @@ export type AppSettings = {
   referral_reward_referred?: number;
   referral_min_purchase_cents?: number;
   referral_monthly_cap?: number;
+  referral_cookie_days?: number;
   low_credits_enabled?: boolean;
   low_credits_threshold?: number;
   updated_at: string;

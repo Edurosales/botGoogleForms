@@ -21,6 +21,7 @@ export async function GET() {
     referredCredits: s.referral_reward_referred ?? 10,
     minPurchaseCents: s.referral_min_purchase_cents ?? 1500,
     monthlyCap: s.referral_monthly_cap ?? 20,
+    days: s.referral_cookie_days ?? 30,
   };
   if (!s.referral_enabled) return NextResponse.json({ ok: true, enabled: false, rules });
 
