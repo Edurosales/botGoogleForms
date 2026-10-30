@@ -726,7 +726,8 @@ body.paying .gift-fab{display:none}
 .paymethod{flex-wrap:wrap}
 .paymethod-txt{flex:1;min-width:170px}
 .paylogos{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
-.paylogo{display:block;flex:none;border-radius:5px;box-shadow:0 1px 2px rgba(33,22,63,.12)}
+.paylogo{display:inline-flex;align-items:center;justify-content:center;flex:none;width:72px;height:38px;padding:6px 5px;background:#fff;border:1px solid #E2DCEC;border-radius:8px;box-shadow:0 1px 2px rgba(33,22,63,.08)}
+.paylogo img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .paysecure{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 12px;margin:12px 0 4px;padding:10px 12px;border:1px solid #E2DCEC;border-radius:12px;background:#FAF8FD}
 .paysecure-lock{display:inline-flex;align-items:center;gap:6px;font-size:.8125rem;font-weight:800;color:#1B5E20}
-@media(max-width:480px){.paymethod .paylogos{width:100%;padding-left:30px}.paylogo{transform:none}}
+@media(max-width:480px){.paymethod .paylogos{width:100%;padding-left:30px}.paylogo{width:62px;height:34px;padding:5px 4px}}
