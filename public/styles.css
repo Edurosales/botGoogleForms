@@ -721,3 +721,12 @@ body.paying .gift-fab{display:none}
 .invited-note a:not(.b){color:#0B3D22;font-weight:700}
 .invited-old{background:#FFF6E5!important;color:#4A3200!important;border-bottom-color:#F0D9A8!important}
 @media(max-width:760px){body:has(.bar-m) .gift-fab{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+
+/* Logos de medios de pago */
+.paymethod{flex-wrap:wrap}
+.paymethod-txt{flex:1;min-width:170px}
+.paylogos{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.paylogo{display:block;flex:none;border-radius:5px;box-shadow:0 1px 2px rgba(33,22,63,.12)}
+.paysecure{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 12px;margin:12px 0 4px;padding:10px 12px;border:1px solid #E2DCEC;border-radius:12px;background:#FAF8FD}
+.paysecure-lock{display:inline-flex;align-items:center;gap:6px;font-size:.8125rem;font-weight:800;color:#1B5E20}
+@media(max-width:480px){.paymethod .paylogos{width:100%;padding-left:30px}.paylogo{transform:none}}

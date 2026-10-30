@@ -20,6 +20,7 @@ import { SignInCard } from "../SignIn";
 import PurchaseCelebration from "../PurchaseCelebration";
 import { MP_REJECT_REASONS } from "./mpReasons";
 import Script from "next/script";
+import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "./PayLogos";
 
 type Pkg = { responses: number; priceCents: number };
 type Pay = {
@@ -530,17 +531,19 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                   <legend>Medio de pago</legend>
                   <label className={`paymethod${payWith === "mercadopago" ? " on" : ""}`}>
                     <input type="radio" name="paymethod" checked={payWith === "mercadopago"} onChange={() => setMethod("mercadopago")} />
-                    <span>
+                    <span className="paymethod-txt">
                       <b>Mercado Pago</b>
                       <small>Tarjeta, Yape, PagoEfectivo o saldo de Mercado Pago</small>
                     </span>
+                    <PayLogos brands={MP_BRANDS} />
                   </label>
                   <label className={`paymethod${payWith === "izipay" ? " on" : ""}`}>
                     <input type="radio" name="paymethod" checked={payWith === "izipay"} onChange={() => setMethod("izipay")} />
-                    <span>
+                    <span className="paymethod-txt">
                       <b>Tarjeta</b>
                       <small>Visa, Mastercard, Amex, Diners (Izipay)</small>
                     </span>
+                    <PayLogos brands={IZIPAY_BRANDS} />
                   </label>
                 </fieldset>
               )}
@@ -600,6 +603,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                         : `Pagar ${fmtPen(finalCents)} con tarjeta`
                       : "Elige un paquete"}
               </button>
+              <SecurePayStrip providers={providers} />
               <p className="fine">
                 {payWith === "mercadopago"
                   ? `Pagas en la página oficial de Mercado Pago${settings.mpRequiresLogin ? " con tu cuenta de Mercado Pago (inicia sesión para pagar)" : ""} y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta.`
