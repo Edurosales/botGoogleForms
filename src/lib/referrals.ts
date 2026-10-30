@@ -5,8 +5,9 @@
  *   1. Cada cliente tiene un código (web_users.referral_code) y un enlace /r/CODIGO.
  *   2. /r/CODIGO guarda el código en una cookie httpOnly (30 días) y manda a la portada.
  *   3. Al CREAR la cuenta (nunca en un inicio de sesión) se liga al invitador
- *      (attachReferral), con controles: no a sí mismo, no misma IP de registro,
- *      no correos que ya tuvieron cuenta, no invitadores borrados o bloqueados.
+ *      (attachReferral), con controles: no a sí mismo, no correos que ya
+ *      tuvieron cuenta, no invitadores borrados o bloqueados. La misma IP sí
+ *      vale: el premio igual exige una compra pagada.
  *   4. En la primera compra pagada del invitado que llegue al monto mínimo,
  *      web_referral_reward (SQL, atómico) suma créditos a los dos.
  *   5. Si esa compra se devuelve, un trigger retira el premio (web_referral_reverse).
@@ -92,17 +93,11 @@ export async function attachReferral(newUser: { id: string; email: string; signu
     const inviterEmail = String(inviter.email ?? "").toLowerCase();
     if (inviter.id === newUser.id || inviterEmail === newUser.email.toLowerCase()) reason = "Se invitó a sí mismo";
     else if (inviter.banned_at) reason = "Quien invitó está bloqueado";
-    else if (newUser.signupIp && String(inviter.signup_ip ?? "") === newUser.signupIp) reason = "Misma conexión (IP) que quien invitó";
+    // Misma IP sí vale (familia, misma universidad o wifi): el premio igual
+    // exige una compra pagada, que es lo que frena el abuso.
     else {
       const { data: wasDeleted } = await supa.from("web_deleted_accounts").select("email_hash").eq("email_hash", emailHash(newUser.email)).maybeSingle();
       if (wasDeleted) reason = "Ese correo ya tuvo una cuenta antes";
-    }
-    if (!reason) {
-      // Otra cuenta registrada desde la misma IP ya fue invitada por la misma persona.
-      const { data: sameIp } = newUser.signupIp
-        ? await supa.from("web_users").select("id").eq("referred_by", inviter.id as string).eq("signup_ip", newUser.signupIp).neq("id", newUser.id).limit(1)
-        : { data: [] };
-      if (sameIp?.length) reason = "Varias cuentas invitadas desde la misma conexión";
     }
 
     const { error } = await supa.from("web_referrals").insert({

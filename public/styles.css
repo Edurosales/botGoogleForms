@@ -689,7 +689,6 @@ body.paying .support{display:none}
 .invited-note{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:10px 44px 10px 16px;background:#EAF7EF;border-bottom:1px solid #BFE5CD;color:#0B3D22;font-size:.9375rem;text-align:center}
 .invited-note p{margin:0}
 .invited-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:1.3rem;cursor:pointer;color:inherit}
-@media(prefers-color-scheme:dark){.ref-card{background:#12301F}.invited-note{background:#12301F;color:#DDF6E8;border-color:#1F4D33}}
 
 /* Invita y gana: colores legibles (texto oscuro sobre verde claro) */
 .ref-hero{background:#E3F6EA!important;color:#0B3D22!important;border-bottom:1px solid #BFE5CD}
@@ -713,3 +712,12 @@ body.paying .support{display:none}
 @media(prefers-reduced-motion:reduce){.gift-btn{animation:none}}
 @media(max-width:520px){.gift-txt{display:none}.gift-btn{padding:0 6px}}
 body.paying .gift-fab{display:none}
+
+/* Tarjeta "Invita y gana" y aviso de invitación: colores fijos y legibles */
+.ref-card{background:#E3F6EA!important;border-color:#0F7A41!important;color:#0B3D22!important}
+.ref-card strong{color:#0B3D22!important}
+.ref-card small{color:#2F5A41!important}
+.invited-note{background:#E3F6EA!important;color:#0B3D22!important}
+.invited-note a:not(.b){color:#0B3D22;font-weight:700}
+.invited-old{background:#FFF6E5!important;color:#4A3200!important;border-bottom-color:#F0D9A8!important}
+@media(max-width:760px){body:has(.bar-m) .gift-fab{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}

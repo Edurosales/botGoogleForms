@@ -247,6 +247,17 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
       .eq("id", existing.id);
     await recordChoices(userId, email, choices, existing);
     await audit({ action: "auth.login", userId, email });
+    // Abrió una invitación pero ya tenía cuenta: no aplica (solo cuentas nuevas).
+    const jarOld = await cookies();
+    if (jarOld.get(REFERRAL_COOKIE)?.value) {
+      jarOld.delete(REFERRAL_COOKIE);
+      await notifyUser(userId, {
+        kind: "gift",
+        title: "Esa invitación es solo para cuentas nuevas",
+        body: "Tú ya tenías cuenta, así que no aplica. Igual puedes ganar créditos invitando con tu propio enlace.",
+        link: "/invita",
+      });
+    }
   } else {
     if (!choices?.terms) {
       await audit({ action: "auth.signup_blocked", level: "warn", email, details: { why: "terms_not_accepted" } });

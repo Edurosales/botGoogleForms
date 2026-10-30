@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { db, type WebJob } from "@/lib/db";
 import { advanceJob, type AdvanceResult } from "@/lib/jobRunner";
 import { siteUrl } from "@/lib/config";
-import { sendNewsletterBatch } from "@/lib/mailer";
+import { drainOutbox, sendNewsletterBatch } from "@/lib/mailer";
 import { hasColumn } from "@/lib/schemaFlags";
 import { sweepAbsent } from "@/lib/queue";
 import { scanBounces } from "@/lib/suppression";
@@ -69,6 +69,8 @@ export async function POST(req: Request) {
   const digest = await ownerDailyDigest().catch(() => null);
   // Clientes con pocos créditos: aviso con recarga en un clic (cada 30 min como mucho).
   const lowCredits = await lowCreditsAlerts().catch(() => null);
+  // Correos que no salieron cuando Gmail falló: de a pocos, del más nuevo al más viejo.
+  const outbox = await drainOutbox().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
@@ -108,5 +110,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, lowCredits, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, lowCredits, outbox, ms: Date.now() - start });
 }

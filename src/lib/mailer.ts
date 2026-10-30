@@ -8,7 +8,7 @@
  */
 import { db } from "./db";
 import { siteUrl } from "./config";
-import { gmailConfigured, sendMail } from "./gmail";
+import { gmailConfigured, gmailTokenCheck, sendMail } from "./gmail";
 import { hasColumn } from "./schemaFlags";
 import { noteFailure, suppressionReason } from "./suppression";
 
@@ -58,6 +58,12 @@ export async function sendServiceEmail(
 ): Promise<void> {
   const supa = db();
   let email = "";
+  const html = emailLayout({
+    title: content.title,
+    bodyHtml: content.bodyHtml,
+    cta: content.cta,
+    footerHtml: "Recibes este correo porque usas FormsBot (avisos de tus envíos y compras). ",
+  });
   try {
     const { data: u } = await supa.from("web_users").select("email,deleted_at").eq("id", userId).maybeSingle<{ email: string; deleted_at?: string | null }>();
     if (!u?.email || u.deleted_at || u.email.endsWith(".invalid")) return;
@@ -74,16 +80,7 @@ export async function sendServiceEmail(
       return;
     }
     if ((await sentLast24h()) >= DAILY_LIMIT) throw new Error("límite diario de Gmail alcanzado");
-    await sendMail({
-      to: email,
-      subject: content.subject,
-      html: emailLayout({
-        title: content.title,
-        bodyHtml: content.bodyHtml,
-        cta: content.cta,
-        footerHtml: "Recibes este correo porque usas FormsBot (avisos de tus envíos y compras). ",
-      }),
-    });
+    await sendMail({ to: email, subject: content.subject, html });
     await supa.from("web_email_log").insert({ kind, user_id: userId, email, ok: true });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
@@ -93,7 +90,87 @@ export async function sendServiceEmail(
       () => {},
       () => {}
     );
+    // Falla nuestra o pasajera (token, configuración, límite del día, red):
+    // el correo queda en cola y sale solo cuando Gmail vuelva a funcionar.
+    if (email && isRetryable(error)) {
+      await supa
+        .from("web_email_outbox")
+        .insert({ user_id: userId, email, kind, subject: content.subject, html, last_error: error.slice(0, 300) })
+        .then(
+          () => {},
+          () => {}
+        );
+    }
   }
+}
+
+/** Errores que no son culpa de la dirección: vale la pena reintentar más tarde. */
+function isRetryable(error: string): boolean {
+  if (/no se envía|invalid to|invalid.*address|recipient address rejected|no such user/i.test(error)) return false;
+  return /refresh token|oauth|no está configurado|límite diario|limit|quota|rate|timeout|network|fetch failed|ECONN|5\d\d|401|403|429/i.test(error);
+}
+
+const OUTBOX_PER_RUN = 6;
+const OUTBOX_MAX_AGE_DAYS = 30;
+
+/**
+ * Manda la cola de correos pendientes de a pocos (6 por pasada del worker,
+ * del más nuevo al más viejo) solo si Gmail ya funciona y sin pasar el
+ * límite diario. Los de más de 30 días se descartan.
+ */
+export async function drainOutbox(deadline = Date.now() + 15_000): Promise<{ sent: number; failed: number } | null> {
+  const supa = db();
+  const { data: next, error } = await supa
+    .from("web_email_outbox")
+    .select("id")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error || !next?.length) return null; // sin cola (o falta ronda_30.sql)
+  if (!gmailConfigured()) return null;
+  const token = await gmailTokenCheck();
+  if (!token.ok) return null; // Gmail sigue caído: se espera a la próxima pasada
+
+  await supa
+    .from("web_email_outbox")
+    .update({ status: "expired" })
+    .eq("status", "pending")
+    .lt("created_at", new Date(Date.now() - OUTBOX_MAX_AGE_DAYS * 86400_000).toISOString());
+
+  const budget = Math.min(OUTBOX_PER_RUN, DAILY_LIMIT - (await sentLast24h()));
+  if (budget <= 0) return { sent: 0, failed: 0 };
+  const { data: rows } = await supa
+    .from("web_email_outbox")
+    .select("id,user_id,email,kind,subject,html,attempts")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(budget);
+
+  const result = { sent: 0, failed: 0 };
+  for (const row of (rows ?? []) as { id: number; user_id: string | null; email: string; kind: string; subject: string; html: string; attempts: number }[]) {
+    if (Date.now() > deadline) break;
+    // Reclamo atómico: dos workers a la vez no mandan el mismo correo.
+    const { data: claimed } = await supa.from("web_email_outbox").update({ status: "sending" }).eq("id", row.id).eq("status", "pending").select("id");
+    if (!claimed?.length) continue;
+    const blocked = await suppressionReason(row.email);
+    if (blocked) {
+      await supa.from("web_email_outbox").update({ status: "failed", last_error: `No se envía: ${blocked}` }).eq("id", row.id);
+      continue;
+    }
+    try {
+      await sendMail({ to: row.email, subject: row.subject, html: row.html });
+      await supa.from("web_email_outbox").update({ status: "sent", sent_at: new Date().toISOString(), attempts: row.attempts + 1 }).eq("id", row.id);
+      await supa.from("web_email_log").insert({ kind: `${row.kind} (reenviado)`, user_id: row.user_id, email: row.email, ok: true });
+      result.sent++;
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+      const giveUp = row.attempts + 1 >= 5 || !isRetryable(msg);
+      await supa.from("web_email_outbox").update({ status: giveUp ? "failed" : "pending", attempts: row.attempts + 1, last_error: msg }).eq("id", row.id);
+      result.failed++;
+      if (isRetryable(msg)) break; // Gmail volvió a fallar: se para hasta la próxima pasada
+    }
+  }
+  return result;
 }
 
 export function unsubscribeUrl(token: string): string {

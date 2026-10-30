@@ -133,7 +133,7 @@ export default function InvitaClient() {
           <ul className="ref-rules">
             <li>Cada invitado te da premio <b>una sola vez</b> (en su primera compra de {fmtPen(r.minPurchaseCents)} o más), y él recibe su regalo una sola vez.</li>
             <li>Hasta <b>{r.monthlyCap} premios por mes</b>.</li>
-            <li>No cuentan tus propias cuentas, las creadas desde tu misma conexión ni correos que ya tuvieron cuenta.</li>
+            <li>Solo vale para cuentas nuevas. No cuentan tus propias cuentas ni correos que ya tuvieron cuenta.</li>
             <li>Si la compra se devuelve, el premio se retira. Los créditos de premio no se cambian por dinero.</li>
           </ul>
           <p className="fine">

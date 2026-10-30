@@ -2,17 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { fmtPen, useMe, usePublicSettings } from "../clientData";
+import { usePathname } from "next/navigation";
+import { fmtPen, useMe, usePublicSettings } from "./clientData";
 
 /**
- * Regalo flotante en "Comprar créditos": a quien ya compró le recuerda que
- * puede ganar créditos invitando. Al tocarlo muestra las condiciones.
+ * Regalo flotante en todas las páginas (con sesión iniciada): recuerda que se
+ * ganan créditos invitando. Al tocarlo muestra las condiciones. "No mostrar"
+ * lo oculta en este navegador.
  */
+const HIDE_KEY = "fb-hide-gift";
+function readHidden(): boolean {
+  try {
+    return localStorage.getItem(HIDE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 export default function ReferralFab() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
+  const path = usePathname() || "/";
   const [open, setOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [hidden, setHidden] = useState(readHidden);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,7 +39,7 @@ export default function ReferralFab() {
     };
   }, [open]);
 
-  if (!me || !me.hasPaid || !referral || hidden) return null;
+  if (!me || !referral || hidden || path.startsWith("/invita")) return null;
   return (
     <div className="gift-fab" ref={box}>
       {open && (
@@ -55,7 +66,18 @@ export default function ReferralFab() {
               Términos y condiciones
             </a>{" "}
             ·{" "}
-            <button type="button" className="linkish" onClick={() => setHidden(true)}>
+            <button
+              type="button"
+              className="linkish"
+              onClick={() => {
+                setHidden(true);
+                try {
+                  localStorage.setItem(HIDE_KEY, "1");
+                } catch {
+                  /* sin almacenamiento: solo se oculta ahora */
+                }
+              }}
+            >
               No mostrar
             </button>
           </p>

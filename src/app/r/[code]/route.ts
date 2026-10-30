@@ -3,6 +3,7 @@ import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { siteUrl } from "@/lib/config";
 import { getAppSettings } from "@/lib/appSettings";
 import { normalizeCode, REFERRAL_COOKIE, REFERRAL_COOKIE_DAYS, referrerExists } from "@/lib/referrals";
+import { getWebUser } from "@/lib/googleAuth";
 
 /**
  * /r/CODIGO → enlace de invitación. Guarda el código en una cookie httpOnly
@@ -17,6 +18,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   if (!code) return NextResponse.redirect(`${siteUrl()}/`);
   const settings = await getAppSettings();
   if (!settings.referral_enabled || !(await referrerExists(code))) return NextResponse.redirect(`${siteUrl()}/`);
+  // Ya tiene cuenta (sesión abierta): la invitación no aplica; se le explica.
+  if (await getWebUser()) return NextResponse.redirect(`${siteUrl()}/?invitado=existente`);
   home.cookies.set(REFERRAL_COOKIE, code, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

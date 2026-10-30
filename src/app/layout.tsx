@@ -6,6 +6,7 @@ import SupportButton from "./SupportButton";
 import ConsentGate from "./ConsentGate";
 import SiteBanner from "./SiteBanner";
 import InvitedNote from "./InvitedNote";
+import ReferralFab from "./ReferralFab";
 import BannedGate from "./BannedGate";
 
 
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Anuncios solo para visitantes gratuitos y fuera de las páginas de pago (ver Ads.tsx). */}
         <Ads />
         <SupportButton />
+        <ReferralFab />
         <ConsentGate />
         <BannedGate />
 
