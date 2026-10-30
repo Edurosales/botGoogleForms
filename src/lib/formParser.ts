@@ -411,9 +411,13 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
       continue;
     }
     if (itemType === 13 && isFileUploadItem(item)) fail("FILE_UPLOAD");
-    if (!itemTitle.trim()) continue;
 
     const qFields = Array.isArray(item[4]) ? (item[4] as unknown[]) : [];
+    // Sin título solo se salta si no tiene nada que responder (imagen, video,
+    // texto). Una cuadrícula puede no tener título y llevar todo en sus filas:
+    // antes se saltaba entera y esas preguntas nunca se llenaban.
+    const answerable = qFields.some((f) => Array.isArray(f) && typeof f[0] === "number" && f[0] !== 0);
+    if (!itemTitle.trim() && !answerable) continue;
 
     for (const qField of qFields) {
       if (!Array.isArray(qField) || qField.length === 0) continue;
@@ -445,16 +449,22 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
         }
       }
 
-      let qTitle = itemTitle;
+      let qTitle = itemTitle.trim();
+      // Cuadrícula de casillas (varias por fila): Google la marca con qField[11] = [1].
+      const flags = qField[11];
+      const checkboxGrid = itemType === 7 && Array.isArray(flags) && flags[0] === 1;
       if (itemType === 7 || itemType === 13) {
-        for (let pos = 2; pos < Math.min(qField.length, 7); pos++) {
+        // Texto de la fila: en qField[3] = ["texto"] (verificado en vivo) o, en
+        // formularios antiguos, una cadena suelta en qField[2..6].
+        let row = Array.isArray(qField[3]) ? firstString(qField[3] as unknown[]) : "";
+        for (let pos = 2; !row && pos < Math.min(qField.length, 7); pos++) {
           const v = qField[pos];
-          if (typeof v === "string" && v.trim()) {
-            qTitle = `${itemTitle} — ${v.trim()}`;
-            break;
-          }
+          if (typeof v === "string" && v.trim()) row = v.trim();
         }
+        if (row) qTitle = qTitle ? `${qTitle} — ${row.trim()}` : row.trim();
       }
+      if (!qTitle) qTitle = "Pregunta sin título";
+      const qType = checkboxGrid ? 13 : Math.max(0, itemType);
 
       // Obligatoria = qField[2] (verificado en vivo: [entryId, opciones, 1]).
       const required = qField[2] === 1 || qField[2] === true;
@@ -464,8 +474,8 @@ function parseFlat(items: unknown[]): { questions: ParsedQuestion[]; numSections
         id: entryId,
         entry: `entry.${entryId}`,
         title: qTitle.trim(),
-        type: Math.max(0, itemType),
-        typeName: QUESTION_TYPES[Math.max(0, itemType)] ?? `Tipo ${itemType}`,
+        type: qType,
+        typeName: QUESTION_TYPES[qType] ?? `Tipo ${itemType}`,
         options,
         required,
         ...(validation ? { validation } : {}),
