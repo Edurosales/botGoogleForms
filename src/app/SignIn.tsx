@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useId, useState, useSyncExternalStore } from "react";
 import { googleLoginHref, HAS_ACCOUNT_KEY, type LoginChoices } from "./clientData";
 import { Rich, useLang } from "./LangProvider";
@@ -174,7 +175,7 @@ export function ConsentChecks({
   country: boolean;
   setCountry: (v: boolean) => void;
 }) {
-  const { t } = useLang();
+  const { t, locale } = useLang();
   return (
     <div className="checks consent-checks">
       <div className="check">
@@ -185,12 +186,12 @@ export function ConsentChecks({
             text={t("auth.consentTerms")}
             tags={{
               terms: (c) => (
-                <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                <a href={legalHref(locale, "terms")} target="_blank" rel="noopener">
                   {c}
                 </a>
               ),
               privacy: (c) => (
-                <a href="/privacidad.html" target="_blank" rel="noopener">
+                <a href={legalHref(locale, "privacy")} target="_blank" rel="noopener">
                   {c}
                 </a>
               ),

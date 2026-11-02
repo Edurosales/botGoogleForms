@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { fmtPen, useMe, usePublicSettings } from "./clientData";
@@ -14,7 +15,7 @@ const noSubscribe = () => () => {};
 export default function InvitedNote() {
   const { referral } = usePublicSettings();
   const { me } = useMe();
-  const { t } = useLang();
+  const { t, locale } = useLang();
   const param = useSyncExternalStore(
     noSubscribe,
     () => new URLSearchParams(window.location.search).get("invitado") ?? "",
@@ -38,7 +39,7 @@ export default function InvitedNote() {
         <>
           <p>
             <Rich text={t("inv.new", { n: referral.referredCredits, min: fmtPen(referral.minPurchaseCents) })} />{" "}
-            <a href="/terminos-herramienta.html#referidos">{t("inv.conditions")}</a>
+            <a href={legalHref(locale, "terms", "#referidos")}>{t("inv.conditions")}</a>
           </p>
           <Link className="b b-primary b-small" href="/mi-cuenta?modo=registro&volver=%2F">
             {t("inv.create")}

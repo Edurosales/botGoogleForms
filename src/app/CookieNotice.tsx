@@ -1,14 +1,15 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { Rich, useLang } from "./LangProvider";
 
 /** Aviso de cookies (los botones los maneja /script.js por sus data-*). */
 export default function CookieNotice() {
-  const { t } = useLang();
+  const { t, locale } = useLang();
   return (
     <div className="cookie" role="dialog" aria-label={t("cookie.label")}>
       <p>
-        <Rich text={t("cookie.text")} tags={{ privacy: (c) => <a href="/privacidad.html">{c}</a> }} />
+        <Rich text={t("cookie.text")} tags={{ privacy: (c) => <a href={legalHref(locale, "privacy")}>{c}</a> }} />
       </p>
       <div className="cookie-actions">
         <button className="btn btn-ghost" type="button" data-cookie-reject="">

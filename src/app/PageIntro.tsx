@@ -5,12 +5,12 @@ import { useLang } from "./LangProvider";
 
 /** Encabezados de las páginas (el servidor no sabe el idioma; se traduce en el navegador). */
 export function HomeIntro() {
-  const { t } = useLang();
+  const { t, locale } = useLang();
   return (
     <div className="intro">
       <h1>{t("home.h1")}</h1>
       <p>
-        {t("home.lead")} <Link href="/sobre">{t("home.how")}</Link>
+        {t("home.lead")} <Link href={locale === "es" ? "/sobre" : `/${locale}`}>{t("home.how")}</Link>
       </p>
     </div>
   );

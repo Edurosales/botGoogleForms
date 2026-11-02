@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useState } from "react";
 import type { Me } from "../clientData";
 import { Rich, useLang } from "../LangProvider";
@@ -9,7 +10,7 @@ import { Rich, useLang } from "../LangProvider";
  * guardamos y borrar la cuenta (RGPD art. 7.3, 15, 17 y 20).
  */
 export default function PrivacyPanel({ me, onChange }: { me: Me; onChange: () => void }) {
-  const { tr } = useLang();
+  const { tr, locale } = useLang();
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -126,7 +127,7 @@ export default function PrivacyPanel({ me, onChange }: { me: Me; onChange: () =>
       <p className="fine">
         <Rich
           text={tr("Más detalles en la <privacy>política de privacidad</privacy>. ¿Dudas sobre tus datos? Escríbenos desde el botón Soporte.")}
-          tags={{ privacy: (c) => <a href="/privacidad.html">{c}</a> }}
+          tags={{ privacy: (c) => <a href={legalHref(locale, "privacy")}>{c}</a> }}
         />
       </p>
     </section>

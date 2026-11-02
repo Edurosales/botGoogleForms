@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -23,7 +24,7 @@ export default function ReferralFab() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
   const path = usePathname() || "/";
-  const { t } = useLang();
+  const { t, locale } = useLang();
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(readHidden);
   const box = useRef<HTMLDivElement>(null);
@@ -61,7 +62,7 @@ export default function ReferralFab() {
             {t("gift.cta")}
           </Link>
           <p className="gift-terms">
-            <a href="/terminos-herramienta.html#referidos" target="_blank" rel="noopener">
+            <a href={legalHref(locale, "terms", "#referidos")} target="_blank" rel="noopener">
               {t("gift.terms")}
             </a>{" "}
             ·{" "}

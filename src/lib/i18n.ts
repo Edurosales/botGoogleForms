@@ -16,6 +16,15 @@ export const LOCALE_SHORT: Record<Locale, string> = { es: "ES", en: "EN", pt: "P
 /** Idioma de las respuestas de la IA (códigos de SUPPORTED_LANGUAGES) según el de la interfaz. */
 export const AI_LANGUAGE: Record<Locale, string> = { es: "español", en: "inglés", pt: "portugués", it: "italiano", fr: "francés" };
 
+/**
+ * Términos y privacidad: en español la versión oficial; en los demás idiomas la
+ * traducción al inglés (terms-web.html / privacy.html), que remite a la española.
+ */
+export function legalHref(locale: Locale, page: "terms" | "privacy", hash = ""): string {
+  const file = locale === "es" ? (page === "terms" ? "/terminos-herramienta.html" : "/privacidad.html") : page === "terms" ? "/terms-web.html" : "/privacy.html";
+  return file + hash;
+}
+
 export function isLocale(v: unknown): v is Locale {
   return typeof v === "string" && (LOCALES as readonly string[]).includes(v);
 }

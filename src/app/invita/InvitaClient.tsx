@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fmtPen, useMe, usePublicSettings } from "../clientData";
@@ -151,7 +152,7 @@ export default function InvitaClient() {
             <li>{tr("Si la compra se devuelve, el premio se retira. Los créditos de premio no se cambian por dinero.")}</li>
           </ul>
           <p className="fine">
-            <a href="/terminos-herramienta.html#referidos" target="_blank" rel="noopener">
+            <a href={legalHref(locale, "terms", "#referidos")} target="_blank" rel="noopener">
               {tr("Términos y condiciones de Invita y gana")}
             </a>
           </p>

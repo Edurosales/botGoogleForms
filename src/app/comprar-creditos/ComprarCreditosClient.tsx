@@ -1,5 +1,6 @@
 "use client";
 
+import { legalHref } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 
 type Capacity = {
@@ -513,7 +514,7 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                 {coupon.status === "ok" && /^VUELVE-/i.test(couponCode.trim()) && (
                   <p className="fine">
                     {tr("Cupón personal: un solo uso, solo para tu cuenta e intransferible; no se acumula ni se canjea por dinero.")}{" "}
-                    <a href="/terminos-herramienta.html#cupones" target="_blank" rel="noopener">
+                    <a href={legalHref(locale, "terms", "#cupones")} target="_blank" rel="noopener">
                       {tr("Condiciones")}
                     </a>
                   </p>

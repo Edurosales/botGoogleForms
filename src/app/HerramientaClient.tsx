@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { detectLanguage } from "@/lib/langDetect";
-import { AI_LANGUAGE } from "@/lib/i18n";
+import { AI_LANGUAGE, legalHref } from "@/lib/i18n";
 import { Rich, useLang } from "./LangProvider";
 import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
@@ -986,7 +986,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                       text={tr("El formulario es mío o tengo permiso para probarlo, y no es un concurso ni una votación. Acepto los <terms>términos</terms>.")}
                       tags={{
                         terms: (c) => (
-                          <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                          <a href={legalHref(locale, "terms")} target="_blank" rel="noopener">
                             {c}
                           </a>
                         ),

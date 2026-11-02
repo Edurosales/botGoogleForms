@@ -18,7 +18,9 @@ const LINKS: { href: string; label: MsgKey }[] = [
 export default function SiteNav() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
-  const { t } = useLang();
+  const { t, locale } = useLang();
+  // "Sobre FormsBot" está en español: en otros idiomas va a su página (/en, /pt…).
+  const aboutHref = locale === "es" ? "/sobre" : `/${locale}`;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -61,7 +63,11 @@ export default function SiteNav() {
 
         <nav className="tn-links" aria-label={t("nav.main")}>
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
+            <Link
+              key={l.href}
+              href={l.href === "/sobre" ? aboutHref : l.href}
+              aria-current={pathname === (l.href === "/sobre" ? aboutHref : l.href) ? "page" : undefined}
+            >
               {t(l.label)}
             </Link>
           ))}
