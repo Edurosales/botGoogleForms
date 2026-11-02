@@ -574,56 +574,13 @@ export interface ModerationResult {
   reason: string;
 }
 
-/** Clasifica si el formulario es apto (rechaza concursos/sorteos/elecciones/ilegal). */
-export async function moderateForm(form: ParsedForm): Promise<ModerationResult> {
-  const questionTitles = form.questions.slice(0, 40).map((q, i) => `${i + 1}. ${q.title}`).join("\n");
-
-  const prompt = [
-    "Evalúa si este formulario de Google Forms puede ser respondido automáticamente por un servicio de pruebas.",
-    "RECHAZA (allowed=false) si el formulario es, o parece ser, cualquiera de estas cosas:",
-    "- Un concurso, sorteo, rifa o giveaway con premio.",
-    "- Una votación, elección, encuesta electoral o postulación oficial.",
-    "- Cualquier actividad regulada o ilegal (apuestas, trámites legales vinculantes, datos financieros sensibles de terceros).",
-    "ACEPTA (allowed=true) formularios normales de prueba, feedback, inscripciones internas, encuestas de opinión no electorales, etc.",
-    "",
-    `Título: "${form.title}"`,
-    form.description ? `Descripción: "${form.description}"` : "",
-    "Preguntas:",
-    questionTitles,
-    "",
-    'Responde SOLO con JSON: {"allowed": true|false, "reason": "motivo breve en español"}',
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  // Tope corto: leer un formulario no puede esperar a una clave lenta. Si la
-  // IA no responde en ~8 s, se usa la revisión local (moderateFormSafe).
-  const text = await aiChat(
-    [
-      { role: "system", content: "Eres un moderador de contenido estricto. Responde solo JSON válido." },
-      { role: "user", content: prompt },
-    ],
-    { purpose: "moderate", temperature: 0.1, maxTokens: 600, deadline: Date.now() + 8_500, perKeyTimeoutMs: 8_000 }
-  );
-
-  try {
-    const parsed = cleanAndParseJson(text)[0] as { allowed?: boolean; reason?: string } | undefined;
-    if (parsed && typeof parsed.allowed === "boolean") {
-      return { allowed: parsed.allowed, reason: parsed.reason ?? "" };
-    }
-  } catch {
-    // respuesta ilegible: se decide con la revisión local
-  }
-  return heuristicModeration(form);
-}
-
 const BLOCKED_KEYWORDS = [
   "sorteo", "rifa", "concurso", "giveaway", "premio", "ganador", "ganadora",
   "votacion", "votación", "vota por", "voto", "eleccion", "elección", "candidato", "candidata",
   "apuesta", "casino",
 ];
 
-/** Revisión local por palabras clave — solo se usa si Groq no responde. */
+/** Revisión local por palabras clave (sin red). */
 export function heuristicModeration(form: ParsedForm): ModerationResult {
   const text = [form.title, form.description, ...form.questions.map((q) => q.title)].join(" \n ").toLowerCase();
   const hit = BLOCKED_KEYWORDS.find((k) => new RegExp(`(^|[^a-záéíóúñ])${k}([^a-záéíóúñ]|$)`).test(text));
@@ -633,27 +590,12 @@ export function heuristicModeration(form: ParsedForm): ModerationResult {
 }
 
 /**
- * Moderación que nunca bloquea al usuario por una caída de Groq (límite
- * diario agotado, red): en ese caso cae a la revisión por palabras clave.
+ * Revisión del formulario al leerlo y al enviarlo. Solo la local por palabras
+ * clave: es instantánea y no gasta IA (la revisión con IA tardaba hasta 8 s
+ * por formulario y era lo más lento de todo el flujo).
  */
-const moderationCache = new Map<string, { at: number; result: ModerationResult }>();
-const MODERATION_TTL_MS = 6 * 3600_000;
-
-export async function moderateFormSafe(form: ParsedForm): Promise<ModerationResult> {
-  // El mismo formulario (leer y luego enviar, o leerlo otra vez) no se revisa
-  // dos veces: la revisión de la IA es lo más lento de leer un formulario.
-  const key = `${form.viewUrl}|${form.title}|${form.questions.length}`;
-  const hit = moderationCache.get(key);
-  if (hit && Date.now() - hit.at < MODERATION_TTL_MS) return hit.result;
-  try {
-    const result = await moderateForm(form);
-    moderationCache.set(key, { at: Date.now(), result });
-    if (moderationCache.size > 500) moderationCache.delete(moderationCache.keys().next().value as string);
-    return result;
-  } catch (e) {
-    console.error("[moderation] Groq no disponible, usando revisión local:", e instanceof Error ? e.message : e);
-    return heuristicModeration(form);
-  }
+export function moderateFormSafe(form: ParsedForm): ModerationResult {
+  return heuristicModeration(form);
 }
 
 /** Llamada corta a Groq que debe devolver un objeto JSON (recomendaciones, etc.). */

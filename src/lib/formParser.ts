@@ -538,7 +538,23 @@ function parseGrouped(groups: unknown[]): { questions: ParsedQuestion[]; numSect
 
 // ── Parser principal ─────────────────────────────────────────────
 
+// Lo leído de Google se recuerda unos minutos por instancia: al crear el envío
+// (justo después de leer el link) no se vuelve a descargar el formulario. Solo
+// se guardan lecturas correctas; un error se vuelve a intentar siempre.
+const PARSE_TTL_MS = 10 * 60_000;
+const parsed = new Map<string, { at: number; form: ParsedForm }>();
+
 export async function parseForm(inputUrl: string): Promise<ParsedForm> {
+  const key = inputUrl.trim();
+  const hit = parsed.get(key);
+  if (hit && Date.now() - hit.at < PARSE_TTL_MS) return hit.form;
+  const form = await parseFormUncached(key);
+  parsed.set(key, { at: Date.now(), form });
+  if (parsed.size > 300) parsed.delete(parsed.keys().next().value as string);
+  return form;
+}
+
+async function parseFormUncached(inputUrl: string): Promise<ParsedForm> {
   const input = inputUrl.trim();
   if (!input) fail("INVALID_URL");
   let { viewUrl, submitUrl } = normalizeUrls(input);

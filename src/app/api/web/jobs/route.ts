@@ -17,10 +17,11 @@ import {
   FREE_ACCOUNTS_PER_FORM,
   SPREAD_OPTIONS,
 } from "@/lib/webConfig";
-import { usage, resolveGlobalCap, type UsageRow } from "@/lib/capacity";
+import { usageSince, resolveGlobalCap } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
 import { getAppSettings } from "@/lib/appSettings";
 import { formIdOf } from "@/lib/formId";
+import { freeAccountsOnForm } from "@/lib/formJobs";
 import { limitsFor } from "@/lib/limits";
 
 
@@ -49,29 +50,6 @@ async function hasEverPaid(userId: string, credits: number): Promise<boolean> {
     .eq("user_id", userId)
     .eq("status", "paid");
   return (count ?? 0) > 0;
-}
-
-/**
- * Cuántas OTRAS cuentas ya llenaron gratis este formulario (envíos gratis que
- * llegaron a enviar algo o que están en curso). Se compara por el ID del
- * formulario, no por el texto del link.
- */
-async function otherFreeAccountsOnForm(formId: string, userId: string): Promise<number> {
-  // "_" y "%" son comodines en LIKE: el ID puede traer "_".
-  const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-  const { data } = await db()
-    .from("web_jobs")
-    .select("user_id,status,sent")
-    .eq("is_paid", false)
-    .neq("user_id", userId)
-    .like("view_url", pattern)
-    .limit(200);
-  const users = new Set(
-    (data ?? [])
-      .filter((j) => j.status === "queued" || j.status === "processing" || (j.sent ?? 0) > 0)
-      .map((j) => j.user_id as string)
-  );
-  return users.size;
 }
 
 function sanitizeQConfig(raw: unknown): QuestionConfigMap {
@@ -185,7 +163,8 @@ export async function POST(request: Request) {
   // correo generado en cada respuesta (ver formSubmitter). Los de correo
   // verificado exigen iniciar sesión y parseForm ya los rechaza (NOT_PUBLIC).
 
-  const moderation = await moderateFormSafe(form);
+  // Revisión local instantánea (sin IA).
+  const moderation = moderateFormSafe(form);
   if (!moderation.allowed) {
     return fail(400, {
       code: "BLOCKED_CONTENT",
@@ -217,12 +196,7 @@ export async function POST(request: Request) {
   // Por cuenta y global en 24 h: nadie puede reintentar sin fin ni
   // saturar Google/Vercel, ni siquiera con créditos.
   const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
-  const supaCheck = db();
-  const [{ data: mine }, { data: everyone }] = await Promise.all([
-    supaCheck.from("web_jobs").select("total,sent,failed,status").eq("user_id", user.id).gte("created_at", since),
-    supaCheck.from("web_jobs").select("total,sent,failed,status").gte("created_at", since),
-  ]);
-  const usedToday = usage(mine as UsageRow[] | null);
+  const [usedToday, usedAll, globalCap] = await Promise.all([usageSince(since, user.id), usageSince(since), resolveGlobalCap()]);
   if (usedToday + total > lim.maxDailyResponses) {
     const left = Math.max(0, lim.maxDailyResponses - usedToday);
     return fail(429, {
@@ -234,7 +208,7 @@ export async function POST(request: Request) {
           : `Llegaste al límite de ${lim.maxDailyResponses} respuestas en 24 horas. Vuelve mañana, o usa FormsBot para Windows si necesitas más volumen.`,
     });
   }
-  if (usage(everyone as UsageRow[] | null) + total > (await resolveGlobalCap())) {
+  if (usedAll + total > globalCap) {
     return fail(503, {
       code: "SERVICE_BUSY",
       ...balances,
@@ -258,7 +232,7 @@ export async function POST(request: Request) {
     // no existe se usa el valor por defecto del código.
     const limit = (await getAppSettings()).free_accounts_per_form ?? FREE_ACCOUNTS_PER_FORM;
     const formId = limit > 0 ? formIdOf(form.viewUrl) : null;
-    const others = formId ? await otherFreeAccountsOnForm(formId, user.id) : 0;
+    const others = formId ? await freeAccountsOnForm(formId, user.id) : 0;
     if (formId && others >= limit) {
       if (user.credits >= total) {
         isPaid = true; // se cobra de sus créditos comprados
@@ -330,6 +304,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       form_url: formUrl,
       view_url: form.viewUrl,
+      form_id: formIdOf(form.viewUrl),
       submit_url: form.submitUrl,
       title: form.title.slice(0, 300),
       num_sections: form.numSections,
@@ -348,7 +323,7 @@ export async function POST(request: Request) {
       // Lapso de envío solo para envíos pagados (los gratis ocuparían la fila horas).
       spread_minutes: isPaid && (SPREAD_OPTIONS as readonly number[]).includes(Number(body.spreadMinutes)) ? Number(body.spreadMinutes) : 0,
     },
-    ["collects_email", "last_seen_at", "spread_minutes"]
+    ["collects_email", "last_seen_at", "spread_minutes", "form_id"]
   );
   const { data: job, error } = await supa.from("web_jobs").insert(row).select().single<WebJob>();
 
@@ -363,12 +338,7 @@ export async function POST(request: Request) {
   // varias peticiones simultáneas veían todas "te quedan 500". Ahora cada una
   // ve también a las demás ya insertadas; si entre todas se pasan, esta se
   // anula y se reembolsa (puede rechazar de más, nunca permitir de más).
-  const { data: mineAfter } = await supa
-    .from("web_jobs")
-    .select("total,sent,failed,status")
-    .eq("user_id", user.id)
-    .gte("created_at", since);
-  if (usage(mineAfter as UsageRow[] | null) > lim.maxDailyResponses) {
+  if ((await usageSince(since, user.id)) > lim.maxDailyResponses) {
     const { data: removed } = await supa.from("web_jobs").delete().eq("id", job.id).eq("status", "queued").select("id");
     if (removed?.length) {
       await spendCredits(user.id, -paidSpend, -freeSpend).catch((e) => console.error("[jobs] reembolso fallido:", e));

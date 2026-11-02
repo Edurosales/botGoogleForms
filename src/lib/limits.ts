@@ -6,7 +6,7 @@
 import { db } from "./db";
 import { getAppSettings } from "./appSettings";
 import { MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS, MAX_RESPONSES_PER_DAY } from "./webConfig";
-import { usage, type UsageRow } from "./capacity";
+import { usageSince } from "./capacity";
 
 export type Limits = {
   maxPaidQuestions: number;
@@ -54,8 +54,7 @@ export async function limitsFor(email: string): Promise<Limits> {
 /** Respuestas usadas por la cuenta en las últimas 24 h (misma regla que el límite diario). */
 export async function responsesUsedToday(userId: string): Promise<number> {
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-  const { data } = await db().from("web_jobs").select("total,sent,failed,status").eq("user_id", userId).gte("created_at", since);
-  return usage(data as UsageRow[] | null);
+  return usageSince(since, userId);
 }
 
 /** Créditos comprados (pagados) por la cuenta en las últimas 24 h. */

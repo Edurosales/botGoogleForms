@@ -19,6 +19,20 @@ export function usage(rows: UsageRow[] | null | undefined): number {
   );
 }
 
+/**
+ * Uso desde `since` (de una cuenta o de todo el servicio) sumado en la base
+ * (ronda_32.sql → web_usage_since). Si la función aún no existe, se suma aquí.
+ */
+export async function usageSince(since: string, userId?: string): Promise<number> {
+  const supa = db();
+  const { data, error } = await supa.rpc("web_usage_since", { p_since: since, p_user: userId ?? null });
+  if (!error && data !== null && data !== undefined) return Number(data) || 0;
+  let q = supa.from("web_jobs").select("total,sent,failed,status").gte("created_at", since);
+  if (userId) q = q.eq("user_id", userId);
+  const { data: rows } = await q;
+  return usage(rows as UsageRow[] | null);
+}
+
 export function since24h(): string {
   return new Date(Date.now() - 24 * 60 * 60_000).toISOString();
 }
@@ -40,17 +54,12 @@ export type Capacity = {
 };
 
 export async function getCapacity(userId?: string): Promise<Capacity> {
-  const supa = db();
   const since = since24h();
-  const [cap, all, mine] = await Promise.all([
+  const [cap, globalUsed, userUsed] = await Promise.all([
     resolveGlobalCap(),
-    supa.from("web_jobs").select("total,sent,failed,status").gte("created_at", since),
-    userId
-      ? supa.from("web_jobs").select("total,sent,failed,status").eq("user_id", userId).gte("created_at", since)
-      : Promise.resolve({ data: null }),
+    usageSince(since),
+    userId ? usageSince(since, userId) : Promise.resolve(null),
   ]);
-  const globalUsed = usage(all.data as UsageRow[] | null);
-  const userUsed = userId ? usage(mine.data as UsageRow[] | null) : null;
   return {
     globalCap: cap,
     globalUsed,

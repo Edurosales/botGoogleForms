@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
-import { heuristicModeration, moderateFormSafe } from "@/lib/aiProfiles";
+import { moderateFormSafe } from "@/lib/aiProfiles";
 import { heuristicRecommendations } from "@/lib/recommend";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { getWebUser } from "@/lib/googleAuth";
 import { FREE_ACCOUNTS_PER_FORM, MAX_FREE_QUESTIONS, MAX_PAID_QUESTIONS } from "@/lib/webConfig";
 import { limitsFor } from "@/lib/limits";
 import { getAppSettings } from "@/lib/appSettings";
-import { db } from "@/lib/db";
 import { formIdOf } from "@/lib/formId";
+import { freeAccountsOnForm, lastJobOnForm } from "@/lib/formJobs";
 
 function err(code: string, reason: string, status = 400, extra: Record<string, unknown> = {}) {
   // `error` se mantiene por compatibilidad con la UI anterior.
@@ -42,15 +42,14 @@ export async function POST(request: Request) {
   }
 
 
-  // Sin sesión, solo la revisión local por palabras clave: si no, cualquiera
-  // podría repetir lecturas anónimas y agotar la cuota diaria de Groq que
-  // usan los clientes que pagan. La revisión con IA se repite igual al crear
-  // el envío (con sesión y con su propio límite).
-  // Todo lo que no depende entre sí se pide a la vez (antes iba uno tras otro).
-  const [moderation, settings, userLimits] = await Promise.all([
-    user ? moderateFormSafe(form) : Promise.resolve(heuristicModeration(form)),
+  // Revisión local instantánea (sin IA). Lo que no depende entre sí va a la vez,
+  // incluidas las dos consultas por formulario (antes iban una tras otra).
+  const moderation = moderateFormSafe(form);
+  const formId = formIdOf(form.viewUrl);
+  const [settings, userLimits, last] = await Promise.all([
     getAppSettings(),
     user ? limitsFor(user.email) : Promise.resolve(null),
+    user && formId ? lastJobOnForm(formId, user.id) : Promise.resolve(null),
   ]);
   if (!moderation.allowed) {
     return err(
@@ -81,56 +80,29 @@ export async function POST(request: Request) {
   }
 
   // Este formulario ya usó su envío gratis (desde otra cuenta): se avisa ANTES
-  // de configurar, no al final.
-  const formId = formIdOf(form.viewUrl);
+  // de configurar, no al final. Quien ya tiene créditos (comprados o regalados)
+  // no necesita el aviso: el envío se cobra de sus créditos sin problema.
   const freeLimit = settings.free_accounts_per_form ?? FREE_ACCOUNTS_PER_FORM;
-  // Quien ya tiene créditos (comprados o regalados) no necesita el aviso: el
-  // envío se cobra de sus créditos sin problema.
-  if (formId && freeLimit > 0 && !(user && user.credits > 0)) {
-    const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const { data: freeJobs } = await db()
-      .from("web_jobs")
-      .select("user_id,status,sent")
-      .eq("is_paid", false)
-      .like("view_url", pattern)
-      .limit(200);
-    const others = new Set(
-      (freeJobs ?? [])
-        .filter((j) => (j.status === "queued" || j.status === "processing" || (j.sent ?? 0) > 0) && j.user_id !== user?.id)
-        .map((j) => j.user_id as string)
-    );
-    if (others.size >= freeLimit) {
-      warnings.push({
-        code: "FORM_FREE_USED",
-        message:
-          "Este formulario ya fue respondido con un envío gratis. Para enviarle más respuestas necesitas créditos comprados (cualquier paquete). Si ya compraste, se descuentan de tus créditos.",
-      });
-    }
+  if (formId && freeLimit > 0 && !(user && user.credits > 0) && (await freeAccountsOnForm(formId, user?.id)) >= freeLimit) {
+    warnings.push({
+      code: "FORM_FREE_USED",
+      message:
+        "Este formulario ya fue respondido con un envío gratis. Para enviarle más respuestas necesitas créditos comprados (cualquier paquete). Si ya compraste, se descuentan de tus créditos.",
+    });
   }
 
   // La última configuración que esta persona usó con este mismo formulario:
   // se aplica sola al volver a pegar el link.
-  let lastConfig: Record<string, unknown> | null = null;
-  if (user && formId) {
-    const pattern = `%${formId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const { data: last } = await db()
-      .from("web_jobs")
-      .select("q_config,total,language,custom_instructions,created_at")
-      .eq("user_id", user.id)
-      .like("view_url", pattern)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (last?.q_config && Object.keys(last.q_config as object).length) {
-      lastConfig = {
-        qConfig: last.q_config,
-        total: last.total,
-        language: last.language,
-        customInstructions: last.custom_instructions ?? "",
-        usedAt: last.created_at,
-      };
-    }
-  }
+  const lastConfig =
+    last?.q_config && Object.keys(last.q_config as object).length
+      ? {
+          qConfig: last.q_config,
+          total: last.total,
+          language: last.language,
+          customInstructions: last.custom_instructions ?? "",
+          usedAt: last.created_at,
+        }
+      : null;
   const required = form.questions.filter((q) => q.required).length;
   if (form.numSections > 1) {
     warnings.push({
@@ -142,7 +114,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     form: {
-      formId: formIdOf(form.viewUrl),
+      formId,
       title: form.title,
       description: form.description,
       numSections: form.numSections,
