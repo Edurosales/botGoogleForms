@@ -6,6 +6,8 @@
 type Row = readonly [en: string, pt: string, it: string, fr: string];
 
 export const PHRASES: Record<string, Row> = {
+  "Qué debe responder la IA (ej: opiniones positivas sobre el curso)": ["What the AI should answer (e.g. positive opinions about the course)", "O que a IA deve responder (ex: opiniões positivas sobre o curso)", "Cosa deve rispondere l'IA (es: opinioni positive sul corso)", "Ce que l'IA doit répondre (ex : avis positifs sur le cours)"],
+  "Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.": ["Instruction for the AI. Each answer will have at most 8 words.", "Indicação para a IA. Cada resposta terá no máximo 8 palavras.", "Indicazione per l'IA. Ogni risposta avrà al massimo 8 parole.", "Consigne pour l'IA. Chaque réponse fera au maximum 8 mots."],
   "Cancelar envío": ["Cancel submission", "Cancelar envio", "Annulla invio", "Annuler l'envoi"],
   "Cancelando…": ["Cancelling…", "Cancelando…", "Annullamento…", "Annulation…"],
   "¿Cancelar el envío? Se detiene al instante y te devolvemos lo que no se envió.": ["Cancel the submission? It stops instantly and we refund what wasn't sent.", "Cancelar o envio? Ele para na hora e devolvemos o que não foi enviado.", "Annullare l'invio? Si ferma subito e ti restituiamo ciò che non è stato inviato.", "Annuler l'envoi ? Il s'arrête immédiatement et nous vous rendons ce qui n'a pas été envoyé."],

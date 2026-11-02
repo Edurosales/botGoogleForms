@@ -189,12 +189,15 @@ export function QuestionControls({
             type="text"
             maxLength={300}
             aria-label={tr("Indicación para la IA en la pregunta {n}", { n: index + 1 })}
-            placeholder={tr("Indicación opcional (ej: respuestas cortas y positivas)")}
+            placeholder={tr("Qué debe responder la IA (ej: opiniones positivas sobre el curso)")}
+            title={tr("Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.")}
             value={conf.prompt ?? ""}
             onChange={(e) => onChange({ prompt: e.target.value })}
           />
         )}
       </div>
+
+      {conf.mode === "ai" && <p className="q-hint">{tr("Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.")}</p>}
 
       {ui === "fixed" && (kind === "single" || kind === "multi") && (
         <div className="chips" role="group" aria-label={tr("Opciones para la pregunta {n}", { n: index + 1 })}>

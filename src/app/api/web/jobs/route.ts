@@ -144,8 +144,9 @@ export async function POST(request: Request) {
     });
   }
 
-  // Todo texto libre termina en el prompt de Groq o en la BD: se acota.
-  const customInstructions = typeof body.customInstructions === "string" ? body.customInstructions.slice(0, 600) : "";
+  // El "perfil de quien responde" se quitó: cada pregunta con IA lleva su propia
+  // indicación (q_config.prompt). Se ignora aunque lo mande un cliente viejo.
+  const customInstructions = "";
   const language = SUPPORTED_LANGUAGES.some((l) => l.code === body.language)
     ? (body.language as string)
     : SUPPORTED_LANGUAGES[0].code;

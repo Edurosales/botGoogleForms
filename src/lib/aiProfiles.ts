@@ -123,6 +123,21 @@ function isLocallyResolvable(q: ParsedQuestion, cfg: QuestionConfig): boolean {
 /** true si ALGUNA pregunta necesita Groq — permite saber, sin generar
  * nada, si un job puede tratarse como "sin IA" (generar todo de una vez,
  * sin los límites de tokens/minuto de Groq). */
+/** Largo máximo de una respuesta de texto de la IA (también lo que sale del banco). */
+export const MAX_ANSWER_WORDS = 8;
+
+/** Corta a MAX_ANSWER_WORDS palabras, sin coma ni conector colgando al final. */
+export function capWords(text: string, max = MAX_ANSWER_WORDS): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= max) return text.trim();
+  return words
+    .slice(0, max)
+    .join(" ")
+    .replace(/[,;:\-–—]+$/, "")
+    .replace(/\s+(y|o|de|del|la|el|los|las|en|con|que|and|or|the|of|to|e|ou|di|et)$/i, "")
+    .trim();
+}
+
 export function needsAi(questions: ParsedQuestion[], qConfig: QuestionConfigMap): boolean {
   return questions.some((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {}));
 }
@@ -367,7 +382,8 @@ function buildPrompt(
 
     let promptHint = "";
     if (mode === "ai" && qPrompt) {
-      promptHint = `  [INSTRUCCIÓN ESPECÍFICA PARA ESTA PREGUNTA: ${qPrompt}]`;
+      // La indicación del cliente manda en el contenido, nunca en el largo.
+      promptHint = `  [INSTRUCCIÓN ESPECÍFICA PARA ESTA PREGUNTA: ${qPrompt}] [Aunque la instrucción pida más: MÁXIMO ${MAX_ANSWER_WORDS} palabras]`;
     }
 
     const tLow = q.title.toLowerCase();
@@ -543,7 +559,7 @@ async function generateProfilesRaw(
   const fromBank = (i: number, profile: Record<string, string>) => {
     for (const [entry, answers] of cached) {
       const q = openAi.find((x) => x.entry === entry);
-      if (q) profile[entry] = conformToValidation(q, answers[i] ?? "", nameState);
+      if (q) profile[entry] = conformToValidation(q, capWords(answers[i] ?? ""), nameState);
     }
     return profile;
   };
@@ -583,7 +599,7 @@ async function generateProfilesRaw(
         // La IA a veces escribe "veinticinco" o "25 años": si el dueño puso
         // una validación (número en rango, correo), se corrige aquí antes de
         // que Google rechace el envío entero.
-        answer = conformToValidation(q, answer, nameState);
+        answer = conformToValidation(q, capWords(answer), nameState);
       }
       profile[q.entry] = answer;
     });

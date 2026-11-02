@@ -544,7 +544,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       const res = await fetch("/api/web/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formUrl: url, total, language, customInstructions, qConfig: effectiveQ, acceptedTerms: true, spreadMinutes }),
+        body: JSON.stringify({ formUrl: url, total, language, customInstructions: "", qConfig: effectiveQ, acceptedTerms: true, spreadMinutes }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok && data.code === "ACTIVE_JOB" && data.activeJobId) {
@@ -949,20 +949,6 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             </ol>
           </fieldset>
 
-          <fieldset className="group">
-            <legend>{tr("Perfil de quien responde")}</legend>
-            <p className="group-hint">{tr("Opcional. Solo lo usan las preguntas en modo IA.")}</p>
-            <label className="sr" htmlFor="persona">
-              {tr("Perfil de quien responde")}
-            </label>
-            <textarea
-              id="persona"
-              maxLength={600}
-              placeholder={tr("Ej: estudiantes universitarios de 18 a 24 años de Lima")}
-              value={customInstructions}
-              onChange={(e) => setCustomInstructions(e.target.value)}
-            />
-          </fieldset>
 
           {notice && (
             <div className={notice.code === "CONFIRM" ? "note note-warn" : "note note-err"} role="alert">
