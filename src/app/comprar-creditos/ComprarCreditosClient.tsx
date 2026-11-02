@@ -19,6 +19,7 @@ import { useDailyLimits } from "../clientData";
 import { announceBalanceChange, fmtPen, formatPhone, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "../clientData";
 import { SignInCard } from "../SignIn";
 import PurchaseCelebration from "../PurchaseCelebration";
+import CreditCalculator from "./CreditCalculator";
 import { MP_REJECT_REASONS } from "./mpReasons";
 import Script from "next/script";
 import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "./PayLogos";
@@ -428,6 +429,15 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                   </div>
                 )}
                 <p className="fine">{tr("Puedes comprar varios paquetes en el día mientras no pases de {n} créditos.", { n: daily?.purchases.max ?? settings.dailyPurchaseCap })}</p>
+                <CreditCalculator
+                  packages={packages}
+                  balance={me ? me.credits + me.freeCredits : 0}
+                  buyLeft={buyLeft}
+                  onPick={(i) => {
+                    changePackage(i);
+                    document.querySelector(".packs")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                />
                 <div className="packs" role="radiogroup" aria-label={tr("Paquetes de créditos")}>
                   {packages.map((p, i) => {
                     const perResponse = p.priceCents / p.responses;

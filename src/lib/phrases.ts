@@ -6,6 +6,16 @@
 type Row = readonly [en: string, pt: string, it: string, fr: string];
 
 export const PHRASES: Record<string, Row> = {
+  "Calculadora": ["Calculator", "Calculadora", "Calcolatrice", "Calculatrice"],
+  "¿Cuántas respuestas necesitas?": ["How many responses do you need?", "Quantas respostas você precisa?", "Quante risposte ti servono?", "De combien de réponses avez-vous besoin ?"],
+  "Ya tienes {n} en tu saldo: se descuentan.": ["You already have {n} in your balance: they're deducted.", "Você já tem {n} no saldo: são descontados.", "Hai già {n} nel saldo: vengono scalati.", "Vous avez déjà {n} sur votre solde : ils sont déduits."],
+  "Te alcanza con tu saldo actual: no necesitas comprar.": ["Your current balance is enough: no need to buy.", "Seu saldo atual é suficiente: não precisa comprar.", "Il tuo saldo attuale basta: non serve acquistare.", "Votre solde actuel suffit : inutile d'acheter."],
+  "Total: <b>{amount}</b> por {n} créditos ({p} por respuesta).": ["Total: <b>{amount}</b> for {n} credits ({p} per response).", "Total: <b>{amount}</b> por {n} créditos ({p} por resposta).", "Totale: <b>{amount}</b> per {n} crediti ({p} a risposta).", "Total : <b>{amount}</b> pour {n} crédits ({p} par réponse)."],
+  "Te sobran {n} para otro formulario.": ["{n} left over for another form.", "Sobram {n} para outro formulário.", "Ne avanzano {n} per un altro modulo.", "Il vous en reste {n} pour un autre formulaire."],
+  "Empezar con el de {n}": ["Start with the {n} pack", "Começar com o de {n}", "Inizia con quello da {n}", "Commencer par celui de {n}"],
+  "Elegir este paquete": ["Choose this package", "Escolher este pacote", "Scegli questo pacchetto", "Choisir ce forfait"],
+  "Cada paquete se paga por separado: compra uno y luego el siguiente.": ["Each package is paid separately: buy one, then the next.", "Cada pacote é pago separadamente: compre um e depois o próximo.", "Ogni pacchetto si paga a parte: compra uno e poi il successivo.", "Chaque forfait se paie séparément : achetez-en un, puis le suivant."],
+  "Hoy puedes comprar hasta {n} créditos: el resto, mañana.": ["Today you can buy up to {n} credits: the rest, tomorrow.", "Hoje você pode comprar até {n} créditos: o resto, amanhã.", "Oggi puoi acquistare fino a {n} crediti: il resto, domani.", "Aujourd'hui vous pouvez acheter jusqu'à {n} crédits : le reste, demain."],
   "Qué debe responder la IA (ej: opiniones positivas sobre el curso)": ["What the AI should answer (e.g. positive opinions about the course)", "O que a IA deve responder (ex: opiniões positivas sobre o curso)", "Cosa deve rispondere l'IA (es: opinioni positive sul corso)", "Ce que l'IA doit répondre (ex : avis positifs sur le cours)"],
   "Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.": ["Instruction for the AI. Each answer will have at most 8 words.", "Indicação para a IA. Cada resposta terá no máximo 8 palavras.", "Indicazione per l'IA. Ogni risposta avrà al massimo 8 parole.", "Consigne pour l'IA. Chaque réponse fera au maximum 8 mots."],
   "Cancelar envío": ["Cancel submission", "Cancelar envio", "Annulla invio", "Annuler l'envoi"],

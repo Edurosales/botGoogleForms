@@ -783,3 +783,15 @@ body.paying .gift-fab{display:none}
 .nb-head-actions{flex-wrap:nowrap;white-space:nowrap}
 .nb-link:disabled{color:var(--mute);opacity:.55;cursor:default}
 
+/* Calculadora de la tienda */
+.calc{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0;background:var(--card,#fff)}
+.calc-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.calc-title{margin:0;font-weight:800;font-size:.9375rem}
+.calc-input{display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--mute)}
+.calc-input input{width:110px;min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
+.calc-plan{list-style:none;margin:12px 0 0;padding:0}
+.calc-plan li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.9rem;font-variant-numeric:tabular-nums}
+.calc-total{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:.9rem}
+.calc-ok{margin:10px 0 0;color:var(--ok,#0B8A5F);font-weight:600;font-size:.9rem}
+@media(max-width:480px){.calc-input{width:100%;justify-content:space-between}.calc-total .b{width:100%}}
+
