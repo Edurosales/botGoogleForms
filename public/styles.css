@@ -1,4 +1,4 @@
-:root{--bg:#F0EBF8;--card:#fff;--ink:#21163F;--mute:#5B5174;--line:#D8CEEB;--acc:#673AB7;--soft:#E4DAF5;--wa:#128C4A;--ok:#0B8A5F;--r:16px}
+:root{--bg:#F6F5F9;--card:#fff;--ink:#1D1830;--mute:#5E5872;--line:#E3E0EA;--line-strong:#CBC5D8;--acc:#5B32B4;--soft:#F1EDF9;--wa:#128C4A;--ok:#0B7A55;--r:12px}
 @media(prefers-color-scheme:dark){:root{--bg:#150F26;--card:#1F1738;--ink:#F2EEFB;--mute:#B4AAD1;--line:#3A3160;--acc:#A98BF0;--soft:#2A2149;--ok:#3DD598}}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth;scroll-padding-top:76px;-webkit-text-size-adjust:100%}
@@ -823,4 +823,81 @@ body.paying .gift-fab{display:none}
 .data-ex,.data-bad{grid-column:auto}
 .data-map li{grid-template-columns:minmax(0,1fr) minmax(0,240px)}
 .data-map li .data-ex,.data-map li .data-bad{grid-column:1/-1}
+
+/* ── Armazón con sesión: menú lateral (PC) y barra inferior (celular) ── */
+.side,.bnav{display:none}
+.side-logo{font-weight:800;font-size:1.25rem;letter-spacing:-.02em;text-decoration:none;color:var(--ink)!important;padding:0 10px}
+.side-logo b{color:var(--acc)}
+@media(min-width:1100px){
+  body:has(.side){padding-left:236px}
+  .side{display:flex;flex-direction:column;gap:18px;position:fixed;left:0;top:0;bottom:0;width:236px;padding:20px 14px;background:var(--card);border-right:1px solid var(--line);z-index:55;overflow-y:auto}
+  .side-logo{display:flex;align-items:center;min-height:28px}
+  .side nav{display:flex;flex-direction:column;gap:2px}
+  .side nav a{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:8px;color:var(--mute);font-weight:600;font-size:.9375rem;text-decoration:none}
+  .side nav a:hover{background:var(--bg);color:var(--ink)}
+  .side nav a[aria-current=page]{background:var(--soft);color:var(--acc)}
+  .side nav a:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+  body:has(.side) .tn-logo,body:has(.side) .tn .tn-links{display:none}
+  body:has(.side) .tn-inner{max-width:none;padding:0 28px}
+}
+@media(max-width:760px){
+  .bnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:66;background:var(--card);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
+  .bnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border-radius:10px;color:var(--mute);font-size:.6875rem;font-weight:700;text-decoration:none;text-align:center;line-height:1.15}
+  .bnav a span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+  .bnav a[aria-current=page]{color:var(--acc)}
+  .bnav a[aria-current=page] svg{stroke-width:2.25}
+  .bnav a:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+  /* Con barra inferior: la de arriba queda en una fila y lo flotante sube */
+  body:has(.bnav) .tn .tn-links{display:none}
+  body:has(.bnav) .tn-inner{padding-bottom:8px}
+  body:has(.bnav){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  body:has(.bnav) .support,body:has(.bnav) .support-fab,body:has(.bnav) .gift-fab{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  body:has(.bnav) .cookie{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
+body.paying .bnav{display:none}
+
+/* Íconos de línea dentro de botones y avisos */
+.nb-ico svg,.gift-ico svg,.ref-card-ico svg{display:block}
+.is-locked svg,.presets-locked svg{display:inline-block;vertical-align:-3px}
+
+/* Los menús nuevos no heredan el menú desplegable de las páginas estáticas
+   (nav oculto en celular, enlaces centrados con borde inferior). */
+.side nav{align-items:stretch}
+nav.bnav{top:auto;flex-direction:row;gap:0;visibility:visible;opacity:1;transform:none;pointer-events:auto;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+nav.bnav a:not(.btn),.side nav a:not(.btn){border-bottom:0}
+nav.bnav a:not(.btn){display:flex;padding:0}
+
+/* Cabeceras sin degradados: tarjeta blanca, el color queda para la acción */
+.acct-head{background:var(--card);color:var(--ink);border-bottom:1px solid var(--line)}
+.acct-avatar{background:var(--soft);border:0;color:var(--acc)}
+.acct-mail{color:var(--mute);opacity:1}
+.acct-badge{background:var(--bg);color:var(--mute);border:1px solid var(--line)}
+.acct-badge-pro{background:#E8F6EF;color:#0B5A3E;border-color:#BFE3D1}
+.acct-head .b-ghost{background:#fff;border-color:var(--line-strong);color:var(--ink)!important}
+.acct-head .b-ghost:hover{background:var(--bg)}
+.acct-head .b-primary{background:var(--acc);border-color:var(--acc);color:#fff!important;box-shadow:none}
+.acct-head .b-primary:hover:not(:disabled){background:#4C2899;border-color:#4C2899}
+.ref-hero{background:#EEF8F2;color:#0B3D22;border-bottom:1px solid #CDEBD9}
+.ref-plus{opacity:.45}
+@media(max-width:480px){.acct-head-actions{width:100%}.acct-head-actions .b{flex:1;white-space:nowrap;padding:0 10px}}
+
+/* Pasos en celular: el paso actual toma el espacio que necesita y los demás
+   quedan como círculos (antes la etiqueta larga chocaba con el siguiente). */
+@media(max-width:480px){
+  .stepper{gap:10px;justify-content:space-between}
+  .stepper li{flex:0 0 auto;min-width:0}
+  .stepper li.is-now{flex:1 1 auto}
+  .stepper li.is-now .stepper-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+/* Usar mis datos en celular: cada control a lo ancho */
+@media(max-width:560px){
+  .data-pick>.b{width:100%}
+  .data-sheet{flex-wrap:wrap}
+  .data-sheet input{flex:1 1 100%}
+  .data-sheet .b{width:100%}
+}
+.side nav a span{line-height:1.25}
+.nb-item.is-unread .nb-ico{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.nb-ico-job_done,.nb-item.is-unread .nb-ico-job_done{background:#E8F5E9;color:#1B7F3B;box-shadow:none}
+.nb-ico-job_failed,.nb-item.is-unread .nb-ico-job_failed{background:#FFF3E0;color:#B45309;box-shadow:none}
 

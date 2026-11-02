@@ -8,6 +8,7 @@ import PrivacyPanel from "./PrivacyPanel";
 import ExportButton from "../ExportButton";
 import { openSupportChat } from "../SupportButton";
 import { Rich, useLang } from "../LangProvider";
+import Icon from "../icons";
 
 const SEEN_REFUNDS_KEY = "fb-seen-refunds";
 type Tab = "resumen" | "envios" | "compras" | "privacidad";
@@ -357,7 +358,7 @@ export default function MiCuentaClient() {
 
             {settings.referral && (
               <Link className="ref-card" href="/invita">
-                <span className="ref-card-ico" aria-hidden="true">🎁</span>
+                <span className="ref-card-ico" aria-hidden="true"><Icon name="gift" size={22} /></span>
                 <span>
                   <strong>{tr("Invita y gana {n} créditos", { n: settings.referral.referrerCredits })}</strong>
                   <small>{tr("Por cada persona que se registre con tu enlace y haga su primera compra.")}</small>

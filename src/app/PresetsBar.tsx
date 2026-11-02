@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { QConfMap } from "./QuestionEditors";
 import { Rich, useLang } from "./LangProvider";
+import Icon from "./icons";
 
 export type Preset = {
   id: string;
@@ -98,7 +99,7 @@ export default function PresetsBar({
     return (
       <div className="presets presets-locked">
         <p>
-          <span aria-hidden="true">🔒</span>{" "}
+          <Icon name="lock" size={16} />{" "}
           <Rich text={tr("<b>Guarda esta configuración</b> y reúsala en tu próximo envío de este formulario. Disponible con créditos comprados.")} />
         </p>
         <Link className="b b-small b-ghost" href="/comprar-creditos">

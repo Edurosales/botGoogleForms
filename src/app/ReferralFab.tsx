@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { fmtPen, useMe, usePublicSettings } from "./clientData";
 import { Rich, useLang } from "./LangProvider";
+import Icon from "./icons";
 
 /**
  * Regalo flotante en todas las páginas (con sesión iniciada): recuerda que se
@@ -84,7 +85,7 @@ export default function ReferralFab() {
         </div>
       )}
       <button type="button" className="gift-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
-        <span className="gift-ico" aria-hidden="true">🎁</span>
+        <span className="gift-ico" aria-hidden="true"><Icon name="gift" size={20} /></span>
         <span className="gift-txt">
           <Rich text={t("gift.btn", { n: referral.referrerCredits })} />
         </span>

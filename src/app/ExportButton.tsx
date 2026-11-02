@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLang } from "./LangProvider";
+import Icon from "./icons";
 
 type Preview = { header: string[]; rows: string[][]; total: number };
 
@@ -41,7 +42,7 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
   return (
     <>
       <button type="button" className={`${cls} is-locked`} onClick={openPreview} disabled={loading}>
-        <span aria-hidden="true">🔒</span> {tr("Exportar a Excel")}
+        <Icon name="lock" size={16} /> {tr("Exportar a Excel")}
       </button>
       {error && <p className="fine">{tr(error)}</p>}
       {preview && (

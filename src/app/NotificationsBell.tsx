@@ -4,21 +4,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BALANCE_EVENT } from "./clientData";
 import { useLang } from "./LangProvider";
 import { DATE_LOCALE_TAG } from "@/lib/i18n";
+import Icon, { type IconName } from "./icons";
 
 type Item = { id: string; kind: string; title: string; body: string; link: string; read_at: string | null; created_at: string };
 
 const POLL_MS = 15_000;
 
 /** Ícono según el tipo de aviso (solo decorativo). */
-const KIND_ICON: Record<string, string> = {
-  job: "✓",
-  refund: "↩",
-  purchase: "★",
-  credits: "★",
-  gift: "🎁",
-  message: "💬",
-  account: "!",
-  alert: "!",
+const KIND_ICON: Record<string, IconName> = {
+  job: "check",
+  job_done: "check",
+  job_failed: "alert",
+  refund: "refund",
+  purchase: "star",
+  credits: "card",
+  gift: "gift",
+  message: "message",
+  account: "user",
+  alert: "alert",
 };
 
 function ago(iso: string, tag: string): string {
@@ -180,7 +183,7 @@ export default function NotificationsBell() {
               {items.map((n) => (
                 <li key={n.id} className={n.read_at ? "nb-item" : "nb-item is-unread"}>
                   <span className={`nb-ico nb-ico-${n.kind}`} aria-hidden="true">
-                    {KIND_ICON[n.kind] ?? "•"}
+                    <Icon name={KIND_ICON[n.kind] ?? "info"} size={16} />
                   </span>
                   <button type="button" className="nb-main" onClick={() => openItem(n)}>
                     <span className="nb-title">{n.title}</span>

@@ -93,9 +93,9 @@ export default function Sobre() {
                 </a>
               </div>
               <div className="trust">
-                <span>⚡ 50 respuestas en &lt;2 min</span>
-                <span>🧠 IA que entiende el contexto</span>
-                <span>📊 Directo a tu Sheets</span>
+                <span>50 respuestas en menos de 2 min</span>
+                <span>IA que entiende el contexto</span>
+                <span>Directo a tu Google Sheets</span>
               </div>
             </div>
             <div className="mock" aria-hidden="true">

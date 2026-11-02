@@ -8,6 +8,7 @@ import NotificationsBell from "./NotificationsBell";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLang } from "./LangProvider";
 import type { MsgKey } from "@/lib/i18n";
+import Icon, { type IconName } from "./icons";
 
 const LINKS: { href: string; label: MsgKey }[] = [
   { href: "/", label: "nav.tool" },
@@ -18,7 +19,7 @@ const LINKS: { href: string; label: MsgKey }[] = [
 export default function SiteNav() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
-  const { t, locale } = useLang();
+  const { t, tr, locale } = useLang();
   // "Sobre FormsBot" está en español: en otros idiomas va a su página (/en, /pt…).
   const aboutHref = locale === "es" ? "/sobre" : `/${locale}`;
   const pathname = usePathname();
@@ -54,7 +55,53 @@ export default function SiteNav() {
 
   const initial = me ? (me.name || me.email).trim().charAt(0).toUpperCase() : "";
 
+  // Con sesión: menú lateral en PC y barra inferior en celular (los estilos
+  // deciden cuál se ve). Sin sesión queda la barra de arriba de siempre.
+  const appLinks: { href: string; label: string; icon: IconName; mobile: boolean }[] = me
+    ? [
+        { href: "/", label: t("nav.tool"), icon: "tool", mobile: true },
+        { href: "/comprar-creditos", label: t("nav.buy"), icon: "card", mobile: false },
+        { href: "/mi-cuenta", label: tr("Mis envíos"), icon: "list", mobile: true },
+        { href: "/mi-cuenta?chat=1", label: tr("Mensajes"), icon: "message", mobile: true },
+        ...(referral ? [{ href: "/invita", label: tr("Invita y gana"), icon: "gift" as IconName, mobile: false }] : []),
+        { href: aboutHref, label: t("nav.about"), icon: "info", mobile: false },
+      ]
+    : [];
+  const isHere = (href: string) => !href.includes("?") && pathname === href;
+
   return (
+    <>
+    {me && (
+      <aside className="side" aria-label={tr("Navegación de la app")}>
+        <Link className="side-logo" href="/">
+          Forms<b>Bot</b>
+        </Link>
+        <nav>
+          {appLinks.map((l) => (
+            <Link key={l.href} href={l.href} aria-current={isHere(l.href) ? "page" : undefined}>
+              <Icon name={l.icon} />
+              <span>{l.label}</span>
+            </Link>
+          ))}
+        </nav>
+      </aside>
+    )}
+    {me && (
+      <nav className="bnav" aria-label={tr("Navegación de la app")}>
+        {appLinks
+          .filter((l) => l.mobile)
+          .map((l) => (
+            <Link key={l.href} href={l.href} aria-current={isHere(l.href) ? "page" : undefined}>
+              <Icon name={l.icon} size={20} />
+              <span>{l.label}</span>
+            </Link>
+          ))}
+        <Link href="/comprar-creditos" aria-current={isHere("/comprar-creditos") ? "page" : undefined}>
+          <Icon name="card" size={20} />
+          <span>{tr("Créditos")}</span>
+        </Link>
+      </nav>
+    )}
     <header className="tn">
       <div className="tn-inner">
         <Link className="tn-logo" href="/">
@@ -141,5 +188,6 @@ export default function SiteNav() {
         </div>
       </div>
     </header>
+    </>
   );
 }
