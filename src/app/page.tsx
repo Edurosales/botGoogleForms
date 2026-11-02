@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import HerramientaClient from "./HerramientaClient";
 import PurchaseCelebration from "./PurchaseCelebration";
 import SiteNav from "./SiteNav";
+import { HomeIntro } from "./PageIntro";
 
 // Esta página lee `searchParams` directamente (para precargar el link
 // pegado desde /sobre o un link viejo /herramienta?url=..., y el aviso de
@@ -12,10 +12,20 @@ import SiteNav from "./SiteNav";
 export const instant = false;
 
 export const metadata: Metadata = {
-  title: "FormsBot — Prueba tu Google Form con respuestas automáticas",
+  title: { absolute: "FormsBot (Bot Forms) — Prueba tu Google Form con respuestas automáticas" },
   description:
-    "Pega el link de tu Google Form público y recibe respuestas de prueba en minutos. Tu primera vez es gratis; con créditos se activan las respuestas con IA.",
-  alternates: { canonical: "https://bot-google-forms-servicio.vercel.app/" },
+    "FormsBot (Bot Forms): pega el link de tu propio Google Form y recibe respuestas de prueba en minutos, siguiendo cada sección. Tu primera vez es gratis; con créditos se activan las respuestas con IA en 5 idiomas.",
+  alternates: {
+    canonical: "https://bot-google-forms-servicio.vercel.app/",
+    languages: {
+      es: "https://bot-google-forms-servicio.vercel.app/",
+      en: "https://bot-google-forms-servicio.vercel.app/en",
+      pt: "https://bot-google-forms-servicio.vercel.app/pt",
+      it: "https://bot-google-forms-servicio.vercel.app/it",
+      fr: "https://bot-google-forms-servicio.vercel.app/fr",
+      "x-default": "https://bot-google-forms-servicio.vercel.app/en",
+    },
+  },
   openGraph: {
     type: "website",
     title: "FormsBot — Prueba tu Google Form con respuestas automáticas",
@@ -34,13 +44,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     <main className="tool-page">
       <SiteNav />
       <div className="tool-wrap">
-        <div className="intro">
-          <h1>Llena tu Google Form de prueba</h1>
-          <p>
-            Pega el link, revisa cómo se responde cada pregunta y envía. Tu primera vez es gratis.{" "}
-            <Link href="/sobre">Cómo funciona</Link>
-          </p>
-        </div>
+        <HomeIntro />
         <HerramientaClient initialUrl={initialUrl} paidOrder={paidOrder} />
         <PurchaseCelebration orderId={paidOrder || null} />
       </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { SUPPORT_EMAIL, SUPPORT_TELEGRAM, useMe, usePublicSettings, whatsappLink } from "./clientData";
+import { useLang } from "./LangProvider";
 
 /** Abre el chat desde otra parte de la página (ej. "Mi cuenta → Mensajes"). */
 export const OPEN_CHAT_EVENT = "formsbot:open-chat";
@@ -61,6 +62,7 @@ function when(iso: string): string {
 export default function SupportButton() {
   const settings = usePublicSettings();
   const { me } = useMe();
+  const { t } = useLang();
   const path = usePathname() || "/";
   // ?chat=1 (enlace de la notificación) abre el chat al cargar.
   const askedByUrl = useSyncExternalStore(
@@ -183,7 +185,7 @@ export default function SupportButton() {
         <span className="sm-ico sm-mail" aria-hidden="true">
           @
         </span>{" "}
-        Correo
+        {t("sup.email")}
       </a>
     </div>
   );
@@ -193,34 +195,34 @@ export default function SupportButton() {
     <div className="support" ref={box}>
       {open && !logged && (
         <div className="support-menu" role="menu">
-          <p>¿Cómo prefieres que te ayudemos?</p>
+          <p>{t("sup.howHelp")}</p>
           {channels}
         </div>
       )}
       {open && logged && (
-        <div className="support-chat" role="dialog" aria-label="Mensajes con soporte">
+        <div className="support-chat" role="dialog" aria-label={t("sup.title")}>
           <div className="sc-head">
             {view !== null && (
-              <button type="button" className="sc-icon" aria-label="Volver" onClick={() => setView(typeof view === "number" ? "list" : null)}>
+              <button type="button" className="sc-icon" aria-label={t("sup.back")} onClick={() => setView(typeof view === "number" ? "list" : null)}>
                 ←
               </button>
             )}
             <div className="sc-title">
-              <strong>{view === null ? "Soporte FormsBot" : view === "list" ? "Chats anteriores" : "Chat anterior"}</strong>
+              <strong>{view === null ? t("sup.title") : view === "list" ? t("sup.prevTitle") : t("sup.prevOne")}</strong>
               <span>
                 {view === null
-                  ? "Te respondemos por aquí mismo"
+                  ? t("sup.subtitle")
                   : view === "list"
-                    ? "Se guardan al pasar 24 h sin mensajes"
-                    : `${day(thread?.previous[view]?.startedAt ?? "")} · solo lectura`}
+                    ? t("sup.prevSub")
+                    : `${day(thread?.previous[view]?.startedAt ?? "")} · ${t("sup.readOnly")}`}
               </span>
             </div>
             {view === null && (thread?.previous.length ?? 0) > 0 && (
               <button
                 type="button"
                 className="sc-icon sc-history"
-                aria-label={`Chats anteriores (${thread?.previous.length})`}
-                title="Chats anteriores"
+                aria-label={t("sup.prevCount", { n: thread?.previous.length ?? 0 })}
+                title={t("sup.prevTitle")}
                 onClick={() => setView("list")}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -232,7 +234,7 @@ export default function SupportButton() {
                 <b>{thread?.previous.length}</b>
               </button>
             )}
-            <button type="button" className="sc-close" aria-label="Cerrar" onClick={() => setPicked(false)}>
+            <button type="button" className="sc-close" aria-label={t("sup.close")} onClick={() => setPicked(false)}>
               ×
             </button>
           </div>
@@ -243,7 +245,7 @@ export default function SupportButton() {
                   <button type="button" onClick={() => setView(i)}>
                     <span className="sc-past-top">
                       <b>{day(p.startedAt)}</b>
-                      <small>{p.count} mensajes</small>
+                      <small>{t("sup.msgsN", { n: p.count })}</small>
                     </span>
                     <span className="sc-past-prev">{p.preview}</span>
                   </button>
@@ -255,30 +257,30 @@ export default function SupportButton() {
             <div className="sc-list" ref={list}>
               {thread?.previous[view]?.messages.map((m) => (
                 <div key={m.id} className={`sc-msg sc-${m.sender === "user" ? "me" : "them"}`}>
-                  {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? "FormsBot (automático)" : "Soporte"}</span>}
+                  {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? t("sup.auto") : t("sup.support")}</span>}
                   <p>{m.body}</p>
                   <time dateTime={m.created_at}>{when(m.created_at)}</time>
                 </div>
               ))}
-              <p className="sc-closed">Conversación cerrada</p>
+              <p className="sc-closed">{t("sup.closed")}</p>
             </div>
           )}
           {view === null && (
             <>
               <div className="sc-list" ref={list} aria-live="polite">
-                {thread === null && <p className="sc-empty">Cargando…</p>}
+                {thread === null && <p className="sc-empty">{t("sup.loading")}</p>}
                 {thread && thread.messages.length === 0 && (
                   <p className="sc-empty">
                     {thread.canSend
                       ? thread.previous.length
-                        ? "Nueva conversación. Tus chats anteriores están en el ícono del reloj, arriba."
-                        : "¿En qué te ayudamos? Escribe tu consulta abajo."
-                      : "Aún no tienes mensajes. Si necesitas ayuda, escríbenos por WhatsApp, Telegram o correo."}
+                        ? t("sup.emptyNew")
+                        : t("sup.emptyCan")
+                      : t("sup.emptyCant")}
                   </p>
                 )}
                 {thread?.messages.map((m) => (
                   <div key={m.id} className={`sc-msg sc-${m.sender === "user" ? "me" : "them"}`}>
-                    {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? "FormsBot (automático)" : "Soporte"}</span>}
+                    {m.sender !== "user" && <span className="sc-who">{m.sender === "system" ? t("sup.auto") : t("sup.support")}</span>}
                     <p>{m.body}</p>
                     <time dateTime={m.created_at}>{when(m.created_at)}</time>
                   </div>
@@ -287,13 +289,13 @@ export default function SupportButton() {
               {thread?.canSend ? (
                 <form className="sc-form" onSubmit={send}>
                   <label className="sr" htmlFor="sc-input">
-                    Tu mensaje
+                    {t("sup.yourMsg")}
                   </label>
                   <textarea
                     id="sc-input"
                     rows={2}
                     maxLength={maxChars}
-                    placeholder={thread.left > 0 ? "Escribe tu mensaje…" : "Llegaste al máximo de mensajes de hoy"}
+                    placeholder={thread.left > 0 ? t("sup.write") : t("sup.limit")}
                     value={draft}
                     disabled={thread.left <= 0 || sending}
                     onChange={(e) => setDraft(e.target.value)}
@@ -306,10 +308,10 @@ export default function SupportButton() {
                   />
                   <div className="sc-foot">
                     <span>
-                      {draft.length}/{maxChars} · te quedan {thread.left} de {thread.perDay} mensajes hoy
+                      {draft.length}/{maxChars} · {t("sup.left", { left: thread.left, per: thread.perDay })}
                     </span>
                     <button type="submit" className="b b-primary b-small" disabled={!draft.trim() || sending || thread.left <= 0}>
-                      {sending ? "Enviando…" : "Enviar"}
+                      {sending ? t("sup.sending") : t("sup.send")}
                     </button>
                   </div>
                   {error && (
@@ -319,7 +321,7 @@ export default function SupportButton() {
                   )}
                 </form>
               ) : (
-                thread && <p className="sc-note">El chat se activa cuando intentas comprar créditos. Mientras tanto:</p>
+                thread && <p className="sc-note">{t("sup.activate")}</p>
               )}
             </>
           )}
@@ -331,7 +333,7 @@ export default function SupportButton() {
         className="support-fab"
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={unread > 0 ? `Soporte, ${unread} mensajes nuevos` : "Contactar a soporte"}
+        aria-label={unread > 0 ? t("sup.newMsgs", { n: unread }) : t("sup.contact")}
         onClick={() => setPicked(!open)}
       >
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -340,7 +342,7 @@ export default function SupportButton() {
             d="M12 2C6.5 2 2 6 2 11c0 2.6 1.2 4.9 3.2 6.6L4.5 22l4.3-2.2c1 .3 2.1.4 3.2.4 5.5 0 10-4 10-9S17.5 2 12 2Zm-4 10.3a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Zm4 0a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Zm4 0a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Z"
           />
         </svg>
-        <span>{logged ? "Mensajes" : "Soporte"}</span>
+        <span>{logged ? t("sup.messages") : t("sup.support")}</span>
         {unread > 0 && <b className="support-badge">{unread > 9 ? "9+" : unread}</b>}
       </button>
     </div>

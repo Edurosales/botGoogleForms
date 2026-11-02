@@ -2,6 +2,7 @@
 
 import { useId, useState, useSyncExternalStore } from "react";
 import { googleLoginHref, HAS_ACCOUNT_KEY, type LoginChoices } from "./clientData";
+import { Rich, useLang } from "./LangProvider";
 
 function GoogleMark() {
   return (
@@ -22,7 +23,7 @@ export function GoogleButton({
   next,
   choices,
   disabled = false,
-  label = "Continuar con Google",
+  label,
   onNavigate,
 }: {
   next: string;
@@ -31,18 +32,20 @@ export function GoogleButton({
   label?: string;
   onNavigate?: () => void;
 }) {
+  const { t } = useLang();
+  const text = label ?? t("auth.continueBtn");
   if (disabled) {
     return (
       <span className="gbtn" aria-disabled="true" role="link">
         <GoogleMark />
-        <span>{label}</span>
+        <span>{text}</span>
       </span>
     );
   }
   return (
     <a className="gbtn" href={googleLoginHref(next, choices)} onClick={onNavigate}>
       <GoogleMark />
-      <span>{label}</span>
+      <span>{text}</span>
     </a>
   );
 }
@@ -65,6 +68,7 @@ export function SignInCard({
   const [marketing, setMarketing] = useState(false);
   const [country, setCountry] = useState(false);
   const checkId = useId();
+  const { t } = useLang();
   // Pestaña inicial: la que se pidió (?modo=entrar|registro desde el menú) o,
   // si este navegador ya tiene cuenta, "Iniciar sesión"; si no, "Crear cuenta".
   const initial = useSyncExternalStore(
@@ -86,37 +90,36 @@ export function SignInCard({
 
   return (
     <div className={compact ? "signin signin-compact" : "signin"}>
-      <div className="signin-tabs" role="tablist" aria-label="Acceso">
+      <div className="signin-tabs" role="tablist" aria-label={t("auth.tabs")}>
         <button type="button" role="tab" aria-selected={tab === "login"} className={tab === "login" ? "on" : ""} onClick={() => setPicked("login")}>
-          Iniciar sesión
+          {t("auth.tabLogin")}
         </button>
         <button type="button" role="tab" aria-selected={tab === "register"} className={tab === "register" ? "on" : ""} onClick={() => setPicked("register")}>
-          Crear cuenta
+          {t("auth.tabRegister")}
         </button>
       </div>
 
       {tab === "login" ? (
         <div role="tabpanel">
-          <h3>{title ?? "Bienvenido de nuevo"}</h3>
-          <p className="signin-offer">Entra con la cuenta de Google con la que te registraste. No necesitas volver a aceptar nada.</p>
-          <GoogleButton next={next} label="Entrar con Google" onNavigate={onNavigate} />
+          <h3>{title ?? t("auth.welcome")}</h3>
+          <p className="signin-offer">{t("auth.loginOffer")}</p>
+          <GoogleButton next={next} label={t("auth.loginBtn")} onNavigate={onNavigate} />
           <p className="signin-note">
-            ¿Primera vez en FormsBot?{" "}
+            {t("auth.firstTime")}{" "}
             <button type="button" className="linkish" onClick={() => setPicked("register")}>
-              Crea tu cuenta gratis
+              {t("auth.createFree")}
             </button>
           </p>
         </div>
       ) : (
         <div role="tabpanel">
-          <h3>Crea tu cuenta gratis</h3>
+          <h3>{t("auth.createFree")}</h3>
           <p className="signin-offer">
-            Tu primera vez: <strong>{freeCredits} respuestas gratis</strong> en modo aleatorio o fijo. Solo pedimos tu cuenta de Google, sin
-            contraseña.
+            <Rich text={t("auth.createOffer", { n: freeCredits })} />
           </p>
           <ul className="signin-points">
-            <li>Las respuestas gratis son una sola vez por persona.</li>
-            <li>Con créditos comprados se activan las respuestas con IA y la fila prioritaria.</li>
+            <li>{t("auth.point1")}</li>
+            <li>{t("auth.point2")}</li>
           </ul>
           <ConsentChecks
             idPrefix={checkId}
@@ -131,14 +134,14 @@ export function SignInCard({
             next={next}
             choices={{ terms: accepted, marketing, country }}
             disabled={!accepted}
-            label="Crear cuenta con Google"
+            label={t("auth.createBtn")}
             onNavigate={onNavigate}
           />
-          {!accepted && <p className="signin-note">Marca la primera casilla para continuar. Las otras dos son opcionales.</p>}
+          {!accepted && <p className="signin-note">{t("auth.checkFirst")}</p>}
           <p className="signin-note signin-have">
-            ¿Ya tienes cuenta?{" "}
+            {t("auth.haveAccount")}{" "}
             <button type="button" className="linkish" onClick={() => setPicked("login")}>
-              Iniciar sesión
+              {t("auth.tabLogin")}
             </button>
           </p>
         </div>
@@ -171,33 +174,40 @@ export function ConsentChecks({
   country: boolean;
   setCountry: (v: boolean) => void;
 }) {
+  const { t } = useLang();
   return (
     <div className="checks consent-checks">
       <div className="check">
         <input id={`${idPrefix}-t`} type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} required />
         <label htmlFor={`${idPrefix}-t`}>
-          <strong>Obligatorio.</strong> Tengo 16 años o más, acepto los{" "}
-          <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
-            términos del servicio
-          </a>{" "}
-          y la{" "}
-          <a href="/privacidad.html" target="_blank" rel="noopener">
-            política de privacidad
-          </a>
-          , y solo usaré la herramienta con formularios propios o con permiso de su dueño.
+          <strong>{t("auth.required")}</strong>{" "}
+          <Rich
+            text={t("auth.consentTerms")}
+            tags={{
+              terms: (c) => (
+                <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                  {c}
+                </a>
+              ),
+              privacy: (c) => (
+                <a href="/privacidad.html" target="_blank" rel="noopener">
+                  {c}
+                </a>
+              ),
+            }}
+          />
         </label>
       </div>
       <div className="check">
         <input id={`${idPrefix}-m`} type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
         <label htmlFor={`${idPrefix}-m`}>
-          <strong>Opcional.</strong> Quiero recibir por correo novedades y ofertas de FormsBot. Puedo darme de baja con un
-          clic en cualquier correo.
+          <strong>{t("auth.optional")}</strong> {t("auth.consentMarketing")}
         </label>
       </div>
       <div className="check">
         <input id={`${idPrefix}-c`} type="checkbox" checked={country} onChange={(e) => setCountry(e.target.checked)} />
         <label htmlFor={`${idPrefix}-c`}>
-          <strong>Opcional.</strong> Guardar mi país (según mi conexión) para estadísticas del servicio.
+          <strong>{t("auth.optional")}</strong> {t("auth.consentCountry")}
         </label>
       </div>
     </div>

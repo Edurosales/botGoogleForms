@@ -1,3 +1,7 @@
+"use client";
+
+import { useLang } from "../LangProvider";
+
 /**
  * Logos de los medios de pago (archivos oficiales en public/logosPagos).
  * Cada logo va en una ficha del mismo tamaño y se ajusta adentro sin
@@ -38,6 +42,7 @@ export function SecurePayStrip({ providers }: { providers: readonly string[] }) 
     ...(providers.includes("mercadopago") ? MP_BRANDS : []),
     ...(providers.includes("izipay") ? IZIPAY_BRANDS : []),
   ];
+  const { t } = useLang();
   if (!brands.length) return null;
   return (
     <div className="paysecure">
@@ -45,7 +50,7 @@ export function SecurePayStrip({ providers }: { providers: readonly string[] }) 
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z" />
         </svg>
-        Pago seguro y cifrado
+        {t("store.secure")}
       </span>
       <PayLogos brands={brands} />
     </div>

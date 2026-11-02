@@ -8,16 +8,30 @@ import SiteBanner from "./SiteBanner";
 import InvitedNote from "./InvitedNote";
 import ReferralFab from "./ReferralFab";
 import BannedGate from "./BannedGate";
+import CookieNotice from "./CookieNotice";
+import { LangProvider } from "./LangProvider";
 
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bot-google-forms-servicio.vercel.app"),
   title: {
-    default: "FormsBot — Rellena Google Forms automáticamente con IA",
+    default: "FormsBot (Bot Forms) — Prueba tu Google Form con respuestas automáticas",
     template: "%s · FormsBot",
   },
+  applicationName: "FormsBot",
   description:
-    "Bot que rellena Google Forms con respuestas reales usando IA. 50 respuestas en menos de 2 minutos. Servicio desde S/25 o software por S/300. Lima, Perú.",
+    "FormsBot (también conocido como Bot Forms) envía respuestas de prueba a tu propio Google Form: aleatorias, fijas, por porcentajes o con IA en 5 idiomas, siguiendo cada sección. La primera prueba es gratis.",
+  keywords: ["FormsBot", "Bot Forms", "BotForms", "Forms Bot", "bot para Google Forms", "probar Google Forms", "respuestas de prueba", "Google Forms test"],
+  alternates: {
+    languages: {
+      es: "https://bot-google-forms-servicio.vercel.app/",
+      en: "https://bot-google-forms-servicio.vercel.app/en",
+      pt: "https://bot-google-forms-servicio.vercel.app/pt",
+      it: "https://bot-google-forms-servicio.vercel.app/it",
+      fr: "https://bot-google-forms-servicio.vercel.app/fr",
+      "x-default": "https://bot-google-forms-servicio.vercel.app/en",
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -34,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href="/styles.css" />
       </head>
       <body>
+        <LangProvider>
         <SiteBanner />
         <InvitedNote />
         {/* Medición y anuncios solo con "Aceptar" en el banner (ver Analytics.tsx y Ads.tsx). */}
@@ -52,22 +67,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ConsentGate />
         <BannedGate />
 
-        <div className="cookie" role="dialog" aria-label="Preferencias de cookies">
-          <p>
-            Usamos cookies necesarias para que el sitio funcione y, solo si aceptas, cookies de medición
-            (Google Analytics) y de publicidad. Puedes rechazarlas sin perder ninguna función. Más en la{" "}
-            <a href="/privacidad.html">política de privacidad</a>.
-          </p>
-          <div className="cookie-actions">
-            <button className="btn btn-ghost" type="button" data-cookie-reject="">
-              Rechazar
-            </button>
-            <button className="btn" type="button" data-cookie-accept="">
-              Aceptar
-            </button>
-          </div>
-        </div>
+        <CookieNotice />
 
+        </LangProvider>
         <Script src="/script.js" strategy="afterInteractive" />
       </body>
     </html>

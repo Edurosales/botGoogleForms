@@ -731,3 +731,19 @@ body.paying .gift-fab{display:none}
 .paysecure{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 12px;margin:12px 0 4px;padding:10px 12px;border:1px solid #E2DCEC;border-radius:12px;background:#FAF8FD}
 .paysecure-lock{display:inline-flex;align-items:center;gap:6px;font-size:.8125rem;font-weight:800;color:#1B5E20}
 @media(max-width:480px){.paymethod .paylogos{width:100%;padding-left:30px}.paylogo{width:62px;height:34px;padding:5px 4px}}
+
+/* Botón de idioma */
+.lang{position:relative}
+.lang-btn{display:inline-flex;align-items:center;gap:5px;height:38px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-size:.8125rem;font-weight:800;cursor:pointer}
+.lang-btn:hover{border-color:var(--line-strong,#C9BFDC)}
+.lang-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.lang-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:130;list-style:none;margin:0;padding:6px;min-width:170px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px -16px rgba(33,22,63,.35)}
+.lang-menu button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:.9375rem;color:#21163F;cursor:pointer}
+.lang-menu button b{display:inline-grid;place-items:center;min-width:28px;height:22px;border-radius:6px;background:var(--soft);font-size:.6875rem;color:var(--acc)}
+.lang-menu button:hover,.lang-menu button.on{background:var(--soft)}
+@media(max-width:760px){
+  .tn-account{gap:8px}
+  .lang-btn{height:34px;padding:0 8px}
+  .lang-btn span{display:none}
+  .lang-menu{position:fixed;left:auto;right:10px;top:calc(env(safe-area-inset-top,0px) + 58px)}
+}

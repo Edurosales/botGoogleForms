@@ -5,16 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMe, usePublicSettings } from "./clientData";
 import NotificationsBell from "./NotificationsBell";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLang } from "./LangProvider";
+import type { MsgKey } from "@/lib/i18n";
 
-const LINKS = [
-  { href: "/", label: "Herramienta" },
-  { href: "/comprar-creditos", label: "Comprar créditos" },
-  { href: "/sobre", label: "Sobre FormsBot" },
+const LINKS: { href: string; label: MsgKey }[] = [
+  { href: "/", label: "nav.tool" },
+  { href: "/comprar-creditos", label: "nav.buy" },
+  { href: "/sobre", label: "nav.about" },
 ];
 
 export default function SiteNav() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
+  const { t } = useLang();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -55,25 +59,26 @@ export default function SiteNav() {
           Forms<b>Bot</b>
         </Link>
 
-        <nav className="tn-links" aria-label="Principal">
+        <nav className="tn-links" aria-label={t("nav.main")}>
           {LINKS.map((l) => (
             <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
-              {l.label}
+              {t(l.label)}
             </Link>
           ))}
         </nav>
 
         <div className="tn-account">
+          <LanguageSwitcher />
           {me === undefined && <span className="tn-placeholder" aria-hidden="true" />}
 
           {me === null && (
             // Dos caminos claros: entrar (sin casillas) o crear cuenta (con términos).
             <div className="tn-auth">
               <a className="tn-login" href={`/mi-cuenta?modo=entrar&volver=${encodeURIComponent(pathname || "/")}`}>
-                Iniciar sesión
+                {t("nav.login")}
               </a>
               <a className="tn-signup" href={`/mi-cuenta?modo=registro&volver=${encodeURIComponent(pathname || "/")}`}>
-                Registrarse
+                {t("nav.signup")}
               </a>
             </div>
           )}
@@ -81,13 +86,13 @@ export default function SiteNav() {
           {me && (
             <>
               <NotificationsBell />
-              <Link href="/comprar-creditos" className="tn-balance" title="Créditos comprados y respuestas gratis disponibles">
+              <Link href="/comprar-creditos" className="tn-balance" title={t("nav.balanceTitle")}>
                 <span>
-                  <strong>{me.credits}</strong> créditos
+                  <strong>{me.credits}</strong> {t("nav.credits")}
                 </span>
                 {me.freeCredits > 0 && (
                   <span className="tn-balance-free">
-                    <strong>{me.freeCredits}</strong> gratis
+                    <strong>{me.freeCredits}</strong> {t("nav.free")}
                   </span>
                 )}
               </Link>
@@ -105,22 +110,22 @@ export default function SiteNav() {
                 {open && (
                   <div className="tn-dropdown" role="menu">
                     <div className="tn-dropdown-who">
-                      <strong>{me.name || "Tu cuenta"}</strong>
+                      <strong>{me.name || t("nav.yourAccount")}</strong>
                       <span>{me.email}</span>
                     </div>
                     <Link role="menuitem" href="/mi-cuenta" onClick={() => setOpen(false)}>
-                      Mi cuenta
+                      {t("nav.account")}
                     </Link>
                     <Link role="menuitem" href="/comprar-creditos" onClick={() => setOpen(false)}>
-                      Comprar créditos
+                      {t("nav.buy")}
                     </Link>
                     {referral && (
                       <Link role="menuitem" href="/invita" onClick={() => setOpen(false)}>
-                        Invita y gana +{referral.referrerCredits}
+                        {t("nav.invite", { n: referral.referrerCredits })}
                       </Link>
                     )}
                     <button role="menuitem" type="button" onClick={logout} disabled={loggingOut}>
-                      {loggingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+                      {loggingOut ? t("nav.loggingOut") : t("nav.logout")}
                     </button>
                   </div>
                 )}

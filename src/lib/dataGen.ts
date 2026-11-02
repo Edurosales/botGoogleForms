@@ -213,16 +213,50 @@ const SURNAMES_EN = [
   "Bailey", "Reed", "Kelly", "Howard", "Cox", "Ward", "Richardson", "Watson", "Brooks", "Bennett",
 ];
 
-/** "inglés" usa nombres y apellidos en inglés (Nombre + 1 apellido); el resto, la base hispana (Nombre + 2 apellidos). */
-function isEnglish(language?: string): boolean {
-  return /^(ingl[eé]s|english|en)$/i.test((language ?? "").trim());
+const NAMES_PT = [
+  "João", "Pedro", "Lucas", "Gabriel", "Mateus", "Rafael", "Gustavo", "Felipe", "Bruno", "Thiago",
+  "Ana", "Maria", "Juliana", "Mariana", "Beatriz", "Larissa", "Camila", "Fernanda", "Letícia", "Gabriela",
+];
+const SURNAMES_PT = [
+  "Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves", "Pereira", "Lima", "Gomes",
+  "Costa", "Ribeiro", "Martins", "Carvalho", "Almeida", "Lopes", "Soares", "Fernandes", "Vieira", "Barbosa",
+];
+const NAMES_FR = [
+  "Lucas", "Hugo", "Louis", "Gabriel", "Arthur", "Jules", "Nathan", "Thomas", "Antoine", "Théo",
+  "Emma", "Léa", "Chloé", "Manon", "Camille", "Inès", "Sarah", "Juliette", "Louise", "Clara",
+];
+const SURNAMES_FR = [
+  "Martin", "Bernard", "Dubois", "Thomas", "Robert", "Richard", "Petit", "Durand", "Leroy", "Moreau",
+  "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "David", "Bertrand", "Roux", "Vincent", "Fournier",
+];
+const NAMES_IT = [
+  "Francesco", "Alessandro", "Lorenzo", "Matteo", "Leonardo", "Andrea", "Marco", "Luca", "Giuseppe", "Davide",
+  "Giulia", "Sofia", "Aurora", "Alice", "Chiara", "Martina", "Francesca", "Sara", "Elena", "Giorgia",
+];
+const SURNAMES_IT = [
+  "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco",
+  "Bruno", "Gallo", "Conti", "De Luca", "Mancini", "Costa", "Giordano", "Rizzo", "Lombardi", "Moretti",
+];
+
+/**
+ * Nombres según el idioma de las respuestas. Inglés, francés e italiano usan
+ * Nombre + 1 apellido; español y portugués, Nombre + 2 apellidos.
+ */
+function namePools(language?: string): { names: string[]; surnames: string[]; oneSurname: boolean } {
+  const l = (language ?? "").trim().toLowerCase();
+  if (/^(ingl[eé]s|english|en)$/.test(l)) return { names: NAMES_EN, surnames: SURNAMES_EN, oneSurname: true };
+  if (/^(portugu[eé]s|pt)$/.test(l)) return { names: NAMES_PT, surnames: SURNAMES_PT, oneSurname: false };
+  if (/^(franc[eé]s|fran[cç]ais|fr)$/.test(l)) return { names: NAMES_FR, surnames: SURNAMES_FR, oneSurname: true };
+  if (/^(italiano|it)$/.test(l)) return { names: NAMES_IT, surnames: SURNAMES_IT, oneSurname: true };
+  return { names: NOMBRES, surnames: APELLIDOS, oneSurname: false };
 }
 
 /** Crea pools nuevos para una tanda de generación (sin repetir nombres/apellidos dentro de ella). */
 export function createNameState(language?: string) {
-  const english = isEnglish(language);
-  const poolNombres = new UniquePool(english ? NAMES_EN : NOMBRES);
-  const poolApellidos = new UniquePool(english ? SURNAMES_EN : APELLIDOS);
+  const pools = namePools(language);
+  const english = pools.oneSurname;
+  const poolNombres = new UniquePool(pools.names);
+  const poolApellidos = new UniquePool(pools.surnames);
   const usedSurnames = new Set<string>();
   const emailsSeen = new Set<string>();
 

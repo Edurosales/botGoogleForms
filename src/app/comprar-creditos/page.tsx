@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { getAppSettings } from "@/lib/appSettings";
 import ComprarCreditosClient from "./ComprarCreditosClient";
 import SiteNav from "../SiteNav";
+import { StoreIntro } from "../PageIntro";
 
 export const metadata: Metadata = {
   title: "Comprar créditos",
@@ -22,10 +23,7 @@ export default function ComprarCreditosPage() {
     <main className="tool-page">
       <SiteNav />
       <div className="tool-wrap tool-wrap-wide">
-        <div className="intro">
-          <h1>Comprar créditos</h1>
-          <p>Un crédito es una respuesta enviada. Con créditos comprados se activan las respuestas con IA, la fila prioritaria y los formularios de más de 30 preguntas.</p>
-        </div>
+        <StoreIntro />
         <Suspense
           fallback={
             <div className="sheet">

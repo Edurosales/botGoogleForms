@@ -2,7 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useMe, usePublicSettings } from "./clientData";
+import { fmtPen, useMe, usePublicSettings } from "./clientData";
+import { Rich, useLang } from "./LangProvider";
 
 const noSubscribe = () => () => {};
 
@@ -13,6 +14,7 @@ const noSubscribe = () => () => {};
 export default function InvitedNote() {
   const { referral } = usePublicSettings();
   const { me } = useMe();
+  const { t } = useLang();
   const param = useSyncExternalStore(
     noSubscribe,
     () => new URLSearchParams(window.location.search).get("invitado") ?? "",
@@ -26,25 +28,24 @@ export default function InvitedNote() {
       {existing ? (
         <>
           <p>
-            <strong>Esta invitación no es para ti:</strong> solo vale para cuentas nuevas y tú ya tienes cuenta. Igual puedes ganar{" "}
-            <strong>{referral.referrerCredits} créditos</strong> por cada amigo que invites.
+            <Rich text={t("inv.old", { n: referral.referrerCredits })} />
           </p>
           <Link className="b b-primary b-small" href="/invita">
-            Obtener mi enlace
+            {t("gift.cta")}
           </Link>
         </>
       ) : (
         <>
           <p>
-            <strong>¡Te invitaron!</strong> Crea tu cuenta y en tu primera compra de al menos S/ {(referral.minPurchaseCents / 100).toFixed(2)} recibes{" "}
-            <strong>{referral.referredCredits} créditos extra</strong>. <a href="/terminos-herramienta.html#referidos">Condiciones</a>
+            <Rich text={t("inv.new", { n: referral.referredCredits, min: fmtPen(referral.minPurchaseCents) })} />{" "}
+            <a href="/terminos-herramienta.html#referidos">{t("inv.conditions")}</a>
           </p>
-          <a className="b b-primary b-small" href="/mi-cuenta?modo=registro&volver=%2F">
-            Crear mi cuenta
-          </a>
+          <Link className="b b-primary b-small" href="/mi-cuenta?modo=registro&volver=%2F">
+            {t("inv.create")}
+          </Link>
         </>
       )}
-      <button type="button" className="invited-x" aria-label="Cerrar" onClick={() => setClosed(true)}>
+      <button type="button" className="invited-x" aria-label={t("sup.close")} onClick={() => setClosed(true)}>
         ×
       </button>
     </div>

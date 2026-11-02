@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { detectLanguage } from "@/lib/langDetect";
+import { AI_LANGUAGE } from "@/lib/i18n";
+import { useLang } from "./LangProvider";
 import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
 import { announceBalanceChange, formatPhone, useDailyLimits, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
@@ -159,6 +161,7 @@ function readDraft(): SavedDraft | null {
 
 export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: { initialUrl?: string; paidOrder?: string }) {
   const { me } = useMe();
+  const { locale } = useLang();
   const { limits: daily } = useDailyLimits(Boolean(me));
   /** Fecha del último envío de este formulario cuya configuración se aplicó sola. */
   const [restoredAt, setRestoredAt] = useState("");
@@ -245,10 +248,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         if (keep) {
           setUrl(keep.url);
           setTotal(keep.total || 10);
-          setLanguage(keep.language || detected || SUPPORTED_LANGUAGES[0].code);
+          setLanguage(keep.language || detected || AI_LANGUAGE[locale]);
           setCustomInstructions(keep.customInstructions || "");
-        } else if (detected) {
-          setLanguage(detected);
+        } else {
+          // Idioma del formulario si se reconoce; si no, el de la persona.
+          setLanguage(detected || AI_LANGUAGE[locale]);
         }
         if (keep?.qConfig) {
           const merged: QConfMap = {};
@@ -279,7 +283,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         setAnalyzing(false);
       }
     },
-    [aiAllowed]
+    [aiAllowed, locale]
   );
 
   // ── Restaurar borrador (al volver de Google o de pagar) o leer ?url= ──

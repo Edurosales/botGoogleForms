@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BALANCE_EVENT } from "./clientData";
+import { useLang } from "./LangProvider";
 
 type Item = { id: string; kind: string; title: string; body: string; link: string; read_at: string | null; created_at: string };
 
@@ -32,6 +33,7 @@ export default function NotificationsBell() {
   const [items, setItems] = useState<Item[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const { t } = useLang();
   const ref = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -110,7 +112,7 @@ export default function NotificationsBell() {
         className="nb-btn"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={unread > 0 ? `Notificaciones, ${unread} sin leer` : "Notificaciones"}
+        aria-label={unread > 0 ? t("bell.unread", { n: unread }) : t("bell.title")}
         onClick={() => setOpen((v) => !v)}
       >
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -123,27 +125,27 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="nb-panel" role="dialog" aria-label="Notificaciones">
+        <div className="nb-panel" role="dialog" aria-label={t("bell.title")}>
           <div className="nb-head">
-            <strong>Notificaciones</strong>
+            <strong>{t("bell.title")}</strong>
             <div className="nb-head-actions">
               {unread > 0 && (
                 <button type="button" className="nb-link" onClick={() => markRead({ all: true })}>
-                  Marcar leídas
+                  {t("bell.markRead")}
                 </button>
               )}
               {items.length > 0 && (
                 <button type="button" className="nb-link nb-link-mute" onClick={removeAll}>
-                  Borrar todas
+                  {t("bell.deleteAll")}
                 </button>
               )}
-              <button type="button" className="nb-close" aria-label="Cerrar notificaciones" onClick={() => setOpen(false)}>
+              <button type="button" className="nb-close" aria-label={t("sup.close")} onClick={() => setOpen(false)}>
                 ×
               </button>
             </div>
           </div>
           {items.length === 0 ? (
-            <p className="nb-empty">No tienes notificaciones.</p>
+            <p className="nb-empty">{t("bell.empty")}</p>
           ) : (
             <ul className="nb-list">
               {items.map((n) => (
@@ -156,7 +158,7 @@ export default function NotificationsBell() {
                     {n.body && <span className="nb-body">{n.body}</span>}
                     <span className="nb-time">{ago(n.created_at)}</span>
                   </button>
-                  <button type="button" className="nb-del" aria-label="Borrar notificación" onClick={() => remove(n)}>
+                  <button type="button" className="nb-del" aria-label={t("bell.delete")} onClick={() => remove(n)}>
                     ×
                   </button>
                 </li>

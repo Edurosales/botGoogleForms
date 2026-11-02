@@ -79,6 +79,7 @@ export default function PrivacyPanel({ me, onChange }: { me: Me; onChange: () =>
       </label>
 
       <div className="privacy-actions">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- es una descarga de archivo, no una página */}
         <a className="b b-ghost b-small" href="/api/web/account/export">
           Descargar mis datos
         </a>

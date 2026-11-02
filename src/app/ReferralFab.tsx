@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { fmtPen, useMe, usePublicSettings } from "./clientData";
+import { Rich, useLang } from "./LangProvider";
 
 /**
  * Regalo flotante en todas las páginas (con sesión iniciada): recuerda que se
@@ -22,6 +23,7 @@ export default function ReferralFab() {
   const { me } = useMe();
   const { referral } = usePublicSettings();
   const path = usePathname() || "/";
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(readHidden);
   const box = useRef<HTMLDivElement>(null);
@@ -44,26 +46,23 @@ export default function ReferralFab() {
     <div className="gift-fab" ref={box}>
       {open && (
         <div className="gift-pop" role="dialog" aria-label="Invita y gana">
-          <button type="button" className="gift-x" aria-label="Cerrar" onClick={() => setOpen(false)}>
+          <button type="button" className="gift-x" aria-label={t("sup.close")} onClick={() => setOpen(false)}>
             ×
           </button>
           <p className="gift-title">
-            Gana <b>{referral.referrerCredits} créditos</b> por cada amigo
+            <Rich text={t("gift.title", { n: referral.referrerCredits })} />
           </p>
           <ul>
-            <li>Tu amigo se registra con tu enlace (vale {referral.days} días).</li>
-            <li>
-              Cuando hace su primera compra de {fmtPen(referral.minPurchaseCents)} o más, tú ganas {referral.referrerCredits} y él {referral.referredCredits}{" "}
-              créditos.
-            </li>
-            <li>Una sola vez por amigo; si la compra se devuelve, el premio se retira.</li>
+            <li>{t("gift.i1", { days: referral.days })}</li>
+            <li>{t("gift.i2", { min: fmtPen(referral.minPurchaseCents), a: referral.referrerCredits, b: referral.referredCredits })}</li>
+            <li>{t("gift.i3")}</li>
           </ul>
           <Link className="b b-primary b-small" href="/invita">
-            Obtener mi enlace
+            {t("gift.cta")}
           </Link>
           <p className="gift-terms">
             <a href="/terminos-herramienta.html#referidos" target="_blank" rel="noopener">
-              Términos y condiciones
+              {t("gift.terms")}
             </a>{" "}
             ·{" "}
             <button
@@ -78,7 +77,7 @@ export default function ReferralFab() {
                 }
               }}
             >
-              No mostrar
+              {t("gift.hide")}
             </button>
           </p>
         </div>
@@ -86,7 +85,7 @@ export default function ReferralFab() {
       <button type="button" className="gift-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
         <span className="gift-ico" aria-hidden="true">🎁</span>
         <span className="gift-txt">
-          Gana <b>{referral.referrerCredits}</b> créditos invitando
+          <Rich text={t("gift.btn", { n: referral.referrerCredits })} />
         </span>
       </button>
     </div>

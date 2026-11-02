@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import NotFoundText from "./NotFoundText";
 
 export const metadata: Metadata = { title: "Página no encontrada", robots: { index: false } };
 
@@ -19,16 +20,13 @@ export default function NotFound() {
           Forms<span style={{ color: "#21163F" }}>Bot</span>
         </p>
         <p style={{ margin: "18px 0 4px", fontSize: 64, fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, color: "#5B2EA6" }}>404</p>
-        <h1 style={{ margin: "6px 0 8px", fontSize: 22, lineHeight: 1.25 }}>Esta página no existe</h1>
-        <p style={{ margin: "0 0 22px", color: "#4F4666", fontSize: 15, lineHeight: 1.5 }}>
-          Puede que el enlace esté mal escrito o que la página se haya movido.
-        </p>
+        <NotFoundText part="body" />
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", borderRadius: 10, fontWeight: 700, textDecoration: "none", background: "#5B2EA6", color: "#fff" }}>
-            Ir a la herramienta
+            <NotFoundText part="tool" />
           </Link>
           <Link href="/mi-cuenta" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", borderRadius: 10, fontWeight: 700, textDecoration: "none", border: "1.5px solid #C9BFDC", color: "#21163F" }}>
-            Mi cuenta
+            <NotFoundText part="account" />
           </Link>
         </div>
       </div>

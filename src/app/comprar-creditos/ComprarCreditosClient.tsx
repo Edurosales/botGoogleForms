@@ -21,6 +21,7 @@ import PurchaseCelebration from "../PurchaseCelebration";
 import { MP_REJECT_REASONS } from "./mpReasons";
 import Script from "next/script";
 import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "./PayLogos";
+import { useLang } from "../LangProvider";
 
 type Pkg = { responses: number; priceCents: number };
 type Pay = {
@@ -38,6 +39,7 @@ type CouponState = { status: "idle" | "checking" | "ok" | "bad"; discountPercent
 const IDLE_COUPON: CouponState = { status: "idle", discountPercent: 0, finalCents: 0, reason: "" };
 
 export default function ComprarCreditosClient({ packages: serverPackages }: { packages: Pkg[] }) {
+  const { t } = useLang();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { me } = useMe();
@@ -528,20 +530,20 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
 
               {providers.length > 1 && (
                 <fieldset className="paymethods">
-                  <legend>Medio de pago</legend>
+                  <legend>{t("store.method")}</legend>
                   <label className={`paymethod${payWith === "mercadopago" ? " on" : ""}`}>
                     <input type="radio" name="paymethod" checked={payWith === "mercadopago"} onChange={() => setMethod("mercadopago")} />
                     <span className="paymethod-txt">
                       <b>Mercado Pago</b>
-                      <small>Tarjeta, Yape, PagoEfectivo o saldo de Mercado Pago</small>
+                      <small>{t("store.mpDesc")}</small>
                     </span>
                     <PayLogos brands={MP_BRANDS} />
                   </label>
                   <label className={`paymethod${payWith === "izipay" ? " on" : ""}`}>
                     <input type="radio" name="paymethod" checked={payWith === "izipay"} onChange={() => setMethod("izipay")} />
                     <span className="paymethod-txt">
-                      <b>Tarjeta</b>
-                      <small>Visa, Mastercard, Amex, Diners (Izipay)</small>
+                      <b>{t("store.card")}</b>
+                      <small>{t("store.cardDesc")}</small>
                     </span>
                     <PayLogos brands={IZIPAY_BRANDS} />
                   </label>
@@ -592,16 +594,16 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
               )}
               <button className="b b-primary b-block" type="button" onClick={start} disabled={!canPay}>
                 {busy
-                  ? "Preparando el pago…"
+                  ? t("store.preparing")
                   : serviceFull
-                    ? "Compra pausada por hoy"
+                    ? t("store.paused")
                     : !me
-                    ? "Inicia sesión para pagar"
+                    ? t("store.loginToPay")
                     : selected
                       ? payWith === "mercadopago"
-                        ? `Pagar ${fmtPen(finalCents)} con Mercado Pago`
-                        : `Pagar ${fmtPen(finalCents)} con tarjeta`
-                      : "Elige un paquete"}
+                        ? t("store.payMp", { amount: fmtPen(finalCents) })
+                        : t("store.payCard", { amount: fmtPen(finalCents) })
+                      : t("store.choose")}
               </button>
               <SecurePayStrip providers={providers} />
               <p className="fine">

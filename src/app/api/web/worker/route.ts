@@ -11,6 +11,7 @@ import { isSpreadWaiting } from "@/lib/jobRunner";
 import { paymentFollowUps, paymentRecovery } from "@/lib/messages";
 import { ownerDailyDigest } from "@/lib/digest";
 import { lowCreditsAlerts } from "@/lib/referrals";
+import { watchCollector } from "@/lib/payGuard";
 
 /**
  * Worker en la nube: avanza TODOS los envíos activos sin depender del
@@ -71,6 +72,8 @@ export async function POST(req: Request) {
   const lowCredits = await lowCreditsAlerts().catch(() => null);
   // Correos que no salieron cuando Gmail falló: de a pocos, del más nuevo al más viejo.
   const outbox = await drainOutbox().catch(() => null);
+  // Seguridad: ¿cambió la cuenta que recibe los pagos? (cada hora como mucho)
+  const collector = await watchCollector().catch(() => null);
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se
@@ -110,5 +113,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, lowCredits, outbox, ms: Date.now() - start });
+  return NextResponse.json({ ok: true, advanced, remaining, newsletter, swept, bounces, followUps, recovery, digest, lowCredits, outbox, collector, ms: Date.now() - start });
 }

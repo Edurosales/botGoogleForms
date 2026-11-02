@@ -8,13 +8,14 @@ const WORDS: Record<string, string[]> = {
   inglés: ["the", "of", "and", "to", "your", "you", "what", "is", "how", "name", "age", "do", "are", "in", "for", "which", "please", "would", "with", "years"],
   portugués: ["de", "o", "a", "que", "e", "do", "da", "em", "você", "seu", "sua", "qual", "nome", "idade", "não", "para", "com", "como", "anos", "é"],
   francés: ["de", "la", "le", "et", "les", "des", "vous", "votre", "quel", "quelle", "nom", "âge", "est", "pour", "avec", "comment", "ans", "êtes", "du", "en"],
+  italiano: ["il", "di", "che", "e", "la", "per", "con", "non", "una", "sono", "nome", "età", "qual", "quale", "come", "anni", "della", "del", "tuo", "tua", "è"],
 };
 
 export function detectLanguage(texts: string[]): string | null {
   const tokens = texts
     .join(" ")
     .toLowerCase()
-    .split(/[^a-záéíóúñçãõâêôàèùëïü]+/i)
+    .split(/[^a-záéíóúñçãõâêôàèùëïüìò]+/i)
     .filter(Boolean);
   if (tokens.length < 4) return null;
   const scores = Object.entries(WORDS).map(([lang, words]) => {
