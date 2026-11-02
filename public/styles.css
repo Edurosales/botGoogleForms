@@ -829,30 +829,34 @@ body.paying .gift-fab{display:none}
 .side-logo{font-weight:800;font-size:1.25rem;letter-spacing:-.02em;text-decoration:none;color:var(--ink)!important;padding:0 10px}
 .side-logo b{color:var(--acc)}
 @media(min-width:1100px){
-  body:has(.side){padding-left:236px}
-  .side{display:flex;flex-direction:column;gap:18px;position:fixed;left:0;top:0;bottom:0;width:236px;padding:20px 14px;background:var(--card);border-right:1px solid var(--line);z-index:55;overflow-y:auto}
+  html.sess body{padding-left:236px}
+  html.sess .side{display:flex}
+  .side{flex-direction:column;gap:18px;position:fixed;left:0;top:0;bottom:0;width:236px;padding:20px 14px;background:var(--card);border-right:1px solid var(--line);z-index:55;overflow-y:auto}
   .side-logo{display:flex;align-items:center;min-height:28px}
   .side nav{display:flex;flex-direction:column;gap:2px}
   .side nav a{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:8px;color:var(--mute);font-weight:600;font-size:.9375rem;text-decoration:none}
   .side nav a:hover{background:var(--bg);color:var(--ink)}
   .side nav a[aria-current=page]{background:var(--soft);color:var(--acc)}
   .side nav a:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
-  body:has(.side) .tn-logo,body:has(.side) .tn .tn-links{display:none}
-  body:has(.side) .tn-inner{max-width:none;padding:0 28px}
+  html.sess body .tn-logo,html.sess body .tn .tn-links{display:none}
+  html.sess body .tn-inner{max-width:none;padding:0 28px}
 }
 @media(max-width:760px){
-  .bnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:66;background:var(--card);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
+  html.sess .bnav{display:grid}
+  .bnav{grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:66;background:var(--card);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
   .bnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border-radius:10px;color:var(--mute);font-size:.6875rem;font-weight:700;text-decoration:none;text-align:center;line-height:1.15}
   .bnav a span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
   .bnav a[aria-current=page]{color:var(--acc)}
   .bnav a[aria-current=page] svg{stroke-width:2.25}
   .bnav a:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
   /* Con barra inferior: la de arriba queda en una fila y lo flotante sube */
-  body:has(.bnav) .tn .tn-links{display:none}
-  body:has(.bnav) .tn-inner{padding-bottom:8px}
-  body:has(.bnav){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
-  body:has(.bnav) .support,body:has(.bnav) .support-fab,body:has(.bnav) .gift-fab{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
-  body:has(.bnav) .cookie{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  html.sess body .tn .tn-links{display:none}
+  html.sess body .tn-inner{padding-bottom:8px}
+  html.sess body{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  html.sess body .support,html.sess body .gift-fab{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  /* La barra inferior ya tiene Mensajes: el botón flotante repetido se oculta (el chat se abre igual). */
+  html.sess .support>.support-fab{display:none}
+  html.sess body .cookie{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 body.paying .bnav{display:none}
 
@@ -900,4 +904,15 @@ nav.bnav a:not(.btn){display:flex;padding:0}
 .nb-item.is-unread .nb-ico{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
 .nb-ico-job_done,.nb-item.is-unread .nb-ico-job_done{background:#E8F5E9;color:#1B7F3B;box-shadow:none}
 .nb-ico-job_failed,.nb-item.is-unread .nb-ico-job_failed{background:#FFF3E0;color:#B45309;box-shadow:none}
+/* Botón de Mensajes del menú (abre el chat aquí mismo) con el mismo aspecto que los enlaces */
+.side nav button,.bnav button{font:inherit;background:none;border:0;cursor:pointer;text-align:left}
+@media(min-width:1100px){.side nav button{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:8px;color:var(--mute);font-weight:600;font-size:.9375rem}.side nav button:hover{background:var(--bg);color:var(--ink)}}
+@media(max-width:760px){.bnav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border-radius:10px;color:var(--mute);font-size:.6875rem;font-weight:700;line-height:1.15}.bnav button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}}
+/* En PC con sesión el menú lateral ya tiene Mensajes e Invita y gana: sin
+   botones flotantes encima del contenido ni del menú (el chat se abre igual). */
+@media(min-width:1100px){html.sess .support>.support-fab,html.sess .gift-fab{display:none}}
+.nav-badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C62828;color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center}
+.side nav .nav-badge{margin-left:auto}
+.bnav button{position:relative}
+.bnav .nav-badge{position:absolute;top:4px;left:calc(50% + 6px)}
 

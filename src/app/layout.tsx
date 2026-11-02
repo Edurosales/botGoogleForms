@@ -36,9 +36,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#F6F5F9" />
+        {/* Menú de la app visible desde el primer pintado si este navegador tenía sesión
+            (SiteNav lo confirma o lo quita al saber la sesión real). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{if(localStorage.getItem('fb-sess')==='1')document.documentElement.classList.add('sess')}catch(e){}",
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

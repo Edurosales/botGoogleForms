@@ -7,6 +7,8 @@ import { useLang } from "./LangProvider";
 
 /** Abre el chat desde otra parte de la página (ej. "Mi cuenta → Mensajes"). */
 export const OPEN_CHAT_EVENT = "formsbot:open-chat";
+/** Mensajes sin leer (para el número en el menú de la app). */
+export const UNREAD_EVENT = "formsbot:unread";
 export function openSupportChat() {
   window.dispatchEvent(new Event(OPEN_CHAT_EVENT));
 }
@@ -110,6 +112,10 @@ export default function SupportButton() {
 
   // Al abrir con mensajes nuevos de soporte: se marcan leídos.
   const unread = thread?.unread ?? 0;
+  // El menú lateral y la barra inferior muestran el mismo número.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(UNREAD_EVENT, { detail: unread }));
+  }, [unread]);
   useEffect(() => {
     if (!open || !unread) return;
     fetch("/api/web/messages", { method: "PATCH" })

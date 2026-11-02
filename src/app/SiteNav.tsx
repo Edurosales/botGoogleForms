@@ -9,6 +9,10 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import { useLang } from "./LangProvider";
 import type { MsgKey } from "@/lib/i18n";
 import Icon, { type IconName } from "./icons";
+import { openSupportChat, UNREAD_EVENT } from "./SupportButton";
+
+/** Este navegador tenía sesión: el <head> pone la clase `sess` antes de pintar. */
+export const SESSION_HINT_KEY = "fb-sess";
 
 const LINKS: { href: string; label: MsgKey }[] = [
   { href: "/", label: "nav.tool" },
@@ -55,53 +59,65 @@ export default function SiteNav() {
 
   const initial = me ? (me.name || me.email).trim().charAt(0).toUpperCase() : "";
 
-  // Con sesión: menú lateral en PC y barra inferior en celular (los estilos
-  // deciden cuál se ve). Sin sesión queda la barra de arriba de siempre.
-  const appLinks: { href: string; label: string; icon: IconName; mobile: boolean }[] = me
-    ? [
-        { href: "/", label: t("nav.tool"), icon: "tool", mobile: true },
-        { href: "/comprar-creditos", label: t("nav.buy"), icon: "card", mobile: false },
-        { href: "/mi-cuenta", label: tr("Mis envíos"), icon: "list", mobile: true },
-        { href: "/mi-cuenta?chat=1", label: tr("Mensajes"), icon: "message", mobile: true },
-        ...(referral ? [{ href: "/invita", label: tr("Invita y gana"), icon: "gift" as IconName, mobile: false }] : []),
-        { href: aboutHref, label: t("nav.about"), icon: "info", mobile: false },
-      ]
-    : [];
-  const isHere = (href: string) => !href.includes("?") && pathname === href;
+  // Con sesión: menú lateral en PC y barra inferior en celular. Se dibujan
+  // siempre y los muestra la clase `sess` de <html>, que un script del <head>
+  // pone ANTES de pintar si este navegador tenía sesión: al recargar, el menú
+  // ya está ahí (antes aparecía al final y movía toda la página).
+  useEffect(() => {
+    if (me === undefined) return;
+    document.documentElement.classList.toggle("sess", Boolean(me));
+    try {
+      if (me) localStorage.setItem(SESSION_HINT_KEY, "1");
+      else localStorage.removeItem(SESSION_HINT_KEY);
+    } catch {
+      /* sin almacenamiento: solo se pierde el aviso previo */
+    }
+  }, [me]);
+
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    const on = (e: Event) => setUnread(Number((e as CustomEvent).detail) || 0);
+    window.addEventListener(UNREAD_EVENT, on);
+    return () => window.removeEventListener(UNREAD_EVENT, on);
+  }, []);
+
+  type Item = { key: string; label: string; icon: IconName; mobile: boolean; href?: string; chat?: true };
+  const items: Item[] = [
+    { key: "tool", href: "/", label: t("nav.tool"), icon: "tool", mobile: true },
+    { key: "buy", href: "/comprar-creditos", label: t("nav.buy"), icon: "card", mobile: false },
+    { key: "jobs", href: "/mi-cuenta", label: tr("Mis envíos"), icon: "list", mobile: true },
+    // Mensajes abre el chat aquí mismo (no navega: antes no cargaba).
+    { key: "chat", chat: true, label: tr("Mensajes"), icon: "message", mobile: true },
+    ...(referral ? [{ key: "inv", href: "/invita", label: tr("Invita y gana"), icon: "gift" as IconName, mobile: false }] : []),
+    { key: "about", href: aboutHref, label: t("nav.about"), icon: "info", mobile: false },
+  ];
+  const isHere = (href?: string) => !!href && pathname === href;
+  const renderItem = (l: Item, size: number) =>
+    l.chat ? (
+      <button key={l.key} type="button" onClick={openSupportChat}>
+        <Icon name={l.icon} size={size} />
+        <span>{l.label}</span>
+        {unread > 0 && <b className="nav-badge">{unread > 9 ? "9+" : unread}</b>}
+      </button>
+    ) : (
+      <Link key={l.key} href={l.href as string} aria-current={isHere(l.href) ? "page" : undefined}>
+        <Icon name={l.icon} size={size} />
+        <span>{l.label}</span>
+      </Link>
+    );
 
   return (
     <>
-    {me && (
-      <aside className="side" aria-label={tr("Navegación de la app")}>
-        <Link className="side-logo" href="/">
-          Forms<b>Bot</b>
-        </Link>
-        <nav>
-          {appLinks.map((l) => (
-            <Link key={l.href} href={l.href} aria-current={isHere(l.href) ? "page" : undefined}>
-              <Icon name={l.icon} />
-              <span>{l.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-    )}
-    {me && (
-      <nav className="bnav" aria-label={tr("Navegación de la app")}>
-        {appLinks
-          .filter((l) => l.mobile)
-          .map((l) => (
-            <Link key={l.href} href={l.href} aria-current={isHere(l.href) ? "page" : undefined}>
-              <Icon name={l.icon} size={20} />
-              <span>{l.label}</span>
-            </Link>
-          ))}
-        <Link href="/comprar-creditos" aria-current={isHere("/comprar-creditos") ? "page" : undefined}>
-          <Icon name="card" size={20} />
-          <span>{tr("Créditos")}</span>
-        </Link>
-      </nav>
-    )}
+    <aside className="side" aria-label={tr("Navegación de la app")}>
+      <Link className="side-logo" href="/">
+        Forms<b>Bot</b>
+      </Link>
+      <nav>{items.map((l) => renderItem(l, 18))}</nav>
+    </aside>
+    <nav className="bnav" aria-label={tr("Navegación de la app")}>
+      {items.filter((l) => l.mobile).map((l) => renderItem(l, 20))}
+      {renderItem({ key: "credits", href: "/comprar-creditos", label: tr("Créditos"), icon: "card", mobile: true }, 20)}
+    </nav>
     <header className="tn">
       <div className="tn-inner">
         <Link className="tn-logo" href="/">
