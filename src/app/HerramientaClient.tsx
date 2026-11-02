@@ -787,6 +787,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
           <DataImport
             key={form.formId ?? form.title}
+            allowed={!!me && me.credits > 0}
+            onBuy={goBuy}
             questions={form.questions}
             onChange={(d) => {
               setDataSet(d);
@@ -975,6 +977,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               {(notice.code === "NO_CREDITS" ||
                 notice.code === "TOO_MANY_QUESTIONS" ||
                 notice.code === "AI_REQUIRES_PAID" ||
+                notice.code === "DATA_REQUIRES_PAID" ||
                 notice.code === "FORM_FREE_USED") && (
                 <div className="actions">
                   <button type="button" className="b b-small b-primary" onClick={goBuy}>

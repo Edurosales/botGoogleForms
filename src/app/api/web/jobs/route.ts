@@ -269,7 +269,9 @@ export async function POST(request: Request) {
   // otra cosa se paga completa con créditos comprados (cola prioritaria).
   const usesAi = form.questions.some((q) => (qConfig[q.entry]?.mode ?? "random") === "ai");
   const tooManyQuestions = form.questions.length > lim.maxFreeQuestions;
-  let isPaid = usesAi || tooManyQuestions || total > user.freeCredits;
+  // "Usar mis datos" es solo para quien tiene créditos (comprados o regalados):
+  // ese envío siempre se cobra de créditos, nunca de las respuestas gratis.
+  let isPaid = usesAi || tooManyQuestions || total > user.freeCredits || !!dataRows;
 
   // Un mismo formulario solo se llena gratis UNA vez. Si ya lo llenó gratis
   // otra cuenta, este envío se cobra con créditos (también a quien ya compró
@@ -322,6 +324,13 @@ export async function POST(request: Request) {
   }
 
   if (isPaid && user.credits < total) {
+    if (dataRows) {
+      return fail(402, {
+        code: "DATA_REQUIRES_PAID",
+        ...balances,
+        reason: `Usar tus datos es para clientes con créditos comprados o regalados: este envío necesita ${total} y tienes ${user.credits}. Compra créditos o baja la cantidad.`,
+      });
+    }
     if (usesAi) {
       return fail(402, {
         code: "AI_REQUIRES_PAID",

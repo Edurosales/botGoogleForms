@@ -11,7 +11,18 @@ export type DataSet = { rows: Record<string, string>[]; mapping: Mapping; header
  * Cada pregunta toma una columna (se asocian solas por título y se pueden
  * cambiar). Lo que no tiene columna sigue la configuración de la pregunta.
  */
-export default function DataImport({ questions, onChange }: { questions: ImportQuestion[]; onChange: (d: DataSet | null) => void }) {
+export default function DataImport({
+  questions,
+  onChange,
+  allowed,
+  onBuy,
+}: {
+  questions: ImportQuestion[];
+  onChange: (d: DataSet | null) => void;
+  /** Solo con créditos comprados o regalados (el servidor también lo exige). */
+  allowed: boolean;
+  onBuy: () => void;
+}) {
   const { tr } = useLang();
   const [table, setTable] = useState<Table | null>(null);
   const [source, setSource] = useState("");
@@ -82,6 +93,18 @@ export default function DataImport({ questions, onChange }: { questions: ImportQ
   }
 
   const mappedCount = Object.values(mapping).filter((c) => c >= 0).length;
+
+  if (!allowed) {
+    return (
+      <fieldset className="group data data-locked">
+        <legend>{tr("Usar mis datos (opcional)")}</legend>
+        <p className="group-hint">{tr("Disponible con créditos comprados o regalados: cada fila de tu Excel, CSV o Google Sheets se envía como una respuesta.")}</p>
+        <button type="button" className="b b-small b-ghost" onClick={onBuy}>
+          {tr("Comprar créditos")}
+        </button>
+      </fieldset>
+    );
+  }
 
   return (
     <fieldset className="group data">

@@ -9,6 +9,11 @@ const MAX_BYTES = 2_000_000;
 export async function POST(req: Request) {
   const user = await getWebUser();
   if (!user) return NextResponse.json({ ok: false, reason: "Inicia sesión." }, { status: 401 });
+  // Solo para clientes con créditos (comprados o regalados): leer hojas ajenas
+  // a Google cuesta servidor y es parte del servicio de pago.
+  if (user.credits <= 0) {
+    return NextResponse.json({ ok: false, code: "DATA_REQUIRES_PAID", reason: "Usar tus datos es para clientes con créditos comprados o regalados." }, { status: 402 });
+  }
   if (!rateLimit(`web-sheet:${user.id}`, 15, 10 * 60_000)) {
     return NextResponse.json({ ok: false, reason: "Demasiados intentos. Espera unos minutos." }, { status: 429 });
   }
