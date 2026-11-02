@@ -127,6 +127,16 @@ export function needsAi(questions: ParsedQuestion[], qConfig: QuestionConfigMap)
   return questions.some((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {}));
 }
 
+/**
+ * Respuestas por llamada a la IA: ~560 respuestas cortas (≤8 palabras) como
+ * máximo por llamada, entre 3 y 40 perfiles: hasta 14 preguntas con IA → 40
+ * perfiles; 20 → 28; 40 → 14.
+ */
+export function aiChunkSize(questions: ParsedQuestion[], qConfig: QuestionConfigMap): number {
+  const ai = questions.filter((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {})).length;
+  return Math.max(3, Math.min(40, Math.floor(560 / Math.max(1, ai))));
+}
+
 /** Resuelve un perfil completo de preguntas locales, con nombre y correo
  * coherentes entre sí dentro del mismo perfil (igual que el bot de
  * escritorio): si hay una pregunta de nombre, se resuelve primero y su
@@ -305,7 +315,7 @@ function buildPrompt(
 
   lines.push(
     "- Para opción múltiple: usa EXACTAMENTE el texto de una de las opciones dadas.",
-    "- Para texto libre: respuesta corta y natural (máx 15 palabras).",
+    "- Para texto libre: respuesta corta, natural y al grano (MÁXIMO 8 palabras).",
     "- Si una pregunta pide nombre completo: genera Nombre + DOS apellidos distintos, sin repetir apellidos entre perfiles.",
     "- Para edad: número entero realista y coherente con el perfil."
   );
@@ -509,45 +519,43 @@ async function generateProfilesRaw(
       { norm: normalizeQuestion(q.title), lang: language, ctx: contextKey(qConfig[q.entry]?.prompt ?? "", opts.customInstructions ?? "") },
     ])
   );
-  // Solo si TODAS las preguntas con IA son abiertas (las de opciones necesitan
-  // el criterio de la IA para ser coherentes con el resto del perfil).
-  if (openAi.length === aiQuestions.length) {
-    const cached = await answersFromCache(cacheKeys, n, opts.usedAnswers ?? {});
-    if (cached) {
-      return Array.from({ length: n }, (_, i) => {
-        const profile = buildLocalPart(i);
-        for (const q of openAi) profile[q.entry] = conformToValidation(q, cached.get(q.entry)?.[i] ?? "", nameState);
-        return profile;
-      });
+  // Pregunta por pregunta: las abiertas que el banco cubre no se piden a la
+  // IA. Si el banco cubre todo, no hay llamada.
+  const cached = await answersFromCache(cacheKeys, n, opts.usedAnswers ?? {});
+  const fromBank = (i: number, profile: Record<string, string>) => {
+    for (const [entry, answers] of cached) {
+      const q = openAi.find((x) => x.entry === entry);
+      if (q) profile[entry] = conformToValidation(q, answers[i] ?? "", nameState);
     }
-  }
+    return profile;
+  };
+  const toAi = aiQuestions.filter((q) => !cached.has(q.entry));
+  if (!toAi.length) return Array.from({ length: n }, (_, i) => fromBank(i, buildLocalPart(i)));
+  for (const k of cached.keys()) cacheKeys.delete(k); // solo se guarda lo nuevo
 
-  const prompt = buildPrompt(form.title, aiQuestions, n, opts.customInstructions ?? "", qConfig, language);
+  const prompt = buildPrompt(form.title, toAi, n, opts.customInstructions ?? "", qConfig, language);
 
   const text = await callGroq(
     [
       {
         role: "system",
-        content: "Eres un asistente que genera únicamente datos estructurados en formato JSON estrictamente válido.",
+        content: "Generas solo JSON válido, compacto, sin explicaciones. Respuestas de texto: máximo 8 palabras.",
       },
       { role: "user", content: prompt },
     ],
     GENERATION_MODEL,
     0.8,
-    // Modelo de razonamiento: gasta tokens pensando antes de escribir el
-    // JSON final. Con 30 perfiles y varias preguntas, 4096 se quedaba
-    // corto. 16000 causó un rechazo inmediato de la API (probablemente
-    // por encima del máximo que Groq permite para este modelo) — 8192
-    // es un valor ampliamente soportado y sigue siendo el doble.
-    8192
+    // Tokens a la medida del lote (respuestas cortas): menos espera y menos
+    // cuota que pedir siempre 8192.
+    Math.min(8192, 400 + n * toAi.length * 28)
   );
 
   const rawProfiles = cleanAndParseJson(text);
 
-  const generated = rawProfiles.map((raw, pIdx) => {
+  const generated = rawProfiles.slice(0, n).map((raw, pIdx) => {
     const r = raw as Record<string, unknown>;
-    const profile: Record<string, string> = buildLocalPart(pIdx);
-    aiQuestions.forEach((q: ParsedQuestion, idx) => {
+    const profile: Record<string, string> = fromBank(pIdx, buildLocalPart(pIdx));
+    toAi.forEach((q: ParsedQuestion, idx) => {
       const i = idx + 1;
       let answer = String(r[`P${i}`] ?? r[`p${i}`] ?? "").trim();
       if (q.options.length && !q.options.includes(answer)) {

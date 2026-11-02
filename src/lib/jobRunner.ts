@@ -8,7 +8,8 @@
  */
 import { db, type FailureCode, type FailureDetail, type WebJob } from "./db";
 import { claimSlot, getQueuePosition, pauseState } from "./queue";
-import { generateProfiles, needsAi } from "./aiProfiles";
+import { aiChunkSize, generateProfiles, needsAi } from "./aiProfiles";
+import { healthyKeyCount } from "./aiPool";
 import { failureCode, failureHint, submitOne, type SubmitResult } from "./formSubmitter";
 import { addCredits, spendCredits } from "./credits";
 import type { ParsedForm, ParsedQuestion } from "./formParser";
@@ -25,7 +26,9 @@ const SUBMIT_BATCH = 60;
 const SUBMIT_CONCURRENCY = 8;
 // Margen sobre el tope de duración para lo que ya estaba saliendo.
 const DEADLINE_GRACE_MS = 60_000;
-const GEN_CHUNK = 6; // perfiles por llamada a Groq (solo si hay preguntas en modo IA)
+// Con IA: hasta 3 llamadas a la vez por paso (una por clave sana); el tamaño
+// de cada una depende de cuántas preguntas van a la IA (aiChunkSize).
+const MAX_PARALLEL_AI = 3;
 const MAX_FAILURE_DETAILS = 20;
 // No se empiezan envíos nuevos pasado este tiempo: lo que ya arrancó termina
 // dentro de sus timeouts (6 s GET + 0.7 s + 12 s POST).
@@ -316,26 +319,38 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   const generatedSoFar = job.profiles ?? [];
   if (generatedSoFar.length < job.total) {
     const remaining = job.total - generatedSoFar.length;
-    // Sin IA no hay límite de Groq que respetar: se genera todo de una vez.
-    const chunkSize = aiInvolved ? Math.min(GEN_CHUNK, remaining) : remaining;
-    let chunk;
+    // Defensa en profundidad: un envío gratis nunca usa la IA.
+    const qConfig = job.is_paid
+      ? job.q_config
+      : Object.fromEntries(
+          Object.entries(job.q_config ?? {}).map(([k, v]) => [k, v?.mode === "ai" ? { ...v, mode: "random" as const } : v])
+        );
+    // Para que el banco de IA no repita respuestas dentro de este envío.
+    const usedAnswers = Object.fromEntries(
+      (form.questions as ParsedQuestion[]).map((q) => [q.entry, generatedSoFar.map((p) => p[q.entry]).filter(Boolean)])
+    );
+    // Sin IA se genera todo de una vez. Con IA, varios lotes en paralelo.
+    const size = aiInvolved ? aiChunkSize(form.questions, qConfig ?? {}) : remaining;
+    const parallel = aiInvolved ? Math.max(1, Math.min(MAX_PARALLEL_AI, await healthyKeyCount())) : 1;
+    const lots: { start: number; n: number }[] = [];
+    for (let s = 0; s < remaining && lots.length < parallel; s += size) lots.push({ start: generatedSoFar.length + s, n: Math.min(size, remaining - s) });
+    let chunk: Record<string, string>[];
     try {
-      chunk = await generateProfiles(form, {
-        nProfiles: chunkSize,
-        // Defensa en profundidad: un envío gratis nunca usa Groq.
-        qConfig: job.is_paid
-          ? job.q_config
-          : Object.fromEntries(
-              Object.entries(job.q_config ?? {}).map(([k, v]) => [k, v?.mode === "ai" ? { ...v, mode: "random" as const } : v])
-            ),
-        language: job.language,
-        customInstructions: job.custom_instructions,
-        startIndex: generatedSoFar.length,
-        // Para que el banco de IA no repita respuestas dentro de este envío.
-        usedAnswers: Object.fromEntries(
-          (form.questions as ParsedQuestion[]).map((q) => [q.entry, generatedSoFar.map((p) => p[q.entry]).filter(Boolean)])
-        ),
-      });
+      const settled = await Promise.allSettled(
+        lots.map((l) =>
+          generateProfiles(form, {
+            nProfiles: l.n,
+            qConfig,
+            language: job.language,
+            customInstructions: job.custom_instructions,
+            startIndex: l.start,
+            usedAnswers,
+          })
+        )
+      );
+      // Lo que salió se guarda aunque otro lote falle; solo si fallan todos es error.
+      chunk = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+      if (!chunk.length) throw (settled.find((r) => r.status === "rejected") as PromiseRejectedResult).reason;
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Fallo generando respuestas";
       console.error(`[job] generateProfiles falló para job ${job.id}:`, reason);

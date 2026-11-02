@@ -15,9 +15,11 @@
 import { createHash } from "node:crypto";
 import { db } from "./db";
 
-const POOL_FACTOR = 3;
-const MIN_POOL = 30;
-const FRESH_RATIO = 0.3;
+// El banco se usa cuando tiene al menos el doble de lo pedido (variedad) y,
+// una de cada ~7 veces, igual se pide a la IA para que siga creciendo.
+const POOL_FACTOR = 2;
+const MIN_POOL = 20;
+const FRESH_RATIO = 0.15;
 
 export function normalizeQuestion(title: string): string {
   return title
@@ -64,29 +66,31 @@ async function pick(key: CacheKey, n: number, exclude: string[]): Promise<{ ids:
 }
 
 /**
- * Intenta armar las respuestas de TODAS las preguntas abiertas desde el banco.
- * Devuelve un mapa clave→respuestas (una por perfil) o null para usar la IA.
+ * Respuestas del banco pregunta por pregunta (iguales o parecidas, mismo
+ * idioma e instrucciones). Devuelve solo las preguntas que el banco cubre;
+ * las demás van a la IA. Las consultas van en paralelo.
  */
 export async function answersFromCache(
   keys: Map<string, CacheKey>,
   n: number,
   usedByEntry: Record<string, string[]>
-): Promise<Map<string, string[]> | null> {
-  if (keys.size === 0 || Math.random() < FRESH_RATIO) return null;
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (keys.size === 0) return out;
   try {
-    const out = new Map<string, string[]>();
+    const entries = [...keys].filter(() => Math.random() >= FRESH_RATIO);
+    const got = await Promise.all(entries.map(([entry, key]) => pick(key, n, usedByEntry[entry] ?? []).catch(() => null)));
     const touched: number[] = [];
-    for (const [entry, key] of keys) {
-      const got = await pick(key, n, usedByEntry[entry] ?? []);
-      if (!got) return null;
-      out.set(entry, got.answers);
-      touched.push(...got.ids);
-    }
-    await db().rpc("ai_cache_touch", { p_ids: touched });
-    return out;
+    got.forEach((g, i) => {
+      if (!g) return;
+      out.set(entries[i][0], g.answers);
+      touched.push(...g.ids);
+    });
+    if (touched.length) await db().rpc("ai_cache_touch", { p_ids: touched });
   } catch {
-    return null;
+    // sin banco: todo va a la IA
   }
+  return out;
 }
 
 /** Guarda en el banco las respuestas nuevas de la IA (las repetidas se ignoran). */

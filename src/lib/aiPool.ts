@@ -37,6 +37,8 @@ type ProviderRow = {
 type Candidate = { id: string | null; name: string; baseUrl: string; key: string; model: string; moderationModel: string };
 
 let cache: { at: number; rows: ProviderRow[] } | null = null;
+// Turno para repartir las llamadas entre las claves sanas.
+let rr = 0;
 
 async function loadRows(): Promise<ProviderRow[]> {
   if (cache && Date.now() - cache.at < 30_000) return cache.rows;
@@ -93,9 +95,29 @@ async function candidates(): Promise<Candidate[]> {
       // Clave que no se puede descifrar (cambió el secreto): se ignora.
     }
   }
-  // Las de la base van primero; luego las del entorno y, al final, las que
-  // descansan por un fallo pasajero.
-  return [...fromDb, ...envCandidates(), ...resting];
+  // Las de la base van primero, turnándose (con 3 claves, las llamadas en
+  // paralelo se reparten entre las 3 en vez de cargar siempre la primera);
+  // luego las del entorno y, al final, las que descansan por un fallo pasajero.
+  const turn = fromDb.length ? rr++ % fromDb.length : 0;
+  return [...fromDb.slice(turn), ...fromDb.slice(0, turn), ...envCandidates(), ...resting];
+}
+
+
+/** Cuántas claves sanas hay (para decidir cuántas llamadas en paralelo hacer). */
+export async function healthyKeyCount(): Promise<number> {
+  const now = Date.now();
+  const rows = (await loadRows()).filter((r) => !(r.cooldown_until && Date.parse(r.cooldown_until) > now));
+  return rows.length || envCandidates().length;
+}
+
+/**
+ * Sin "razonamiento": para frases cortas solo agrega demora y tokens. Gemini
+ * Flash (API compatible) acepta reasoning_effort "none"; gpt-oss en Groq, "low".
+ */
+function reasoningParam(c: Candidate, model: string): Record<string, string> {
+  if (c.baseUrl.includes("generativelanguage.googleapis.com") && /flash/i.test(model)) return { reasoning_effort: "none" };
+  if (/gpt-oss/i.test(model)) return { reasoning_effort: "low" };
+  return {};
 }
 
 async function mark(id: string | null, patch: Record<string, unknown>): Promise<void> {
@@ -142,13 +164,23 @@ export async function aiChat(
     if (left < Math.min(6_000, opts.perKeyTimeoutMs ?? 6_000)) break;
     const model = opts.purpose === "moderate" && c.moderationModel ? c.moderationModel : c.model;
     try {
-      const res = await fetch(`${c.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${c.key}`, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ model, messages, temperature: opts.temperature, max_tokens: opts.maxTokens }),
-        signal: AbortSignal.timeout(Math.min(opts.perKeyTimeoutMs ?? 25_000, left)),
-        cache: "no-store",
-      });
+      const call = (extra: Record<string, string>) =>
+        fetch(`${c.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${c.key}`, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ model, messages, temperature: opts.temperature, max_tokens: opts.maxTokens, ...extra }),
+          signal: AbortSignal.timeout(Math.min(opts.perKeyTimeoutMs ?? 25_000, deadline - Date.now())),
+          cache: "no-store",
+        });
+      const extra = reasoningParam(c, model);
+      let res = await call(extra);
+      // Un modelo que no acepta el parámetro de razonamiento responde 400: se
+      // reintenta una vez sin él con la misma clave (no es culpa de la clave).
+      if (res.status === 400 && Object.keys(extra).length) {
+        const body = await res.text().catch(() => "");
+        if (/reasoning|thinking/i.test(body)) res = await call({});
+        else res = new Response(body, { status: 400 });
+      }
       if (!res.ok) {
         const body = (await res.text().catch(() => "")).slice(0, 300);
         const k = classify(res.status);
