@@ -747,3 +747,39 @@ body.paying .gift-fab{display:none}
   .lang-btn span{display:none}
   .lang-menu{position:fixed;left:auto;right:10px;top:calc(env(safe-area-inset-top,0px) + 58px)}
 }
+
+/* Barra en celular: logo y cuenta siempre en una sola fila; los enlaces debajo. */
+@media(max-width:760px){
+  .tn-inner{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:10px;row-gap:0;padding-top:8px}
+  .tn-logo{flex:none}
+  .tn .tn-links{grid-column:1/-1;grid-row:2}
+  .tn-account{grid-column:2;grid-row:1;min-width:0;flex-wrap:nowrap;justify-content:flex-end;gap:6px}
+  .tn-auth{flex-wrap:nowrap}
+  .tn-auth a{white-space:nowrap}
+  .tn .tn-links{gap:18px;scrollbar-width:none}
+  .tn .tn-links::-webkit-scrollbar{display:none}
+  .tn .tn-links a{font-size:.875rem}
+  .tn-header .menu-toggle,.tn .menu-toggle{display:none!important}
+}
+@media(max-width:420px){
+  .tn-inner{padding-left:14px;padding-right:14px;column-gap:8px}
+  .tn-logo{font-size:1.1rem}
+  .tn-auth{gap:5px}
+  .tn-auth a{min-height:34px;padding:0 9px;font-size:.75rem}
+  .lang-btn{height:34px;padding:0 7px}
+  .tn-balance{font-size:.75rem;gap:4px}
+  .nb-btn,.tn-avatar{width:34px;height:34px}
+}
+
+@media(max-width:345px){
+  .tn-inner{padding-left:10px;padding-right:10px;column-gap:6px}
+  .tn-logo{font-size:1rem}
+  .tn-account,.tn-auth{gap:4px}
+  .tn-auth a{padding:0 7px;font-size:.6875rem}
+  .lang-btn{padding:0 6px}
+}
+
+/* Notificaciones: la cabecera no se mueve al marcar como leídas */
+.nb-head-actions{flex-wrap:nowrap;white-space:nowrap}
+.nb-link:disabled{color:var(--mute);opacity:.55;cursor:default}
+

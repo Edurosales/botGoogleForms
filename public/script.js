@@ -24,7 +24,9 @@ if(mobileBar){
   ['.cta','#contacto'].forEach(selector=>{const element=document.querySelector(selector);if(element)observer.observe(element)});
 }
 let menuToggle=document.querySelector('.menu-toggle');
-const mainNav=document.getElementById('main-nav')||document.querySelector('nav[aria-label="Principal"]');
+// Solo el menú de las páginas estáticas: la barra de la app (.tn) tiene su propio
+// diseño y en es/pt/fr también se llama "Principal" (se le metía un ☰ y bajaba una fila).
+const mainNav=document.getElementById('main-nav')||document.querySelector('header:not(.tn) nav[aria-label="Principal"]');
 if(mainNav&&!mainNav.id)mainNav.id='main-nav';
 if(mainNav&&!menuToggle){
   menuToggle=document.createElement('button');

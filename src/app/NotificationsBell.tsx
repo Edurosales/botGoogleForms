@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BALANCE_EVENT } from "./clientData";
 import { useLang } from "./LangProvider";
+import { DATE_LOCALE_TAG } from "@/lib/i18n";
 
 type Item = { id: string; kind: string; title: string; body: string; link: string; read_at: string | null; created_at: string };
 
@@ -20,12 +21,13 @@ const KIND_ICON: Record<string, string> = {
   alert: "!",
 };
 
-function ago(iso: string): string {
+function ago(iso: string, tag: string): string {
   const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return "ahora";
-  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
-  return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short" });
+  const rtf = new Intl.RelativeTimeFormat(tag, { numeric: "auto", style: "short" });
+  if (s < 60) return rtf.format(0, "second");
+  if (s < 3600) return rtf.format(-Math.floor(s / 60), "minute");
+  if (s < 86400) return rtf.format(-Math.floor(s / 3600), "hour");
+  return new Date(iso).toLocaleDateString(tag, { day: "numeric", month: "short" });
 }
 
 /** Campana de notificaciones: número de no leídas, lista, marcar leídas y borrar. */
@@ -33,14 +35,19 @@ export default function NotificationsBell() {
   const [items, setItems] = useState<Item[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
-  const { t } = useLang();
+  const { t, locale } = useLang();
   const ref = useRef<HTMLDivElement>(null);
+  // Cada cambio local (marcar, borrar) sube la versión: una carga que empezó
+  // ANTES no puede pisarlo con datos viejos (antes lo marcado "se volvía").
+  const version = useRef(0);
 
   const load = useCallback(async () => {
+    const v = version.current;
     try {
       const r = await fetch("/api/web/notifications", { cache: "no-store" });
       if (!r.ok) return;
       const d = await r.json();
+      if (v !== version.current) return;
       setItems(Array.isArray(d.items) ? d.items : []);
       setUnread(Number(d.unread) || 0);
     } catch {
@@ -77,26 +84,49 @@ export default function NotificationsBell() {
     };
   }, [open]);
 
+  /** Cambio local inmediato; se confirma con el servidor y recién ahí se recarga. */
+  async function mutate(apply: () => void, request: () => Promise<Response>) {
+    version.current++;
+    apply();
+    const ok = await request().then((r) => r.ok).catch(() => false);
+    version.current++;
+    // Si el servidor no lo guardó, se recarga lo real (no queda un estado falso).
+    if (!ok) void load();
+  }
+
   async function markRead(body: { id?: string; all?: boolean }) {
-    setItems((prev) => prev.map((n) => (body.all || n.id === body.id ? { ...n, read_at: n.read_at ?? new Date().toISOString() } : n)));
-    setUnread((u) => (body.all ? 0 : Math.max(0, u - 1)));
-    await fetch("/api/web/notifications", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => {});
+    await mutate(
+      () => {
+        setItems((prev) => prev.map((n) => (body.all || n.id === body.id ? { ...n, read_at: n.read_at ?? new Date().toISOString() } : n)));
+        setUnread((u) => (body.all ? 0 : Math.max(0, u - 1)));
+      },
+      () =>
+        fetch("/api/web/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+    );
   }
 
   async function removeAll() {
-    setItems([]);
-    setUnread(0);
-    await fetch("/api/web/notifications?all=1", { method: "DELETE" }).catch(() => {});
+    await mutate(
+      () => {
+        setItems([]);
+        setUnread(0);
+      },
+      () => fetch("/api/web/notifications?all=1", { method: "DELETE" })
+    );
   }
 
   async function remove(n: Item) {
-    setItems((prev) => prev.filter((x) => x.id !== n.id));
-    if (!n.read_at) setUnread((u) => Math.max(0, u - 1));
-    await fetch(`/api/web/notifications?id=${encodeURIComponent(n.id)}`, { method: "DELETE" }).catch(() => {});
+    await mutate(
+      () => {
+        setItems((prev) => prev.filter((x) => x.id !== n.id));
+        if (!n.read_at) setUnread((u) => Math.max(0, u - 1));
+      },
+      () => fetch(`/api/web/notifications?id=${encodeURIComponent(n.id)}`, { method: "DELETE" })
+    );
   }
 
   function openItem(n: Item) {
@@ -129,11 +159,10 @@ export default function NotificationsBell() {
           <div className="nb-head">
             <strong>{t("bell.title")}</strong>
             <div className="nb-head-actions">
-              {unread > 0 && (
-                <button type="button" className="nb-link" onClick={() => markRead({ all: true })}>
-                  {t("bell.markRead")}
-                </button>
-              )}
+              {/* Siempre en su lugar (desactivado si no hay pendientes): la cabecera no salta. */}
+              <button type="button" className="nb-link" onClick={() => markRead({ all: true })} disabled={unread === 0}>
+                {t("bell.markRead")}
+              </button>
               {items.length > 0 && (
                 <button type="button" className="nb-link nb-link-mute" onClick={removeAll}>
                   {t("bell.deleteAll")}
@@ -156,7 +185,7 @@ export default function NotificationsBell() {
                   <button type="button" className="nb-main" onClick={() => openItem(n)}>
                     <span className="nb-title">{n.title}</span>
                     {n.body && <span className="nb-body">{n.body}</span>}
-                    <span className="nb-time">{ago(n.created_at)}</span>
+                    <span className="nb-time">{ago(n.created_at, DATE_LOCALE_TAG[locale])}</span>
                   </button>
                   <button type="button" className="nb-del" aria-label={t("bell.delete")} onClick={() => remove(n)}>
                     ×

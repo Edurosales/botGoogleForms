@@ -61,7 +61,7 @@ export default function SiteNav() {
           Forms<b>Bot</b>
         </Link>
 
-        <nav className="tn-links" aria-label={t("nav.main")}>
+        <nav className="tn-links" aria-label={t("nav.main")} data-app-nav="">
           {LINKS.map((l) => (
             <Link
               key={l.href}

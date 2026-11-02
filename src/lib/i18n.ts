@@ -274,3 +274,6 @@ export function translate(locale: Locale, key: MsgKey, vars?: Record<string, str
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
+
+/** Etiqueta BCP 47 para fechas y "hace 5 min" en cada idioma. */
+export const DATE_LOCALE_TAG: Record<Locale, string> = { es: "es-PE", en: "en-US", pt: "pt-BR", it: "it-IT", fr: "fr-FR" };
