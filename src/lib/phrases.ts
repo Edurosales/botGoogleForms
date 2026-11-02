@@ -6,6 +6,13 @@
 type Row = readonly [en: string, pt: string, it: string, fr: string];
 
 export const PHRASES: Record<string, Row> = {
+  "Cancelar envío": ["Cancel submission", "Cancelar envio", "Annulla invio", "Annuler l'envoi"],
+  "Cancelando…": ["Cancelling…", "Cancelando…", "Annullamento…", "Annulation…"],
+  "¿Cancelar el envío? Se detiene al instante y te devolvemos lo que no se envió.": ["Cancel the submission? It stops instantly and we refund what wasn't sent.", "Cancelar o envio? Ele para na hora e devolvemos o que não foi enviado.", "Annullare l'invio? Si ferma subito e ti restituiamo ciò che non è stato inviato.", "Annuler l'envoi ? Il s'arrête immédiatement et nous vous rendons ce qui n'a pas été envoyé."],
+  "Cancelaste el envío.": ["You cancelled the submission.", "Você cancelou o envio.", "Hai annullato l'invio.", "Vous avez annulé l'envoi."],
+  "Ese envío ya terminó.": ["That submission already finished.", "Esse envio já terminou.", "Quell'invio è già terminato.", "Cet envoi est déjà terminé."],
+  "No se pudo cancelar. Intenta de nuevo.": ["Couldn't cancel. Try again.", "Não foi possível cancelar. Tente de novo.", "Impossibile annullare. Riprova.", "Impossible d'annuler. Réessayez."],
+  "La IA tardó demasiado en preparar las respuestas. Te devolvimos lo que no se envió.": ["The AI took too long to prepare the responses. We refunded what wasn't sent.", "A IA demorou demais para preparar as respostas. Devolvemos o que não foi enviado.", "L'IA ha impiegato troppo a preparare le risposte. Ti abbiamo restituito ciò che non è stato inviato.", "L'IA a mis trop de temps à préparer les réponses. Nous vous avons rendu ce qui n'a pas été envoyé."],
   "Repartir en 5 minutos": ["Spread over 5 minutes", "Distribuir em 5 minutos", "Distribuisci in 5 minuti", "Répartir sur 5 minutes"],
   "Repartir en 10 minutos": ["Spread over 10 minutes", "Distribuir em 10 minutos", "Distribuisci in 10 minuti", "Répartir sur 10 minutes"],
   "Cada envío termina en máximo {m} min (formularios de hasta 25 preguntas: 5 min; más grandes: 10 min).": ["Every submission finishes within {m} min (forms up to 25 questions: 5 min; larger ones: 10 min).", "Cada envio termina em no máximo {m} min (formulários de até 25 perguntas: 5 min; maiores: 10 min).", "Ogni invio termina entro {m} min (moduli fino a 25 domande: 5 min; più grandi: 10 min).", "Chaque envoi se termine en {m} min maximum (formulaires jusqu'à 25 questions : 5 min ; plus grands : 10 min)."],

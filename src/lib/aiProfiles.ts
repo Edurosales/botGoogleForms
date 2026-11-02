@@ -128,13 +128,31 @@ export function needsAi(questions: ParsedQuestion[], qConfig: QuestionConfigMap)
 }
 
 /**
- * Respuestas por llamada a la IA: ~560 respuestas cortas (≤8 palabras) como
- * máximo por llamada, entre 3 y 40 perfiles: hasta 14 preguntas con IA → 40
- * perfiles; 20 → 28; 40 → 14.
+ * Respuestas por llamada a la IA: ~120 respuestas cortas (≤8 palabras, unos
+ * 2.000 tokens: ~10 s en Gemini Flash), entre 3 y 40 perfiles. Hasta 3
+ * preguntas con IA → 40 perfiles; 10 → 12; 30 → 4.
  */
 export function aiChunkSize(questions: ParsedQuestion[], qConfig: QuestionConfigMap): number {
-  const ai = questions.filter((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {})).length;
-  return Math.max(3, Math.min(40, Math.floor(560 / Math.max(1, ai))));
+  return Math.max(3, Math.min(40, Math.floor(120 / Math.max(1, aiQuestionCount(questions, qConfig)))));
+}
+
+export function aiQuestionCount(questions: ParsedQuestion[], qConfig: QuestionConfigMap): number {
+  return questions.filter((q) => !isLocallyResolvable(q, qConfig[q.entry] ?? {})).length;
+}
+
+/** Segundos por ronda de llamadas en paralelo (estimación prudente). */
+export const AI_SECONDS_PER_ROUND = 12;
+/** Tiempo máximo para preparar respuestas con IA (aparte del tope de envío). */
+export const AI_MAX_SECONDS = 360;
+
+/**
+ * Cuántas respuestas con IA caben en AI_MAX_SECONDS con `keys` claves en
+ * paralelo (máx. 3). Sin el banco: es el peor caso.
+ */
+export function maxAiResponses(questions: ParsedQuestion[], qConfig: QuestionConfigMap, keys: number): number {
+  if (aiQuestionCount(questions, qConfig) === 0) return Infinity;
+  const parallel = Math.max(1, Math.min(3, keys));
+  return Math.floor(AI_MAX_SECONDS / AI_SECONDS_PER_ROUND) * parallel * aiChunkSize(questions, qConfig);
 }
 
 /** Resuelve un perfil completo de preguntas locales, con nombre y correo

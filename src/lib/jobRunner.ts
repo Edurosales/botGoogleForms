@@ -8,7 +8,7 @@
  */
 import { db, type FailureCode, type FailureDetail, type WebJob } from "./db";
 import { claimSlot, getQueuePosition, pauseState } from "./queue";
-import { aiChunkSize, generateProfiles, needsAi } from "./aiProfiles";
+import { AI_MAX_SECONDS, aiChunkSize, generateProfiles, needsAi } from "./aiProfiles";
 import { healthyKeyCount } from "./aiPool";
 import { failureCode, failureHint, submitOne, type SubmitResult } from "./formSubmitter";
 import { addCredits, spendCredits } from "./credits";
@@ -26,6 +26,8 @@ const SUBMIT_BATCH = 60;
 const SUBMIT_CONCURRENCY = 8;
 // Margen sobre el tope de duración para lo que ya estaba saliendo.
 const DEADLINE_GRACE_MS = 60_000;
+// Con IA, en un mismo paso se hacen varias rondas mientras quede tiempo.
+const GEN_TICK_BUDGET_MS = 22_000;
 // Con IA: hasta 3 llamadas a la vez por paso (una por clave sana); el tamaño
 // de cada una depende de cuántas preguntas van a la IA (aiChunkSize).
 const MAX_PARALLEL_AI = 3;
@@ -44,12 +46,47 @@ const LOCK_MS = 55_000;
 // se explica y se reembolsa en vez de hacer esperar al cliente.
 const FAIL_FAST_AFTER = 6;
 
+/**
+ * Desde cuándo envía a Google (la hora de la primera respuesta). El tope de
+ * duración y el ritmo cuentan desde aquí: el tiempo de la IA va aparte. Sin la
+ * columna response_times se usa el inicio del envío, como antes.
+ */
+function sendStart(job: WebJob): string | null {
+  if (!("response_times" in job)) return job.started_at ?? null; // columna aún no creada
+  return job.response_times?.[0] ?? null;
+}
+
 /** Cuántas respuestas deberían haber salido ya según el lapso del envío. */
 function spreadDue(job: WebJob): number {
   const spread = job.spread_minutes ?? 0;
-  if (spread <= 0 || !job.started_at) return job.total;
-  const elapsed = Math.max(0, (Date.now() - Date.parse(job.started_at)) / 60_000);
+  if (spread <= 0) return job.total;
+  const base = sendStart(job);
+  if (!base) return Math.min(job.total, 1); // la primera sale ya
+  const elapsed = Math.max(0, (Date.now() - Date.parse(base)) / 60_000);
   return Math.min(job.total, Math.ceil((job.total * elapsed) / spread) + 1);
+}
+
+/**
+ * ¿Se canceló mientras este paso trabajaba? Se consulta como mucho cada 3 s
+ * (no en cada respuesta): al cancelar, no sale ninguna respuesta nueva.
+ */
+function cancelWatch(jobId: string): () => Promise<boolean> {
+  let at = 0;
+  let last: Promise<boolean> = Promise.resolve(false);
+  return () => {
+    if (Date.now() - at >= 3_000) {
+      at = Date.now();
+      last = Promise.resolve(
+        db()
+          .from("web_jobs")
+          .select("status")
+          .eq("id", jobId)
+          .maybeSingle<{ status: string }>()
+          .then(({ data }) => !!data && data.status !== "processing")
+      ).catch(() => false);
+    }
+    return last;
+  };
 }
 
 /**
@@ -194,18 +231,60 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
  * Corre `fn` con concurrencia limitada y deja de EMPEZAR ítems nuevos al
  * pasar `deadline`. Lo devuelto es siempre un prefijo contiguo del lote.
  */
-async function runPool<T, R>(items: T[], limit: number, deadline: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+async function runPool<T, R>(
+  items: T[],
+  limit: number,
+  deadline: number,
+  fn: (item: T, i: number) => Promise<R>,
+  stop: () => Promise<boolean> = async () => false
+): Promise<R[]> {
   const out: R[] = [];
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
       while (next < items.length && Date.now() < deadline) {
+        // Antes de cada respuesta: si el envío se canceló, no sale ninguna más.
+        if (await stop()) return;
         const i = next++;
         out[i] = await fn(items[i], i);
       }
     })
   );
   return out.slice(0, next);
+}
+
+/**
+ * El cliente cancela su envío (en fila o enviando). Atómico: solo si sigue
+ * activo. Desde ese momento ningún paso (navegador o worker) envía nada más:
+ * el worker solo toma envíos activos y un paso en curso lo detecta en ≤3 s.
+ * Se devuelve lo no enviado con las mismas reglas que al terminar.
+ */
+export async function cancelJob(job: WebJob): Promise<{ ok: boolean; refunded: number; sent: number }> {
+  const patch = await onlyExisting(
+    "web_jobs",
+    { status: "failed", moderation_reason: "Cancelaste el envío.", finished_at: new Date().toISOString(), tick_lock_until: null },
+    ["tick_lock_until"]
+  );
+  const { data: won } = await db()
+    .from("web_jobs")
+    .update(patch)
+    .eq("id", job.id)
+    .eq("user_id", job.user_id)
+    .in("status", ["queued", "processing"])
+    .select("sent")
+    .maybeSingle<{ sent: number }>();
+  if (!won) return { ok: false, refunded: 0, sent: job.sent };
+  const sent = won.sent ?? job.sent;
+  await refundOnFinish(job, sent);
+  const refunded = refundAmount(job, sent);
+  await audit({
+    action: "job.cancel_user",
+    level: "info",
+    userId: job.user_id,
+    target: job.id,
+    details: { title: job.title, total: job.total, sent, refunded, is_paid: job.is_paid, was: job.status },
+  });
+  return { ok: true, refunded, sent };
 }
 
 export function statusPayload(job: WebJob, extra: Record<string, unknown> = {}) {
@@ -295,10 +374,22 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
     return ok(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: back }));
   }
 
-  // Tope de duración (5 min hasta 25 preguntas, 10 min el resto): lo que no
-  // salió a tiempo se corta y se devuelve. Así ningún envío ocupa el servidor.
+  // Preparar con IA tiene su propio límite (AI_MAX_SECONDS + margen); al crear
+  // el envío ya se rechazan los que no caben. Si igual se pasa, se devuelve todo
+  // lo no enviado.
+  if ((job.profiles ?? []).length < job.total && job.started_at && Date.now() - Date.parse(job.started_at) > (AI_MAX_SECONDS + 120) * 1000) {
+    const back = refundAmount(job, job.sent);
+    const reason = "La IA tardó demasiado en preparar las respuestas. Te devolvimos lo que no se envió.";
+    await finishJob(job, { status: job.sent > 0 ? "done" : "failed", moderation_reason: reason });
+    return ok(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: back }));
+  }
+
+  // Tope de duración del ENVÍO a Google (5 min hasta 25 preguntas, 10 min el
+  // resto), contado desde la primera respuesta: lo que no salió a tiempo se
+  // corta y se devuelve. Así ningún envío ocupa el servidor.
   const capMin = maxJobMinutes((job.questions ?? []).length);
-  if (job.started_at && Date.now() - Date.parse(job.started_at) > capMin * 60_000 + DEADLINE_GRACE_MS) {
+  const sentFrom = sendStart(job);
+  if (sentFrom && Date.now() - Date.parse(sentFrom) > capMin * 60_000 + DEADLINE_GRACE_MS) {
     const back = refundAmount(job, job.sent);
     const unit = job.is_paid ? "créditos" : "respuestas gratis";
     const reason =
@@ -332,25 +423,44 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
     // Sin IA se genera todo de una vez. Con IA, varios lotes en paralelo.
     const size = aiInvolved ? aiChunkSize(form.questions, qConfig ?? {}) : remaining;
     const parallel = aiInvolved ? Math.max(1, Math.min(MAX_PARALLEL_AI, await healthyKeyCount())) : 1;
-    const lots: { start: number; n: number }[] = [];
-    for (let s = 0; s < remaining && lots.length < parallel; s += size) lots.push({ start: generatedSoFar.length + s, n: Math.min(size, remaining - s) });
-    let chunk: Record<string, string>[];
+    const cancelled = cancelWatch(job.id);
+    const chunk: Record<string, string>[] = [];
     try {
-      const settled = await Promise.allSettled(
-        lots.map((l) =>
-          generateProfiles(form, {
-            nProfiles: l.n,
-            qConfig,
-            language: job.language,
-            customInstructions: job.custom_instructions,
-            startIndex: l.start,
-            usedAnswers,
-          })
-        )
-      );
-      // Lo que salió se guarda aunque otro lote falle; solo si fallan todos es error.
-      chunk = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-      if (!chunk.length) throw (settled.find((r) => r.status === "rejected") as PromiseRejectedResult).reason;
+      // Rondas de `parallel` llamadas a la vez mientras quede tiempo en este
+      // paso; lo de cada ronda se guarda enseguida (si el paso se corta, no se pierde).
+      do {
+        const have = generatedSoFar.length + chunk.length;
+        const left = job.total - have;
+        const lots: { start: number; n: number }[] = [];
+        for (let s = 0; s < left && lots.length < parallel; s += size) lots.push({ start: have + s, n: Math.min(size, left - s) });
+        const settled = await Promise.allSettled(
+          lots.map((l) =>
+            generateProfiles(form, {
+              nProfiles: l.n,
+              qConfig,
+              language: job.language,
+              customInstructions: job.custom_instructions,
+              startIndex: l.start,
+              usedAnswers,
+            })
+          )
+        );
+        // Lo que salió se guarda aunque otro lote falle; solo si fallan todos es error.
+        const got = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+        if (!got.length) {
+          if (chunk.length) break; // ya hay algo de rondas anteriores: se reintenta en el próximo paso
+          throw (settled.find((r) => r.status === "rejected") as PromiseRejectedResult).reason;
+        }
+        chunk.push(...got);
+        if (await cancelled()) return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
+        if (aiInvolved && generatedSoFar.length + chunk.length < job.total) {
+          await supa
+            .from("web_jobs")
+            .update({ profiles: [...generatedSoFar, ...chunk].slice(0, job.total), ...(progressSupported ? { progress_at: new Date().toISOString() } : {}) })
+            .eq("id", job.id)
+            .eq("status", "processing");
+        }
+      } while (aiInvolved && generatedSoFar.length + chunk.length < job.total && Date.now() - tickStart < GEN_TICK_BUDGET_MS);
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Fallo generando respuestas";
       console.error(`[job] generateProfiles falló para job ${job.id}:`, reason);
@@ -361,7 +471,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       return { httpStatus: 502, body: { ok: false, status: "failed", error: friendly, reason: friendly } };
     }
     const profiles = [...generatedSoFar, ...chunk].slice(0, job.total);
-    await supa.from("web_jobs").update({ profiles, ...lockRelease }).eq("id", job.id);
+    await supa.from("web_jobs").update({ profiles, ...lockRelease }).eq("id", job.id).eq("status", "processing");
     return ok(statusPayload({ ...job, profiles }, { phase: "generating", generated: profiles.length }));
   }
 
@@ -371,8 +481,8 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   // (contando desde que empezó a enviar). Si ya va al día, espera sin gastar.
   let room = SUBMIT_BATCH;
   const spread = job.spread_minutes ?? 0;
-  if (spread > 0 && job.started_at) {
-    const elapsed = (Date.now() - Date.parse(job.started_at)) / 60_000;
+  if (spread > 0 && sentFrom) {
+    const elapsed = (Date.now() - Date.parse(sentFrom)) / 60_000;
     room = Math.min(SUBMIT_BATCH, spreadDue(job) - alreadyDone);
     if (room <= 0) {
       // La siguiente respuesta toca cuando elapsed ≥ alreadyDone × spread / total.
@@ -386,9 +496,10 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   }
   const batch = generatedSoFar.slice(alreadyDone, alreadyDone + room);
 
-  const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, tickStart + SUBMIT_BUDGET_MS, (profile) =>
-    submitOne(form, profile)
-  );
+  const cancelled = cancelWatch(job.id);
+  const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, tickStart + SUBMIT_BUDGET_MS, (profile) => submitOne(form, profile), cancelled);
+  // Cancelado durante el paso: no se escribe nada más (el saldo ya se devolvió al cancelar).
+  if (await cancelled()) return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
 
   // Google pidió el correo del encuestado y el formulario no lo mostraba al
   // leerlo: se marca y el mismo lote se reintenta con correo en el próximo

@@ -2,7 +2,8 @@ import { NextResponse, after } from "next/server";
 import { siteUrl } from "@/lib/config";
 import { getWebUser } from "@/lib/googleAuth";
 import { parseForm, FormParseError, FORM_ERROR_MESSAGES } from "@/lib/formParser";
-import { moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
+import { aiQuestionCount, maxAiResponses, moderateFormSafe, type QuestionConfigMap } from "@/lib/aiProfiles";
+import { healthyKeyCount } from "@/lib/aiPool";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
 import { onlyExisting } from "@/lib/schemaFlags";
@@ -258,6 +259,20 @@ export async function POST(request: Request) {
                 : "Este formulario ya fue llenado gratis desde otra cuenta. El envío gratis es una vez por formulario: compra créditos para seguir llenándolo (además vas en la fila prioritaria y puedes usar IA).",
         });
       }
+    }
+  }
+
+  // Con IA: el envío debe poder prepararse en unos minutos (aparte del tope de
+  // envío). Si no cabe con las claves que hay, se rechaza ANTES de cobrar.
+  if (usesAi) {
+    const maxAi = maxAiResponses(form.questions, qConfig, await healthyKeyCount());
+    if (total > maxAi) {
+      return fail(400, {
+        code: "AI_TOO_MANY",
+        ...balances,
+        maxAi,
+        reason: `Con ${aiQuestionCount(form.questions, qConfig)} preguntas con IA podemos preparar hasta ${maxAi} respuestas por envío. Baja la cantidad a ${maxAi} o pasa algunas preguntas a Aleatorio, Fijo o Lista.`,
+      });
     }
   }
 

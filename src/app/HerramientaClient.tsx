@@ -188,6 +188,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const [paidBanner, setPaidBanner] = useState(paidOrder);
   const [job, setJob] = useState<JobState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [resumedTitle, setResumedTitle] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
   /** Idioma detectado en el formulario (para avisar y preseleccionarlo). */
@@ -420,6 +421,33 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       }
     })();
   }, [me, step, applyJobData, startPolling]);
+
+  async function cancelCurrentJob() {
+    if (!job || cancelling) return;
+    if (!window.confirm(tr("¿Cancelar el envío? Se detiene al instante y te devolvemos lo que no se envió."))) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/web/jobs/${job.jobId}/cancel`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (d?.ok) {
+        // Se deja de consultar y se muestra el resultado (sin la ayuda de errores).
+        stoppedRef.current = true;
+        if (pollRef.current) clearTimeout(pollRef.current);
+        setJob((prev) => (prev ? { ...prev, sent: Number(d.sent ?? prev.sent), reason: tr("Cancelaste el envío.") } : prev));
+        setStep("failed");
+        setHelpOpen(false);
+        announceBalanceChange();
+      } else if (res.status === 409) {
+        await refreshJob();
+      } else {
+        window.alert(tr(String(d?.reason || "No se pudo cancelar. Intenta de nuevo.")));
+      }
+    } catch {
+      window.alert(tr("No se pudo cancelar. Intenta de nuevo."));
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   async function refreshJob() {
     if (!job) return;
@@ -1037,6 +1065,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             onState={(d) => applyJobData(job.jobId, d)}
             onBuy={goBuy}
           />
+          <div className="actions actions-center">
+            <button type="button" className="b b-ghost b-small" onClick={cancelCurrentJob} disabled={cancelling}>
+              {cancelling ? tr("Cancelando…") : tr("Cancelar envío")}
+            </button>
+          </div>
 
           {softwarePitch}
           {concierge}
@@ -1111,6 +1144,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           <div className="actions actions-center">
             <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
               {refreshing ? tr("Actualizando…") : tr("Actualizar")}
+            </button>
+            <button type="button" className="b b-ghost b-small" onClick={cancelCurrentJob} disabled={cancelling}>
+              {cancelling ? tr("Cancelando…") : tr("Cancelar envío")}
             </button>
           </div>
           {softwarePitch}
