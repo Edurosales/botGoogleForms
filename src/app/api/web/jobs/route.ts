@@ -6,7 +6,7 @@ import { aiQuestionCount, maxAiResponses, moderateFormSafe, type QuestionConfigM
 import { healthyKeyCount } from "@/lib/aiPool";
 import { claimSlot, getQueuePosition } from "@/lib/queue";
 import { db, type WebJob } from "@/lib/db";
-import { onlyExisting } from "@/lib/schemaFlags";
+import { hasColumn, onlyExisting } from "@/lib/schemaFlags";
 import { audit } from "@/lib/audit";
 import { recordConsent, TERMS_VERSION } from "@/lib/consent";
 import { spendCredits } from "@/lib/credits";
@@ -35,6 +35,31 @@ interface CreateJobBody {
   qConfig?: unknown;
   acceptedTerms?: unknown;
   spreadMinutes?: unknown;
+  dataRows?: unknown;
+}
+
+/**
+ * Filas de "Usar mis datos": nunca se confía en el navegador. Solo entradas
+ * del formulario, textos acotados, máximo `max` filas y ~600 KB en total.
+ */
+function sanitizeRows(raw: unknown, entries: Set<string>, max: number): Record<string, string>[] | null {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  let chars = 0;
+  const out: Record<string, string>[] = [];
+  for (const r of raw.slice(0, max)) {
+    const row: Record<string, string> = {};
+    if (r && typeof r === "object" && !Array.isArray(r)) {
+      for (const [k, v] of Object.entries(r as Record<string, unknown>)) {
+        if (!entries.has(k) || typeof v !== "string") continue;
+        const val = v.trim().slice(0, 1000);
+        if (!val) continue;
+        chars += val.length;
+        row[k] = val;
+      }
+    }
+    out.push(row);
+  }
+  return chars <= 600_000 ? out : null;
 }
 
 
@@ -174,6 +199,25 @@ export async function POST(request: Request) {
       blocked: true,
       reason: moderation.reason || "Este formulario no puede ser procesado por nuestras políticas de uso.",
     });
+  }
+
+  // "Usar mis datos": cada fila es una respuesta; el envío es de tantas
+  // respuestas como filas (máx. 500). Lo que viene en TODAS las filas de una
+  // pregunta no necesita IA.
+  const dataRows = sanitizeRows(body.dataRows, new Set(form.questions.map((q) => q.entry)), MAX_RESPONSES_PER_JOB);
+  if (body.dataRows !== undefined && body.dataRows !== null && !dataRows) {
+    return fail(400, { code: "BAD_DATA", reason: "No pudimos usar tus datos: revisa que el archivo tenga como máximo 500 filas y no sea demasiado grande." });
+  }
+  if (dataRows) {
+    // Sin la columna (ronda_33.sql) los datos se perderían en silencio: mejor avisar.
+    if (!(await hasColumn("web_jobs", "data_rows"))) {
+      return fail(503, { code: "DATA_UNAVAILABLE", reason: "Usar tus datos estará disponible en unos minutos. Por ahora quita los datos o intenta más tarde; no se te cobró nada." });
+    }
+    if (total > dataRows.length) return fail(400, { code: "BAD_DATA", reason: `Tus datos tienen ${dataRows.length} filas: el envío puede ser de hasta ${dataRows.length} respuestas.` });
+    for (const q of form.questions) {
+      const full = dataRows.slice(0, total).every((r) => r[q.entry]);
+      if (full && qConfig[q.entry]?.mode === "ai") qConfig[q.entry] = { ...qConfig[q.entry], mode: "random" };
+    }
   }
 
   // Toda pregunta sin configurar queda en "random": el generador trata la
@@ -322,6 +366,7 @@ export async function POST(request: Request) {
       form_url: formUrl,
       view_url: form.viewUrl,
       form_id: formIdOf(form.viewUrl),
+      ...(dataRows ? { data_rows: dataRows.slice(0, total) } : {}),
       submit_url: form.submitUrl,
       title: form.title.slice(0, 300),
       num_sections: form.numSections,
@@ -346,7 +391,7 @@ export async function POST(request: Request) {
           ? Number(body.spreadMinutes)
           : 0,
     },
-    ["collects_email", "last_seen_at", "spread_minutes", "form_id"]
+    ["collects_email", "last_seen_at", "spread_minutes", "form_id", "data_rows"]
   );
   const { data: job, error } = await supa.from("web_jobs").insert(row).select().single<WebJob>();
 
@@ -380,7 +425,7 @@ export async function POST(request: Request) {
     userId: user.id,
     email: user.email,
     target: job.id,
-    details: { form_url: formUrl, title: job.title, total, is_paid: isPaid, questions: form.questions.length, collects_email: form.collectsEmail },
+    details: { form_url: formUrl, title: job.title, total, is_paid: isPaid, questions: form.questions.length, collects_email: form.collectsEmail, data_rows: dataRows ? Math.min(total, dataRows.length) : 0 },
   });
 
   const claimedJob = await claimSlot(job);

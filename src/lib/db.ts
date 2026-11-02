@@ -89,6 +89,8 @@ export type WebJob = {
   response_times?: string[];
   /** Ronda 26: repartir el envío en estos minutos (0 = lo antes posible). */
   spread_minutes?: number;
+  /** "Usar mis datos": una fila por respuesta ({entry: valor}); ver ronda_33.sql. */
+  data_rows?: Record<string, string>[] | null;
 };
 
 export type AppSettings = {

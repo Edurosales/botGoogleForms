@@ -508,12 +508,26 @@ export interface GenerateProfilesOptions {
   startIndex?: number;
   /** Respuestas ya usadas en este envío por pregunta: el banco de IA no las repite. */
   usedAnswers?: Record<string, string[]>;
+  /**
+   * "Usar mis datos": filas del cliente para este lote (fila i → perfil i).
+   * Sus valores reemplazan lo generado; las celdas vacías quedan con la configuración.
+   */
+  fixedRows?: (Record<string, string> | undefined)[];
 }
 
 /** Retorna perfiles como Record<entry, respuesta>, uno por respuesta a enviar. */
 /** Genera las respuestas y aplica las condiciones entre preguntas. */
 export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesOptions): Promise<Record<string, string>[]> {
-  const profiles = await generateProfilesRaw(form, opts);
+  const raw = await generateProfilesRaw(form, opts);
+  const profiles = opts.fixedRows?.length
+    ? raw.map((p, i) => {
+        const row = opts.fixedRows?.[i];
+        if (!row) return p;
+        const merged = { ...p };
+        for (const [entry, value] of Object.entries(row)) if (value) merged[entry] = value;
+        return merged;
+      })
+    : raw;
   // Primero las condiciones del usuario, después el recorrido por secciones
   // (las preguntas de secciones que no se visitan quedan vacías).
   return applyRules(profiles, form.questions, opts.qConfig ?? {}).map((p) => routeProfile(p, form.questions, form.numSections));

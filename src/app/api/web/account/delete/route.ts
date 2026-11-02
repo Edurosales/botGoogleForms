@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { recordConsent } from "@/lib/consent";
 import { notifyAdmin } from "@/lib/notify";
+import { onlyExisting } from "@/lib/schemaFlags";
 
 /**
  * Derecho de supresión (RGPD art. 17). No se borra la fila: los pedidos
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
   await Promise.all([
     supa
       .from("web_jobs")
-      .update({ form_url: "", view_url: "", submit_url: "", title: "", questions: [], profiles: null, custom_instructions: "", q_config: {} })
+      .update(await onlyExisting("web_jobs", { form_url: "", view_url: "", submit_url: "", title: "", questions: [], profiles: null, custom_instructions: "", q_config: {}, data_rows: null }, ["data_rows"]))
       .eq("user_id", user.id),
     supa.from("web_notifications").delete().eq("user_id", user.id),
     supa.from("web_messages").delete().eq("user_id", user.id).then(

@@ -795,3 +795,32 @@ body.paying .gift-fab{display:none}
 .calc-ok{margin:10px 0 0;color:var(--ok,#0B8A5F);font-weight:600;font-size:.9rem}
 @media(max-width:480px){.calc-input{width:100%;justify-content:space-between}.calc-total .b{width:100%}}
 
+/* Usar mis datos */
+.data-pick{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.data-sheet{display:flex;gap:8px;flex:1 1 280px;min-width:0}
+.data-sheet input{flex:1;min-width:0;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:16px}
+.data-box{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.data-sum{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:var(--soft)}
+.data-sum p{margin:0;font-size:.875rem;font-weight:600}
+.data-map{list-style:none;margin:0;padding:0}
+.data-map li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,240px);gap:4px 12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.data-map li:not(.on) .data-q{color:var(--mute)}
+.data-q{font-size:.875rem;font-weight:600;overflow-wrap:anywhere}
+.data-map select{min-height:38px;width:100%;font:inherit;font-size:.875rem;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:#fff}
+.data-ex,.data-bad{grid-column:1/-1;font-size:.8125rem;overflow-wrap:anywhere}
+.data-ex{color:var(--mute)}
+.data-bad{color:#9A4A00}
+.data-box+.fine{margin-top:8px}
+.q-hint-data{color:var(--acc);font-weight:600}
+@media(max-width:560px){.data-map li{grid-template-columns:1fr}.data-sheet{flex-basis:100%}}
+.data-issues{padding:10px 14px;border-top:1px solid var(--line);background:#FFF8EC;color:#7A3D00;font-size:.8125rem}
+.data-issues p{margin:0}
+.data-issues ul{margin:6px 0;padding-left:18px}
+.data-issues li{overflow-wrap:anywhere;margin:2px 0}
+.data-cols{border-top:1px solid var(--line)}
+.data-cols>summary{cursor:pointer;padding:10px 14px;font-size:.875rem;font-weight:600;color:var(--acc)}
+.data-cols>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.data-ex,.data-bad{grid-column:auto}
+.data-map li{grid-template-columns:minmax(0,1fr) minmax(0,240px)}
+.data-map li .data-ex,.data-map li .data-bad{grid-column:1/-1}
+

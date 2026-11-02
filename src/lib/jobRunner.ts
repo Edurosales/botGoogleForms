@@ -442,6 +442,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
               customInstructions: job.custom_instructions,
               startIndex: l.start,
               usedAnswers,
+              fixedRows: Array.isArray(job.data_rows) ? job.data_rows.slice(l.start, l.start + l.n) : undefined,
             })
           )
         );

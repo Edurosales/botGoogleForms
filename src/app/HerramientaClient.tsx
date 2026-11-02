@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { maxJobMinutes, SPREAD_OPTIONS, SUPPORTED_LANGUAGES } from "@/lib/webConfig";
+import DataImport, { type DataSet } from "./DataImport";
 import { detectLanguage } from "@/lib/langDetect";
 import { AI_LANGUAGE, legalHref } from "@/lib/i18n";
 import { Rich, useLang } from "./LangProvider";
@@ -177,6 +178,8 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const [parsedMaxFree, setParsedMaxFree] = useState<number | null>(null);
   const [language, setLanguage] = useState<string>(SUPPORTED_LANGUAGES[0].code);
   const [total, setTotal] = useState(10);
+  // "Usar mis datos": filas del cliente (no se guardan en el borrador del navegador).
+  const [dataSet, setDataSet] = useState<DataSet | null>(null);
   /** Lapso de envío (minutos; 0 = lo antes posible). Solo con créditos. */
   const [spreadMinutes, setSpreadMinutes] = useState(0);
   const [customInstructions, setCustomInstructions] = useState("");
@@ -241,6 +244,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         const f = data.form as FormView;
         const nextRecs: Record<string, Rec> = data.recommendations && typeof data.recommendations === "object" ? data.recommendations : {};
         setForm(f);
+        setDataSet(null);
         setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
         setRecs(nextRecs);
         if (data.limits?.maxFreeQuestions) setParsedMaxFree(Number(data.limits.maxFreeQuestions));
@@ -544,7 +548,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       const res = await fetch("/api/web/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formUrl: url, total, language, customInstructions: "", qConfig: effectiveQ, acceptedTerms: true, spreadMinutes }),
+        body: JSON.stringify({ formUrl: url, total, language, customInstructions: "", qConfig: effectiveQ, acceptedTerms: true, spreadMinutes, ...(dataSet ? { dataRows: dataSet.rows.slice(0, total) } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok && data.code === "ACTIVE_JOB" && data.activeJobId) {
@@ -598,6 +602,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
     setStep("input");
     setUrl("");
     setForm(null);
+    setDataSet(null);
     setJob(null);
     setNotice(null);
     setParseError(null);
@@ -780,6 +785,16 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             </div>
           )}
 
+          <DataImport
+            key={form.formId ?? form.title}
+            questions={form.questions}
+            onChange={(d) => {
+              setDataSet(d);
+              // Una respuesta por fila (máx. 500).
+              if (d) setTotal(Math.max(1, Math.min(500, d.rows.length)));
+            }}
+          />
+
           <fieldset className="group">
             <legend>{tr("Envío")}</legend>
             <div className="grid-2">
@@ -789,10 +804,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   id="total"
                   type="number"
                   min={1}
-                  max={500}
+                  max={dataSet ? Math.min(500, dataSet.rows.length) : 500}
                   value={total}
-                  onChange={(e) => setTotal(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+                  onChange={(e) => setTotal(Math.min(dataSet ? Math.min(500, dataSet.rows.length) : 500, Math.max(1, Number(e.target.value) || 1)))}
                 />
+                {dataSet && <p className="fine">{tr("Tus datos tienen {n} filas: máximo {n} respuestas.", { n: Math.min(500, dataSet.rows.length) })}</p>}
                 {daily && (
                   <p className="fine">
                     <Rich text={tr("Hoy te quedan <b>{left}</b> de {max} respuestas (se renueva cada 24 h).", { left: daily.responses.left, max: daily.responses.max })} />
@@ -941,6 +957,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                       onChange={(patch) => setQ(q.entry, patch)}
                     />
                     <QuestionRules q={q} index={i} conf={conf} all={form.questions} onChange={(patch) => setQ(q.entry, patch)} />
+                    {dataSet && (dataSet.mapping[q.entry] ?? -1) >= 0 && (
+                      <p className="q-hint q-hint-data">{tr("Desde tus datos: columna “{c}”.", { c: dataSet.headers[dataSet.mapping[q.entry]] || String(dataSet.mapping[q.entry] + 1) })}</p>
+                    )}
                     {vHint && <p className="q-hint q-hint-strong">{vHint}</p>}
                     {rec?.reason && <p className="q-hint">{tr("Recomendado: {why}", { why: rec.reason })}</p>}
                   </li>
