@@ -18,9 +18,18 @@ export const SUPPORTED_LANGUAGES = [
 export const FREE_ACCOUNTS_PER_FORM = 1;
 
 /** Lapsos de envío permitidos (minutos). 0 = lo antes posible. Solo envíos pagados. */
-// Máximo 1 hora: repartir más tiempo mantenía el worker despierto durante
-// horas (muchas ejecuciones en Vercel) sin aportar nada.
-export const SPREAD_OPTIONS = [0, 15, 30, 60] as const;
+// Ritmos largos (15 min a 1 h) mantenían el servidor ocupado: ahora nunca
+// pasan del tope de duración del envío (maxJobMinutes).
+export const SPREAD_OPTIONS = [0, 5, 10] as const;
+
+/**
+ * Tope de duración de un envío, desde que empieza a procesarse: 5 min para
+ * formularios de hasta 25 preguntas y 10 min para los más grandes. Lo que no
+ * salga en ese tiempo se corta y se devuelve.
+ */
+export function maxJobMinutes(questions: number): number {
+  return questions <= 25 ? 5 : 10;
+}
 
 /** Máximo de preguntas de un formulario para usar respuestas gratis (de bienvenida). */
 export const MAX_FREE_QUESTIONS = 30;

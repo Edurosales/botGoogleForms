@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
+import { maxJobMinutes, SPREAD_OPTIONS, SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { detectLanguage } from "@/lib/langDetect";
 import { AI_LANGUAGE, legalHref } from "@/lib/i18n";
 import { Rich, useLang } from "./LangProvider";
@@ -774,18 +774,26 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               {me && me.credits >= total && (
                 <div className="field">
                   <label htmlFor="spread">{tr("Ritmo de envío")}</label>
-                  <select id="spread" value={spreadMinutes} onChange={(e) => setSpreadMinutes(Number(e.target.value))}>
-                    <option value={0}>{tr("Lo antes posible")}</option>
-                    <option value={15}>{tr("Repartir en 15 minutos")}</option>
-                    <option value={30}>{tr("Repartir en 30 minutos")}</option>
-                    <option value={60}>{tr("Repartir en 1 hora")}</option>
+                  <select
+                    id="spread"
+                    value={spreadMinutes <= maxJobMinutes(form.questions.length) ? spreadMinutes : 0}
+                    onChange={(e) => setSpreadMinutes(Number(e.target.value))}
+                  >
+                    {SPREAD_OPTIONS.filter((m) => m <= maxJobMinutes(form.questions.length)).map((m) => (
+                      <option key={m} value={m}>
+                        {m === 0 ? tr("Lo antes posible") : m === 5 ? tr("Repartir en 5 minutos") : tr("Repartir en 10 minutos")}
+                      </option>
+                    ))}
                   </select>
                   <p className="fine">
                     {spreadMinutes
                       ? spreadMinutes / total >= 1
                         ? tr("Llegará una respuesta cada ~{n} min, como encuestados reales. Puedes cerrar la pestaña.", { n: Math.round(spreadMinutes / total) })
                         : tr("Llegarán unas {n} respuestas por minuto durante {m} min. Puedes cerrar la pestaña.", { n: Math.ceil(total / spreadMinutes), m: spreadMinutes })
-                      : tr("Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales.")}
+                      : tr("Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales.")}{" "}
+                    {tr("Cada envío termina en máximo {m} min (formularios de hasta 25 preguntas: 5 min; más grandes: 10 min).", {
+                      m: maxJobMinutes(form.questions.length),
+                    })}
                   </p>
                 </div>
               )}

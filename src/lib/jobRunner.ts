@@ -17,10 +17,14 @@ import { hasColumn, onlyExisting } from "./schemaFlags";
 import { audit } from "./audit";
 import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
+import { maxJobMinutes } from "./webConfig";
 
-// Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
-const SUBMIT_BATCH = 12;
-const SUBMIT_CONCURRENCY = 3;
+// Fase de envío (nunca toca la IA): hasta 60 por tick, de a 8 en paralelo,
+// para que un envío grande termine dentro de su tope (5 o 10 min).
+const SUBMIT_BATCH = 60;
+const SUBMIT_CONCURRENCY = 8;
+// Margen sobre el tope de duración para lo que ya estaba saliendo.
+const DEADLINE_GRACE_MS = 60_000;
 const GEN_CHUNK = 6; // perfiles por llamada a Groq (solo si hay preguntas en modo IA)
 const MAX_FAILURE_DETAILS = 20;
 // No se empiezan envíos nuevos pasado este tiempo: lo que ya arrancó termina
@@ -284,6 +288,20 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       back > 0
         ? `El envío se detuvo después de ${job.sent} respuesta(s). Te devolvimos ${back} ${job.is_paid ? "créditos" : "respuestas gratis"}.`
         : `El envío se detuvo después de ${job.sent} respuesta(s).`;
+    await finishJob(job, { status: job.sent > 0 ? "done" : "failed", moderation_reason: reason });
+    return ok(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: back }));
+  }
+
+  // Tope de duración (5 min hasta 25 preguntas, 10 min el resto): lo que no
+  // salió a tiempo se corta y se devuelve. Así ningún envío ocupa el servidor.
+  const capMin = maxJobMinutes((job.questions ?? []).length);
+  if (job.started_at && Date.now() - Date.parse(job.started_at) > capMin * 60_000 + DEADLINE_GRACE_MS) {
+    const back = refundAmount(job, job.sent);
+    const unit = job.is_paid ? "créditos" : "respuestas gratis";
+    const reason =
+      back > 0
+        ? `El envío llegó a su tiempo máximo (${capMin} min) después de ${job.sent} respuesta(s). Te devolvimos ${back} ${unit}.`
+        : `El envío llegó a su tiempo máximo (${capMin} min) después de ${job.sent} respuesta(s).`;
     await finishJob(job, { status: job.sent > 0 ? "done" : "failed", moderation_reason: reason });
     return ok(statusPayload({ ...job, status: job.sent > 0 ? "done" : "failed" }, { reason, refunded: back }));
   }

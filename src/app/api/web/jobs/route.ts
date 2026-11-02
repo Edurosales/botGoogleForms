@@ -16,6 +16,7 @@ import {
   DEFAULT_BUY_SOFTWARE_URL,
   FREE_ACCOUNTS_PER_FORM,
   SPREAD_OPTIONS,
+  maxJobMinutes,
 } from "@/lib/webConfig";
 import { usageSince, resolveGlobalCap } from "@/lib/capacity";
 import { pauseState } from "@/lib/queue";
@@ -321,7 +322,13 @@ export async function POST(request: Request) {
       collects_email: form.collectsEmail,
       last_seen_at: new Date().toISOString(),
       // Lapso de envío solo para envíos pagados (los gratis ocuparían la fila horas).
-      spread_minutes: isPaid && (SPREAD_OPTIONS as readonly number[]).includes(Number(body.spreadMinutes)) ? Number(body.spreadMinutes) : 0,
+      // Nunca más largo que el tope de duración del envío.
+      spread_minutes:
+        isPaid &&
+        (SPREAD_OPTIONS as readonly number[]).includes(Number(body.spreadMinutes)) &&
+        Number(body.spreadMinutes) <= maxJobMinutes(form.questions.length)
+          ? Number(body.spreadMinutes)
+          : 0,
     },
     ["collects_email", "last_seen_at", "spread_minutes", "form_id"]
   );
