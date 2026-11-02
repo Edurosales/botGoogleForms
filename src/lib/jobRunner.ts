@@ -15,7 +15,7 @@ import type { ParsedForm, ParsedQuestion } from "./formParser";
 import { notifyUser } from "./notify";
 import { hasColumn, onlyExisting } from "./schemaFlags";
 import { audit } from "./audit";
-import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
+import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
 
 // Fase de envío (nunca toca Groq): 12 por tick, de a 3 en paralelo.
@@ -140,42 +140,47 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
   });
   const failures = (patch.failure_details ?? job.failure_details ?? []) as FailureDetail[];
   const lastHint = failures.length ? failures[failures.length - 1].hint : "";
-  const name = escapeHtml(job.title || "tu formulario");
-  await sendServiceEmail(job.user_id, patch.status === "done" ? "job_done" : "job_failed", {
-    subject:
-      patch.status === "done"
-        ? `Listo: ${sent} respuestas llegaron a ${job.title || "tu formulario"}`
-        : `Tu envío no se completó: ${job.title || "tu formulario"}`,
-    title: patch.status === "done" ? `Llegaron ${sent} de ${job.total} respuestas` : "Tu envío no se completó",
-    bodyHtml:
-      (patch.status === "done"
-        ? `<p>Terminamos el envío de prueba a <strong>${name}</strong>. Ya puedes revisar el resumen de respuestas en tu Google Form.</p>`
-        : `<p>No pudimos completar el envío a <strong>${name}</strong>.</p>`) +
-      summaryTable([
-        ["Formulario", name],
-        ["Inicio", escapeHtml(mailDate(job.started_at || job.created_at))],
-        ["Fin", escapeHtml(mailDate())],
-        ["Enviadas", `<span style="color:#0B8A5F">${sent} de ${job.total}</span>`],
-        ...(failed > 0 ? ([["Rechazadas por Google", `<span style="color:#9A2A20">${failed}</span>`]] as [string, string][]) : []),
-        ["Tipo", job.is_paid ? `Pagado (${job.credits_spent} créditos)` : "Gratis (bienvenida)"],
-        ...(back > 0 ? ([["Te devolvimos", `${back} ${job.is_paid ? "créditos" : "respuestas gratis"}`]] as [string, string][]) : []),
-      ]) +
-      (patch.status !== "done" || failed > 0
-        ? (patch.moderation_reason ? `<p><strong>Qué pasó:</strong> ${escapeHtml(String(patch.moderation_reason))}</p>` : "") +
-          (lastHint ? `<p><strong>Cómo arreglarlo:</strong> ${escapeHtml(lastHint)}</p>` : "")
-        : "") +
-      (job.is_paid && sent > 0 ? `<p>Como cliente premium puedes descargar todas las respuestas en Excel desde Mi cuenta.</p>` : ""),
-    cta: { label: patch.status === "done" ? "Probar otro formulario" : "Ver qué falló y reintentar", url: `${siteUrl()}/` },
+  const done = patch.status === "done";
+  await sendServiceEmail(job.user_id, done ? "job_done" : "job_failed", (tr, date) => {
+    const title = job.title || tr("tu formulario");
+    const name = escapeHtml(title);
+    return {
+      subject: done ? tr("Listo: {n} respuestas llegaron a {title}", { n: sent, title }) : tr("Tu envío no se completó: {title}", { title }),
+      title: done ? tr("Llegaron {n} de {t} respuestas", { n: sent, t: job.total }) : tr("Tu envío no se completó"),
+      bodyHtml:
+        (done
+          ? tr("<p>Terminamos el envío de prueba a <strong>{name}</strong>. Ya puedes revisar el resumen de respuestas en tu Google Form.</p>", { name })
+          : tr("<p>No pudimos completar el envío a <strong>{name}</strong>.</p>", { name })) +
+        summaryTable([
+          [tr("Formulario"), name],
+          [tr("Inicio"), escapeHtml(date(job.started_at || job.created_at))],
+          [tr("Fin"), escapeHtml(date())],
+          [tr("Enviadas"), `<span style="color:#0B8A5F">${tr("{s} de {t}", { s: sent, t: job.total })}</span>`],
+          ...(failed > 0 ? ([[tr("Rechazadas por Google"), `<span style="color:#9A2A20">${failed}</span>`]] as [string, string][]) : []),
+          [tr("Tipo"), job.is_paid ? tr("Pagado ({n} créditos)", { n: job.credits_spent }) : tr("Gratis (bienvenida)")],
+          ...(back > 0
+            ? ([[tr("Te devolvimos"), job.is_paid ? tr("{n} créditos", { n: back }) : tr("{n} respuestas gratis", { n: back })]] as [string, string][])
+            : []),
+        ]) +
+        (!done || failed > 0
+          ? (patch.moderation_reason ? tr("<p><strong>Qué pasó:</strong> {why}</p>", { why: escapeHtml(String(patch.moderation_reason)) }) : "") +
+            (lastHint ? tr("<p><strong>Cómo arreglarlo:</strong> {hint}</p>", { hint: escapeHtml(lastHint) }) : "")
+          : "") +
+        (job.is_paid && sent > 0 ? tr("<p>Como cliente premium puedes descargar todas las respuestas en Excel desde Mi cuenta.</p>") : ""),
+      cta: { label: done ? tr("Probar otro formulario") : tr("Ver qué falló y reintentar"), url: `${siteUrl()}/` },
+    };
   });
-  await notifyUser(job.user_id, {
-    kind: patch.status === "done" ? "job_done" : "job_failed",
-    title:
-      patch.status === "done"
-        ? `Envío terminado: ${sent} de ${job.total} respuestas`
-        : `Tu envío no se completó (${sent} de ${job.total})`,
-    body: `${job.title || "Tu formulario"}.${failed > 0 ? ` ${failed} rechazadas por Google.` : ""}${back > 0 ? ` Te devolvimos ${back} ${job.is_paid ? "créditos" : "respuestas gratis"}.` : ""}`,
+  await notifyUser(job.user_id, (tr) => ({
+    kind: done ? "job_done" : "job_failed",
+    title: done
+      ? tr("Envío terminado: {s} de {t} respuestas", { s: sent, t: job.total })
+      : tr("Tu envío no se completó ({s} de {t})", { s: sent, t: job.total }),
+    body:
+      `${job.title || tr("Tu formulario")}.` +
+      (failed > 0 ? tr(" {n} rechazadas por Google.", { n: failed }) : "") +
+      (back > 0 ? (job.is_paid ? tr(" Te devolvimos {n} créditos.", { n: back }) : tr(" Te devolvimos {n} respuestas gratis.", { n: back })) : ""),
     link: "/",
-  });
+  }));
 }
 
 /**

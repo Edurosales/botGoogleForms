@@ -164,12 +164,12 @@ export async function sweepAbsent(): Promise<{ moved: number; cancelled: number 
         .maybeSingle();
       if (!won) continue;
       if (j.free_credits_spent > 0) await spendCredits(j.user_id, 0, -j.free_credits_spent).catch(() => null);
-      await notifyUser(j.user_id, {
+      await notifyUser(j.user_id, (tr) => ({
         kind: "job_failed",
-        title: "Perdiste tu turno en la fila",
-        body: `${j.title || "Tu formulario"}: saliste de la ventana. Te devolvimos tus respuestas gratis; vuelve a enviarlo cuando quieras.`,
+        title: tr("Perdiste tu turno en la fila"),
+        body: tr("{title}: saliste de la ventana. Te devolvimos tus respuestas gratis; vuelve a enviarlo cuando quieras.", { title: j.title || tr("Tu formulario") }),
         link: "/",
-      });
+      }));
       await audit({ action: "queue.lost_turn_cancel", level: "info", userId: j.user_id, target: j.id, meta: NO_REQ });
       out.cancelled++;
       continue;

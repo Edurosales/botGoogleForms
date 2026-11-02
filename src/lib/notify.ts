@@ -3,6 +3,7 @@
  * que las genera: si la tabla no existe o falla la escritura, solo se registra.
  */
 import { db } from "./db";
+import { getUserLocale, trFor, type Tr } from "./userLocale";
 
 export type NotificationInput = { kind?: string; title: string; body?: string; link?: string };
 
@@ -15,9 +16,11 @@ function clean(n: NotificationInput) {
   };
 }
 
-export async function notifyUser(userId: string, n: NotificationInput): Promise<void> {
+/** `n` puede ser una función: recibe `tr` y arma el aviso en el idioma de la cuenta. */
+export async function notifyUser(userId: string, n: NotificationInput | ((tr: Tr) => NotificationInput)): Promise<void> {
   try {
-    await db().from("web_notifications").insert({ audience: "user", user_id: userId, ...clean(n) });
+    const content = typeof n === "function" ? n(trFor(await getUserLocale(userId))) : n;
+    await db().from("web_notifications").insert({ audience: "user", user_id: userId, ...clean(content) });
   } catch (e) {
     console.error("[notify] usuario:", e);
   }

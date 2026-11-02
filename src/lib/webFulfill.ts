@@ -14,7 +14,7 @@ import { addCredits } from "./credits";
 import { incrementCouponUse } from "./coupons";
 import { notifyAdmin, notifyUser } from "./notify";
 import { audit } from "./audit";
-import { escapeHtml, mailDate, sendServiceEmail, summaryTable } from "./mailer";
+import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
 import { notifyOwnerPurchase } from "./alerts";
 import { rewardReferral } from "./referrals";
@@ -73,27 +73,27 @@ export async function refundCreditOrder(order: CreditOrder, provider: Provider):
   const row = Array.isArray(data) ? data[0] : data;
   if (row?.ok) {
     await supa.from("web_credit_orders").update({ refund_reason: "Devolución procesada desde la pasarela de pago." }).eq("order_id", orderId);
-    await notifyUser(order.user_id, {
+    await notifyUser(order.user_id, (tr) => ({
       kind: "refund",
-      title: `Te devolvimos ${pen(order.amount_cents)}`,
-      body: `Pedido ${orderId}: se retiraron de tu saldo los créditos de esa compra que aún tenías.`,
+      title: tr("Te devolvimos {amount}", { amount: pen(order.amount_cents) }),
+      body: tr("Pedido {id}: se retiraron de tu saldo los créditos de esa compra que aún tenías.", { id: orderId }),
       link: "/mi-cuenta",
-    });
-    await sendServiceEmail(order.user_id, "refund", {
-      subject: `Te devolvimos ${pen(order.amount_cents)} (pedido ${orderId})`,
-      title: `Devolución de ${pen(order.amount_cents)}`,
+    }));
+    await sendServiceEmail(order.user_id, "refund", (tr, date) => ({
+      subject: tr("Te devolvimos {amount} (pedido {id})", { amount: pen(order.amount_cents), id: orderId }),
+      title: tr("Devolución de {amount}", { amount: pen(order.amount_cents) }),
       bodyHtml:
-        `<p>Procesamos la devolución al mismo medio de pago. Según tu banco, puede tardar unos días en verse.</p>` +
+        tr("<p>Procesamos la devolución al mismo medio de pago. Según tu banco, puede tardar unos días en verse.</p>") +
         summaryTable([
-          ["Pedido", escapeHtml(orderId)],
-          ["Monto devuelto", escapeHtml(pen(order.amount_cents))],
-          ["Créditos de la compra", String(order.credits)],
-          ["Medio de pago", PROVIDER_LABEL[provider]],
-          ["Fecha", escapeHtml(mailDate())],
+          [tr("Pedido"), escapeHtml(orderId)],
+          [tr("Monto devuelto"), escapeHtml(pen(order.amount_cents))],
+          [tr("Créditos de la compra"), String(order.credits)],
+          [tr("Medio de pago"), PROVIDER_LABEL[provider]],
+          [tr("Fecha"), escapeHtml(date())],
         ]) +
-        `<p>Se retiraron de tu saldo los créditos de esa compra que aún tenías.</p>`,
-      cta: { label: "Ver mi cuenta", url: `${siteUrl()}/mi-cuenta` },
-    });
+        tr("<p>Se retiraron de tu saldo los créditos de esa compra que aún tenías.</p>"),
+      cta: { label: tr("Ver mi cuenta"), url: `${siteUrl()}/mi-cuenta` },
+    }));
     await notifyAdmin({
       kind: "refund",
       title: `Devolución registrada: ${pen(order.amount_cents)}`,
@@ -159,29 +159,29 @@ export async function creditPaidOrder(order: CreditOrder, provider: Provider, re
   await rewardReferral(claimed);
 
   const { data: buyer } = await supa.from("web_users").select("email").eq("id", claimed.user_id).maybeSingle<{ email: string }>();
-  await notifyUser(claimed.user_id, {
+  await notifyUser(claimed.user_id, (tr) => ({
     kind: "purchase",
-    title: `Compra confirmada: +${claimed.credits} créditos`,
-    body: `Pagaste ${pen(claimed.amount_cents)} (pedido ${claimed.order_id}). Ya puedes usarlos.`,
+    title: tr("Compra confirmada: +{n} créditos", { n: claimed.credits }),
+    body: tr("Pagaste {amount} (pedido {id}). Ya puedes usarlos.", { amount: pen(claimed.amount_cents), id: claimed.order_id }),
     link: "/mi-cuenta",
-  });
-  await sendServiceEmail(claimed.user_id, "purchase", {
-    subject: `Compra confirmada: +${claimed.credits} créditos`,
-    title: `¡Gracias! Sumamos ${claimed.credits} créditos`,
+  }));
+  await sendServiceEmail(claimed.user_id, "purchase", (tr, date) => ({
+    subject: tr("Compra confirmada: +{n} créditos", { n: claimed.credits }),
+    title: tr("¡Gracias! Sumamos {n} créditos", { n: claimed.credits }),
     bodyHtml:
-      `<p>Tus créditos ya están en tu saldo y tus envíos tienen prioridad en la fila.</p>` +
+      tr("<p>Tus créditos ya están en tu saldo y tus envíos tienen prioridad en la fila.</p>") +
       summaryTable([
-        ["Pedido", escapeHtml(claimed.order_id)],
-        ["Créditos comprados", `+${claimed.credits}`],
-        ...(merged > 0 ? ([["Regalo sumado", `+${merged} (tus respuestas gratis ahora son créditos)`]] as [string, string][]) : []),
-        ["Total pagado", escapeHtml(pen(claimed.amount_cents))],
-        ...(claimed.coupon_code ? ([["Cupón", escapeHtml(claimed.coupon_code)]] as [string, string][]) : []),
-        ["Fecha", escapeHtml(mailDate())],
-        ["Medio de pago", PROVIDER_LABEL[provider]],
+        [tr("Pedido"), escapeHtml(claimed.order_id)],
+        [tr("Créditos comprados"), `+${claimed.credits}`],
+        ...(merged > 0 ? ([[tr("Regalo sumado"), tr("+{n} (tus respuestas gratis ahora son créditos)", { n: merged })]] as [string, string][]) : []),
+        [tr("Total pagado"), escapeHtml(pen(claimed.amount_cents))],
+        ...(claimed.coupon_code ? ([[tr("Cupón"), escapeHtml(claimed.coupon_code)]] as [string, string][]) : []),
+        [tr("Fecha"), escapeHtml(date())],
+        [tr("Medio de pago"), PROVIDER_LABEL[provider]],
       ]) +
-      `<p>Incluye: fila prioritaria, respuestas con IA y exportar a Excel. Guarda este correo como comprobante.</p>`,
-    cta: { label: "Usar mis créditos", url: `${siteUrl()}/` },
-  });
+      tr("<p>Incluye: fila prioritaria, respuestas con IA y exportar a Excel. Guarda este correo como comprobante.</p>"),
+    cta: { label: tr("Usar mis créditos"), url: `${siteUrl()}/` },
+  }));
   await notifyOwnerPurchase({
     email: buyer?.email ?? "",
     credits: claimed.credits,

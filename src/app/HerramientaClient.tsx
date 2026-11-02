@@ -679,7 +679,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         {stepsBar}
         <div className="sheet-body">
           <h2>{help ? tr(help.title) : tr("No pudimos leer el formulario")}</h2>
-          {parseError?.reason && <p className="sheet-lead">{parseError.reason}</p>}
+          {parseError?.reason && <p className="sheet-lead">{tr(parseError.reason)}</p>}
           <div className="note note-warn">
             <p>
               <strong>{tr("Cómo arreglarlo.")}</strong> {help ? tr(help.fix) : tr("Revisa que el link sea correcto y que el formulario sea público.")}
@@ -930,7 +930,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
           {notice && (
             <div className={notice.code === "CONFIRM" ? "note note-warn" : "note note-err"} role="alert">
-              <p>{notice.reason}</p>
+              <p>{tr(notice.reason)}</p>
               {(notice.code === "NO_CREDITS" ||
                 notice.code === "TOO_MANY_QUESTIONS" ||
                 notice.code === "AI_REQUIRES_PAID" ||
@@ -1151,7 +1151,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           </p>
           {job.reason && (
             <div className="note note-err">
-              <p>{job.reason}</p>
+              <p>{tr(job.reason)}</p>
             </div>
           )}
           {allFailed && (

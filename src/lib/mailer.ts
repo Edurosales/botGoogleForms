@@ -11,6 +11,8 @@ import { siteUrl } from "./config";
 import { gmailConfigured, gmailTokenCheck, sendMail } from "./gmail";
 import { hasColumn } from "./schemaFlags";
 import { noteFailure, suppressionReason } from "./suppression";
+import { DATE_LOCALE, localeOf, trFor, type Tr } from "./userLocale";
+import { DEFAULT_LOCALE, trPhrase, type Locale } from "./i18n";
 
 const DAILY_LIMIT = Math.max(50, Number(process.env.GMAIL_DAILY_LIMIT) || 450);
 const SERVICE_RESERVE = 100;
@@ -20,11 +22,15 @@ export function escapeHtml(s: string): string {
 }
 
 /** Plantilla común (tablas e inline styles: así se ve bien en Gmail y Outlook). */
-export function emailLayout(opts: { title: string; bodyHtml: string; cta?: { label: string; url: string }; footerHtml?: string }): string {
+export function emailLayout(
+  opts: { title: string; bodyHtml: string; cta?: { label: string; url: string }; footerHtml?: string },
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  const t = (es: string) => trPhrase(locale, es);
   const cta = opts.cta
     ? `<p style="margin:24px 0 8px"><a href="${escapeHtml(opts.cta.url)}" style="display:inline-block;background:#5B2EA6;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:10px">${escapeHtml(opts.cta.label)}</a></p>`
     : "";
-  return `<!doctype html><html lang="es"><body style="margin:0;background:#F4F1FA;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#21163F">
+  return `<!doctype html><html lang="${locale}"><body style="margin:0;background:#F4F1FA;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#21163F">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
 <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:14px;border-top:6px solid #5B2EA6" cellspacing="0" cellpadding="0"><tr><td style="padding:24px 26px">
 <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 14px"><tr><td><img src="${siteUrl()}/email-logo.png" width="40" height="40" alt="FormsBot" style="display:block;border:0;border-radius:10px"></td><td style="padding-left:10px;font-weight:800;font-size:18px;color:#5B2EA6">FormsBot</td></tr></table>
@@ -32,7 +38,7 @@ export function emailLayout(opts: { title: string; bodyHtml: string; cta?: { lab
 <div style="font-size:15px;line-height:1.6;color:#3B3354">${opts.bodyHtml}</div>
 ${cta}
 </td></tr></table>
-<p style="max-width:560px;margin:14px auto 0;font-size:12px;line-height:1.5;color:#6B6386">${opts.footerHtml ?? ""}<br>Soporte: <a href="https://t.me/onPowerTec" style="color:#6B6386">Telegram</a> · <a href="mailto:edroservices@gmail.com" style="color:#6B6386">edroservices@gmail.com</a><br>FormsBot · <a href="${siteUrl()}/privacidad.html" style="color:#6B6386">Privacidad</a></p>
+<p style="max-width:560px;margin:14px auto 0;font-size:12px;line-height:1.5;color:#6B6386">${opts.footerHtml ?? ""}<br>${t("Soporte")}: <a href="https://t.me/onPowerTec" style="color:#6B6386">Telegram</a> · <a href="mailto:edroservices@gmail.com" style="color:#6B6386">edroservices@gmail.com</a><br>FormsBot · <a href="${siteUrl()}/privacidad.html" style="color:#6B6386">${t("Privacidad")}</a></p>
 </td></tr></table></body></html>`;
 }
 
@@ -51,23 +57,33 @@ async function sentLast24h(): Promise<number> {
  * es parte del contrato). Nunca lanza: si Gmail no está configurado o falla,
  * queda en web_email_log y la notificación de la campana sigue llegando.
  */
+type ServiceContent = { subject: string; title: string; bodyHtml: string; cta?: { label: string; url: string } };
+
+/**
+ * `content` puede ser una función: recibe `tr` (traductor) y `date` (fechas)
+ * en el idioma de la cuenta y arma el correo en ese idioma.
+ */
 export async function sendServiceEmail(
   userId: string,
   kind: string,
-  content: { subject: string; title: string; bodyHtml: string; cta?: { label: string; url: string } }
+  content: ServiceContent | ((tr: Tr, date: (d?: Date | string) => string) => ServiceContent)
 ): Promise<void> {
   const supa = db();
   let email = "";
-  const html = emailLayout({
-    title: content.title,
-    bodyHtml: content.bodyHtml,
-    cta: content.cta,
-    footerHtml: "Recibes este correo porque usas FormsBot (avisos de tus envíos y compras). ",
-  });
+  let html = "";
+  let subject = "";
   try {
-    const { data: u } = await supa.from("web_users").select("email,deleted_at").eq("id", userId).maybeSingle<{ email: string; deleted_at?: string | null }>();
-    if (!u?.email || u.deleted_at || u.email.endsWith(".invalid")) return;
-    email = u.email;
+    const { data: u } = await supa.from("web_users").select("*").eq("id", userId).maybeSingle<Record<string, unknown>>();
+    if (!u?.email || u.deleted_at || String(u.email).endsWith(".invalid")) return;
+    email = String(u.email);
+    const locale = localeOf(u);
+    const tr = trFor(locale);
+    const c = typeof content === "function" ? content(tr, (d) => mailDate(d, locale)) : content;
+    subject = c.subject;
+    html = emailLayout(
+      { title: c.title, bodyHtml: c.bodyHtml, cta: c.cta, footerHtml: tr("Recibes este correo porque usas FormsBot (avisos de tus envíos y compras). ") },
+      locale
+    );
     // Antes se salía en silencio y nadie sabía por qué no llegaban los correos:
     // ahora queda en el historial (Admin → Newsletter → Historial de correos).
     if (!gmailConfigured()) {
@@ -80,7 +96,7 @@ export async function sendServiceEmail(
       return;
     }
     if ((await sentLast24h()) >= DAILY_LIMIT) throw new Error("límite diario de Gmail alcanzado");
-    await sendMail({ to: email, subject: content.subject, html });
+    await sendMail({ to: email, subject, html });
     await supa.from("web_email_log").insert({ kind, user_id: userId, email, ok: true });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
@@ -92,10 +108,10 @@ export async function sendServiceEmail(
     );
     // Falla nuestra o pasajera (token, configuración, límite del día, red):
     // el correo queda en cola y sale solo cuando Gmail vuelva a funcionar.
-    if (email && isRetryable(error)) {
+    if (email && html && isRetryable(error)) {
       await supa
         .from("web_email_outbox")
-        .insert({ user_id: userId, email, kind, subject: content.subject, html, last_error: error.slice(0, 300) })
+        .insert({ user_id: userId, email, kind, subject, html, last_error: error.slice(0, 300) })
         .then(
           () => {},
           () => {}
@@ -275,8 +291,8 @@ export async function sendNewsletterBatch(max = 15, deadline = Date.now() + 20_0
 }
 
 /** Fecha y hora legibles (hora de Lima) para los correos. */
-export function mailDate(d: Date | string = new Date()): string {
-  return new Date(d).toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
+export function mailDate(d: Date | string = new Date(), locale: Locale = DEFAULT_LOCALE): string {
+  return new Date(d).toLocaleString(DATE_LOCALE[locale], { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
 }
 
 /** Tabla de resumen (comprobante) para los correos: [etiqueta, valor ya escapado]. */

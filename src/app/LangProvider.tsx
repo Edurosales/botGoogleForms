@@ -73,6 +73,15 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    // Para que los correos y avisos lleguen en este idioma (sin sesión responde 401 y no pasa nada).
+    const t = setTimeout(() => {
+      fetch("/api/web/account/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale }),
+      }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
   }, [locale]);
 
   const setLocale = useCallback((l: Locale) => {

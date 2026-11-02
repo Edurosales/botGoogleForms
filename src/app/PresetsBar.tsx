@@ -157,7 +157,7 @@ export default function PresetsBar({
       )}
       {msg && (
         <p className="fine" role="status">
-          {msg}
+          {tr(msg)}
         </p>
       )}
     </div>

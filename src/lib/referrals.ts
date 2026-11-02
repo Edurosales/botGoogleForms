@@ -109,12 +109,12 @@ export async function attachReferral(newUser: { id: string; email: string; signu
     if (error) return;
     if (!reason) {
       await supa.from("web_users").update({ referred_by: inviter.id }).eq("id", newUser.id).is("referred_by", null);
-      await notifyUser(inviter.id as string, {
+      await notifyUser(inviter.id as string, (tr) => ({
         kind: "gift",
-        title: "Alguien se registró con tu enlace",
-        body: "Cuando haga su primera compra, los dos reciben créditos.",
+        title: tr("Alguien se registró con tu enlace"),
+        body: tr("Cuando haga su primera compra, los dos reciben créditos."),
         link: "/invita",
-      });
+      }));
     }
     await audit({
       action: reason ? "referral.rejected" : "referral.attached",
@@ -148,39 +148,39 @@ export async function rewardReferral(order: { user_id: string; order_id: string 
     if (!row) return;
 
     if (row.referred_credits > 0) {
-      await notifyUser(order.user_id, {
+      await notifyUser(order.user_id, (tr) => ({
         kind: "gift",
-        title: `+${row.referred_credits} créditos de regalo`,
-        body: "Por tu primera compra con una invitación. ¡Gracias por sumarte!",
+        title: tr("+{n} créditos de regalo", { n: row.referred_credits }),
+        body: tr("Por tu primera compra con una invitación. ¡Gracias por sumarte!"),
         link: "/mi-cuenta",
-      });
+      }));
     }
     if (row.referrer_credits > 0) {
-      await notifyUser(row.referrer_id, {
+      await notifyUser(row.referrer_id, (tr) => ({
         kind: "gift",
-        title: `Ganaste ${row.referrer_credits} créditos`,
-        body: "Una persona que invitaste hizo su primera compra.",
+        title: tr("Ganaste {n} créditos", { n: row.referrer_credits }),
+        body: tr("Una persona que invitaste hizo su primera compra."),
         link: "/invita",
-      });
-      await sendServiceEmail(row.referrer_id, "referral", {
-        subject: `Ganaste ${row.referrer_credits} créditos en FormsBot`,
-        title: `¡+${row.referrer_credits} créditos por invitar!`,
+      }));
+      await sendServiceEmail(row.referrer_id, "referral", (tr) => ({
+        subject: tr("Ganaste {n} créditos en FormsBot", { n: row.referrer_credits }),
+        title: tr("¡+{n} créditos por invitar!", { n: row.referrer_credits }),
         bodyHtml:
-          `<p>Una persona que invitaste con tu enlace hizo su primera compra. Ya sumamos tus créditos.</p>` +
+          tr("<p>Una persona que invitaste con tu enlace hizo su primera compra. Ya sumamos tus créditos.</p>") +
           summaryTable([
-            ["Créditos ganados", `+${row.referrer_credits}`],
-            ["Pedido del invitado", escapeHtml(order.order_id)],
+            [tr("Créditos ganados"), `+${row.referrer_credits}`],
+            [tr("Pedido del invitado"), escapeHtml(order.order_id)],
           ]) +
-          `<p>Sigue compartiendo tu enlace desde <strong>Invita y gana</strong>.</p>`,
-        cta: { label: "Ver mis invitaciones", url: `${siteUrl()}/invita` },
-      });
+          tr("<p>Sigue compartiendo tu enlace desde <strong>Invita y gana</strong>.</p>"),
+        cta: { label: tr("Ver mis invitaciones"), url: `${siteUrl()}/invita` },
+      }));
     } else if (row.status === "capped") {
-      await notifyUser(row.referrer_id, {
+      await notifyUser(row.referrer_id, (tr) => ({
         kind: "gift",
-        title: "Llegaste al tope de premios del mes",
-        body: "Tu invitado compró, pero este mes ya ganaste el máximo. Se reinicia el día 1.",
+        title: tr("Llegaste al tope de premios del mes"),
+        body: tr("Tu invitado compró, pero este mes ya ganaste el máximo. Se reinicia el día 1."),
         link: "/invita",
-      });
+      }));
     }
     await notifyAdmin({
       kind: "gift",
@@ -258,21 +258,26 @@ export async function lowCreditsAlerts(): Promise<{ sent: number } | null> {
       const idx = s.credit_packages.findIndex((p) => p.responses === lastBuy.credits);
       const link = `/comprar-creditos${idx >= 0 ? `?paquete=${idx}` : ""}`;
       const pack = idx >= 0 ? s.credit_packages[idx] : null;
-      await notifyUser(u.id, {
+      await notifyUser(u.id, (tr) => ({
         kind: "credits",
-        title: u.credits > 0 ? `Te quedan ${u.credits} créditos` : "Te quedaste sin créditos",
-        body: pack ? `Recarga ${pack.responses} créditos por ${pen(pack.priceCents)} en un clic.` : "Recarga para tu próximo envío.",
+        title: u.credits > 0 ? tr("Te quedan {n} créditos", { n: u.credits }) : tr("Te quedaste sin créditos"),
+        body: pack ? tr("Recarga {n} créditos por {amount} en un clic.", { n: pack.responses, amount: pen(pack.priceCents) }) : tr("Recarga para tu próximo envío."),
         link,
-      });
-      await sendServiceEmail(u.id, "low_credits", {
-        subject: u.credits > 0 ? `Te quedan ${u.credits} créditos en FormsBot` : "Te quedaste sin créditos en FormsBot",
-        title: u.credits > 0 ? `Te quedan ${u.credits} créditos` : "Te quedaste sin créditos",
+      }));
+      await sendServiceEmail(u.id, "low_credits", (tr) => ({
+        subject: u.credits > 0 ? tr("Te quedan {n} créditos en FormsBot", { n: u.credits }) : tr("Te quedaste sin créditos en FormsBot"),
+        title: u.credits > 0 ? tr("Te quedan {n} créditos", { n: u.credits }) : tr("Te quedaste sin créditos"),
         bodyHtml:
-          `<p>Para que tu próxima prueba no se quede a medias, recarga antes de empezar.</p>` +
-          (pack ? summaryTable([["Tu paquete de siempre", `${pack.responses} créditos`], ["Precio", escapeHtml(pen(pack.priceCents))]]) : "") +
-          `<p style="font-size:12px;color:#6B6386">Te avisamos una sola vez por compra. Puedes dejar de recibir estos avisos escribiéndonos.</p>`,
-        cta: { label: "Recargar créditos", url: `${siteUrl()}${link}` },
-      });
+          tr("<p>Para que tu próxima prueba no se quede a medias, recarga antes de empezar.</p>") +
+          (pack
+            ? summaryTable([
+                [tr("Tu paquete de siempre"), tr("{n} créditos", { n: pack.responses })],
+                [tr("Precio"), escapeHtml(pen(pack.priceCents))],
+              ])
+            : "") +
+          tr("<p style=\"font-size:12px;color:#6B6386\">Te avisamos una sola vez por compra. Puedes dejar de recibir estos avisos escribiéndonos.</p>"),
+        cta: { label: tr("Recargar créditos"), url: `${siteUrl()}${link}` },
+      }));
       await audit({ action: "credits.low_notice", userId: u.id, details: { credits: u.credits, threshold }, meta: NO_REQ });
       sent++;
     }

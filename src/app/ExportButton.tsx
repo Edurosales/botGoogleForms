@@ -43,7 +43,7 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
       <button type="button" className={`${cls} is-locked`} onClick={openPreview} disabled={loading}>
         <span aria-hidden="true">🔒</span> {tr("Exportar a Excel")}
       </button>
-      {error && <p className="fine">{error}</p>}
+      {error && <p className="fine">{tr(error)}</p>}
       {preview && (
         <div className="paymodal" role="dialog" aria-modal="true" aria-labelledby={`xp-${jobId}`}>
           <div className="paymodal-backdrop" onClick={() => setPreview(null)} />

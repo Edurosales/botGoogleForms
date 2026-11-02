@@ -14,6 +14,7 @@ import { notifyOwnerMessage } from "./alerts";
 import { randomBytes } from "node:crypto";
 import { escapeHtml, sendServiceEmail, summaryTable } from "./mailer";
 import { siteUrl } from "./config";
+import { DATE_LOCALE, getUserLocale, trFor } from "./userLocale";
 import { emailHash } from "./googleAuth";
 
 export const USER_MSG_MAX_CHARS = 500;
@@ -167,17 +168,24 @@ export async function paymentFollowUps(): Promise<{ sent: number } | null> {
     if (!claimed?.length) continue;
     if ((paidAfter ?? 0) > 0 || (recent ?? 0) > 0 || !user || user.deleted_at || user.banned_at) continue;
 
-    const first = (user.name || "").trim().split(/\s+/)[0];
-    const state = newest.status === "failed" ? "fue rechazado" : "quedó sin completar";
-    const body =
-      `Hola${first ? ` ${first}` : ""}, vimos que tu pago de ${pen(newest.amount_cents)} (${newest.credits} créditos, pedido ${newest.order_id}) ${state}. ` +
-      `¿No pudiste hacer el pago? Escríbeme un mensaje por aquí y te ayudo. Si ya pagaste, no te preocupes: los créditos se suman solos cuando llega la confirmación.`;
+    const first = String(user.name || "").trim().split(/\s+/)[0];
+    const tr = trFor(await getUserLocale(userId));
+    const body = tr(
+      "Hola{name}, vimos que tu pago de {amount} ({n} créditos, pedido {id}) {state}. ¿No pudiste hacer el pago? Escríbeme un mensaje por aquí y te ayudo. Si ya pagaste, no te preocupes: los créditos se suman solos cuando llega la confirmación.",
+      {
+        name: first ? ` ${first}` : "",
+        amount: pen(newest.amount_cents),
+        n: newest.credits,
+        id: newest.order_id,
+        state: newest.status === "failed" ? tr("fue rechazado") : tr("quedó sin completar"),
+      }
+    );
     const { error: insErr } = await supa.from("web_messages").insert({ user_id: userId, sender: "system", body, order_id: newest.order_id });
     if (insErr) continue;
     await notifyUser(userId, {
       kind: "message",
-      title: newest.status === "failed" ? "Tu pago fue rechazado: ¿te ayudamos?" : "Tu pago quedó pendiente: ¿te ayudamos?",
-      body: "Abre Soporte → Mensajes y escríbenos. Respondemos por aquí mismo.",
+      title: newest.status === "failed" ? tr("Tu pago fue rechazado: ¿te ayudamos?") : tr("Tu pago quedó pendiente: ¿te ayudamos?"),
+      body: tr("Abre Soporte → Mensajes y escríbenos. Respondemos por aquí mismo."),
       link: "/mi-cuenta?chat=1",
     });
     await audit({ action: "payments.followup", userId, target: newest.order_id, details: { status: newest.status }, meta: NO_REQ });
@@ -187,7 +195,6 @@ export async function paymentFollowUps(): Promise<{ sent: number } | null> {
 }
 
 export const RECOVERY_PERCENT = 10;
-const COUPON_TERMS = "Es de un solo uso, solo para tu cuenta e intransferible; no se acumula con otros cupones ni se canjea por dinero.";
 const RECOVERY_HOURS = 72;
 
 /**
@@ -270,36 +277,45 @@ export async function paymentRecovery(): Promise<{ sent: number } | null> {
     });
     if (cErr) continue;
 
-    const until = expires.toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
+    const locale = await getUserLocale(userId);
+    const tr = trFor(locale);
+    const until = expires.toLocaleString(DATE_LOCALE[locale], { timeZone: "America/Lima", dateStyle: "long", timeStyle: "short" });
     await supa.from("web_messages").insert({
       user_id: userId,
       sender: "system",
-      body: `Te guardamos un ${RECOVERY_PERCENT}% de descuento para terminar tu compra: usa el cupón ${code} al pagar (válido hasta el ${until}). ${COUPON_TERMS} Si algo falló al pagar, escríbenos aquí.`,
+      body: tr(
+        "Te guardamos un {p}% de descuento para terminar tu compra: usa el cupón {code} al pagar (válido hasta el {until}). Es de un solo uso, solo para tu cuenta e intransferible; no se acumula con otros cupones ni se canjea por dinero. Si algo falló al pagar, escríbenos aquí.",
+        { p: RECOVERY_PERCENT, code, until }
+      ),
       order_id: newest.order_id,
     });
     await notifyUser(userId, {
       kind: "gift",
-      title: `Tienes ${RECOVERY_PERCENT}% de descuento para terminar tu compra`,
-      body: `Cupón ${code}: un solo uso, solo para tu cuenta, válido 72 h.`,
+      title: tr("Tienes {p}% de descuento para terminar tu compra", { p: RECOVERY_PERCENT }),
+      body: tr("Cupón {code}: un solo uso, solo para tu cuenta, válido 72 h.", { code }),
       link: `/comprar-creditos?cupon=${code}`,
     });
-    await sendServiceEmail(userId, "recovery", {
-      subject: `Tu ${RECOVERY_PERCENT}% de descuento en FormsBot te espera`,
-      title: `Termina tu compra con ${RECOVERY_PERCENT}% de descuento`,
+    await sendServiceEmail(userId, "recovery", (tr) => ({
+      subject: tr("Tu {p}% de descuento en FormsBot te espera", { p: RECOVERY_PERCENT }),
+      title: tr("Termina tu compra con {p}% de descuento", { p: RECOVERY_PERCENT }),
       bodyHtml:
-        `<p>Vimos que tu pago de ${escapeHtml(pen(newest.amount_cents))} (${newest.credits} créditos) no se completó. Te guardamos un descuento:</p>` +
+        tr("<p>Vimos que tu pago de {amount} ({n} créditos) no se completó. Te guardamos un descuento:</p>", {
+          amount: escapeHtml(pen(newest.amount_cents)),
+          n: newest.credits,
+        }) +
         summaryTable([
-          ["Cupón", `<strong>${escapeHtml(code)}</strong>`],
-          ["Descuento", `${RECOVERY_PERCENT}%`],
-          ["Válido hasta", escapeHtml(until)],
-          ["Uso", "Una sola compra, solo con tu cuenta"],
+          [tr("Cupón"), `<strong>${escapeHtml(code)}</strong>`],
+          [tr("Descuento"), `${RECOVERY_PERCENT}%`],
+          [tr("Válido hasta"), escapeHtml(until)],
+          [tr("Uso"), tr("Una sola compra, solo con tu cuenta")],
         ]) +
-        `<p>Escríbelo en "Cupón" al elegir tu paquete. Si el pago te dio un error, respóndenos desde Mensajes en la página y te ayudamos.</p>` +
-        `<p style="font-size:12px;color:#6B6386">Condiciones: cupón personal e intransferible, de un solo uso, válido solo para la cuenta ${escapeHtml(email)} y hasta la fecha indicada; ` +
-        `se aplica a un paquete de créditos; no es acumulable con otros cupones, no se canjea por dinero ni se reemplaza si vence. Se ofrece una sola vez por cuenta. ` +
-        `<a href="${siteUrl()}/terminos-herramienta.html#cupones" style="color:#6B6386">Términos completos</a>.</p>`,
-      cta: { label: "Terminar mi compra", url: `${siteUrl()}/comprar-creditos?cupon=${code}` },
-    });
+        tr("<p>Escríbelo en \"Cupón\" al elegir tu paquete. Si el pago te dio un error, respóndenos desde Mensajes en la página y te ayudamos.</p>") +
+        `<p style="font-size:12px;color:#6B6386">${tr(
+          "Condiciones: cupón personal e intransferible, de un solo uso, válido solo para la cuenta {email} y hasta la fecha indicada; se aplica a un paquete de créditos; no es acumulable con otros cupones, no se canjea por dinero ni se reemplaza si vence. Se ofrece una sola vez por cuenta.",
+          { email: escapeHtml(email) }
+        )} <a href="${siteUrl()}/terminos-herramienta.html#cupones" style="color:#6B6386">${tr("Términos completos")}</a>.</p>`,
+      cta: { label: tr("Terminar mi compra"), url: `${siteUrl()}/comprar-creditos?cupon=${code}` },
+    }));
     await audit({ action: "payments.recovery", userId, target: newest.order_id, details: { code }, meta: NO_REQ });
     sent++;
   }

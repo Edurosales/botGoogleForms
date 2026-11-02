@@ -316,7 +316,7 @@ export default function SupportButton() {
                   </div>
                   {error && (
                     <p className="sc-err" role="alert">
-                      {error}
+                      {tr(error)}
                     </p>
                   )}
                 </form>

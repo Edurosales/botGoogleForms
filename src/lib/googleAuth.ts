@@ -16,6 +16,7 @@ import { audit } from "./audit";
 import { recordConsent, TERMS_VERSION, type SignupChoices } from "./consent";
 import { requestMeta } from "./requestMeta";
 import { attachReferral, REFERRAL_COOKIE } from "./referrals";
+import { isLocale, LANG_COOKIE } from "./i18n";
 
 export const WEB_SESSION_COOKIE = "web_session";
 const STATE_COOKIE = "web_g_state";
@@ -153,12 +154,12 @@ async function claimPendingGrants(userId: string, email: string): Promise<void> 
       .maybeSingle<{ credits: number }>();
     if (claimed?.credits) {
       await addCredits(userId, claimed.credits);
-      await notifyUser(userId, {
+      await notifyUser(userId, (tr) => ({
         kind: "gift",
-        title: `Recibiste ${claimed.credits} créditos de regalo`,
-        body: "Ya están en tu saldo.",
+        title: tr("Recibiste {n} créditos de regalo", { n: claimed.credits }),
+        body: tr("Ya están en tu saldo."),
         link: "/mi-cuenta",
-      });
+      }));
     }
   }
 }
@@ -251,12 +252,12 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
     const jarOld = await cookies();
     if (jarOld.get(REFERRAL_COOKIE)?.value) {
       jarOld.delete(REFERRAL_COOKIE);
-      await notifyUser(userId, {
+      await notifyUser(userId, (tr) => ({
         kind: "gift",
-        title: "Esa invitación es solo para cuentas nuevas",
-        body: "Tú ya tenías cuenta, así que no aplica. Igual puedes ganar créditos invitando con tu propio enlace.",
+        title: tr("Esa invitación es solo para cuentas nuevas"),
+        body: tr("Tú ya tenías cuenta, así que no aplica. Igual puedes ganar créditos invitando con tu propio enlace."),
         link: "/invita",
-      });
+      }));
     }
   } else {
     if (!choices?.terms) {
@@ -284,6 +285,14 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
     }
     userId = created.id;
     await recordChoices(userId, email, choices);
+    // Idioma con el que se registró (cookie del botón de idioma) para sus correos y avisos.
+    const lang = (await cookies()).get(LANG_COOKIE)?.value;
+    if (isLocale(lang)) {
+      await supa.from("web_users").update({ locale: lang }).eq("id", userId).then(
+        () => {},
+        () => {}
+      );
+    }
     // Invitación (Invita y gana): solo al crear la cuenta, nunca al iniciar sesión.
     const jar = await cookies();
     const refCode = jar.get(REFERRAL_COOKIE)?.value;

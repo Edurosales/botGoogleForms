@@ -350,7 +350,7 @@ export default function MiCuentaClient() {
               </div>
               {redeemMsg && (
                 <p className={redeemMsg.ok ? "msg msg-ok" : "msg msg-err"} role="status">
-                  {redeemMsg.text}
+                  {tr(redeemMsg.text)}
                 </p>
               )}
             </form>

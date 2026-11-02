@@ -26,11 +26,11 @@ export async function POST(request: Request) {
     | { ok: boolean; message: string; credits_added: number; new_balance: number | null }
     | undefined;
   if (!row?.ok) return NextResponse.json({ ok: false, reason: row?.message || "Cupón no válido." }, { status: 400 });
-  await notifyUser(user.id, {
+  await notifyUser(user.id, (tr) => ({
     kind: "gift",
-    title: `Cupón canjeado: +${row.credits_added} créditos`,
-    body: `Usaste el cupón ${code.toUpperCase()}.`,
+    title: tr("Cupón canjeado: +{n} créditos", { n: row.credits_added }),
+    body: tr("Usaste el cupón {code}.", { code: code.toUpperCase() }),
     link: "/mi-cuenta",
-  });
+  }));
   return NextResponse.json({ ok: true, message: row.message, creditsAdded: row.credits_added, credits: row.new_balance });
 }

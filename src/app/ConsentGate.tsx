@@ -110,7 +110,7 @@ export default function ConsentGate() {
           country={country}
           setCountry={setCountry}
         />
-        {error && <p className="fh-err">{error}</p>}
+        {error && <p className="fh-err">{tr(error)}</p>}
         <div className="fh-actions">
           <button type="button" className="b b-primary" disabled={!accepted || saving} onClick={save}>
             {saving ? tr("Guardando…") : tr("Aceptar y continuar")}

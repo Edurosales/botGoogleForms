@@ -120,7 +120,7 @@ export default function PrivacyPanel({ me, onChange }: { me: Me; onChange: () =>
       )}
       {msg && (
         <p className="fine" role="status">
-          {msg}
+          {tr(msg)}
         </p>
       )}
       <p className="fine">
