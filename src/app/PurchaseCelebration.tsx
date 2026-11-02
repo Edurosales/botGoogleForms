@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { announceBalanceChange, fmtPen } from "./clientData";
+import { useLang } from "./LangProvider";
 
 type Order = { order_id: string; credits: number; amount_cents: number; status: string };
 
@@ -12,6 +13,7 @@ type Order = { order_id: string; credits: number; amount_cents: number; status: 
  * por pedido.
  */
 export default function PurchaseCelebration({ orderId, onUse }: { orderId: string | null; onUse?: () => void }) {
+  const { tr } = useLang();
   const [order, setOrder] = useState<Order | null>(null);
   const [state, setState] = useState<"hidden" | "checking" | "ok" | "pending">("hidden");
 
@@ -72,18 +74,17 @@ export default function PurchaseCelebration({ orderId, onUse }: { orderId: strin
         {state === "checking" && (
           <div className="paymodal-loading" role="status">
             <span className="spin" aria-hidden="true" />
-            Confirmando tu pago con Izipay…
+            {tr("Confirmando tu pago con Izipay…")}
           </div>
         )}
         {state === "pending" && (
           <>
-            <h2 id="cele-h">Tu pago se está confirmando</h2>
+            <h2 id="cele-h">{tr("Tu pago se está confirmando")}</h2>
             <p className="sheet-lead">
-              Izipay todavía no nos avisó. Los créditos se suman solos apenas llegue la confirmación; te avisaremos en las
-              notificaciones.
+              {tr("Izipay todavía no nos avisó. Los créditos se suman solos apenas llegue la confirmación; te avisaremos en las notificaciones.")}
             </p>
             <button type="button" className="b b-primary b-block" onClick={close}>
-              Entendido
+              {tr("Entendido")}
             </button>
           </>
         )}
@@ -94,13 +95,12 @@ export default function PurchaseCelebration({ orderId, onUse }: { orderId: strin
                 <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z" />
               </svg>
             </div>
-            <h2 id="cele-h">¡Compra confirmada!</h2>
-            <p className="cele-amount">+{order.credits} créditos</p>
+            <h2 id="cele-h">{tr("¡Compra confirmada!")}</h2>
+            <p className="cele-amount">{tr("+{n} créditos", { n: order.credits })}</p>
             <p className="sheet-lead">
-              Pagaste {fmtPen(order.amount_cents)}. Ya están en tu saldo: úsalos con IA, fila prioritaria y formularios
-              grandes.
+              {tr("Pagaste {amount}. Ya están en tu saldo: úsalos con IA, fila prioritaria y formularios grandes.", { amount: fmtPen(order.amount_cents) })}
             </p>
-            <p className="fine">Pedido {order.order_id}</p>
+            <p className="fine">{tr("Pedido {id}", { id: order.order_id })}</p>
             <button
               type="button"
               className="b b-primary b-block"
@@ -109,7 +109,7 @@ export default function PurchaseCelebration({ orderId, onUse }: { orderId: strin
                 onUse?.();
               }}
             >
-              Usar mis créditos
+              {tr("Usar mis créditos")}
             </button>
           </>
         )}

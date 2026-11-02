@@ -7,6 +7,9 @@
  * tocar, porcentajes, lista, rango de números, fechas u horas.
  */
 import { evenWeights, ListEditor, WeightsEditor, type Mode, type QConf } from "./QuestionEditors";
+import { useLang } from "./LangProvider";
+
+type Tr = (es: string, vars?: Record<string, string | number>) => string;
 
 type QView = {
   entry: string;
@@ -30,49 +33,49 @@ const NUM_HINT = /(edad|años|age|cantidad|n[uú]mero|cu[aá]nt|horas|peso|altur
 
 type UiMode = Mode | "range";
 
-function modesFor(q: QView, aiAllowed: boolean): { value: UiMode; label: string; disabled?: boolean }[] {
-  const ai = { value: "ai" as const, label: aiAllowed ? "Con IA (respuestas naturales)" : "Con IA (necesita créditos)", disabled: !aiAllowed };
+function modesFor(q: QView, aiAllowed: boolean, tr: Tr): { value: UiMode; label: string; disabled?: boolean }[] {
+  const ai = { value: "ai" as const, label: aiAllowed ? tr("Con IA (respuestas naturales)") : tr("Con IA (necesita créditos)"), disabled: !aiAllowed };
   switch (kindOf(q)) {
     case "single":
       return [
-        { value: "random", label: "Al azar entre las opciones" },
-        { value: "weighted", label: "Porcentajes por opción" },
-        { value: "fixed", label: "Solo las opciones que elija" },
+        { value: "random", label: tr("Al azar entre las opciones") },
+        { value: "weighted", label: tr("Porcentajes por opción") },
+        { value: "fixed", label: tr("Solo las opciones que elija") },
         ai,
       ];
     case "multi":
       return [
-        { value: "random", label: "Al azar (1 a 3 casillas)" },
-        { value: "weighted", label: "Porcentaje por casilla" },
-        { value: "fixed", label: "Marcar siempre estas casillas" },
+        { value: "random", label: tr("Al azar (1 a 3 casillas)") },
+        { value: "weighted", label: tr("Porcentaje por casilla") },
+        { value: "fixed", label: tr("Marcar siempre estas casillas") },
         ai,
       ];
     case "date":
       return [
-        { value: "random", label: "Fecha al azar" },
-        { value: "range", label: "Entre dos fechas" },
-        { value: "fixed", label: "Una fecha exacta" },
+        { value: "random", label: tr("Fecha al azar") },
+        { value: "range", label: tr("Entre dos fechas") },
+        { value: "fixed", label: tr("Una fecha exacta") },
       ];
     case "time":
       return [
-        { value: "random", label: "Hora al azar" },
-        { value: "range", label: "Entre dos horas" },
-        { value: "fixed", label: "Una hora exacta" },
+        { value: "random", label: tr("Hora al azar") },
+        { value: "range", label: tr("Entre dos horas") },
+        { value: "fixed", label: tr("Una hora exacta") },
       ];
     case "paragraph":
       return [
-        { value: "random", label: "Automático (según la pregunta)" },
-        { value: "list", label: "Varios textos (uno por línea)" },
-        { value: "fixed", label: "Un texto fijo" },
+        { value: "random", label: tr("Automático (según la pregunta)") },
+        { value: "list", label: tr("Varios textos (uno por línea)") },
+        { value: "fixed", label: tr("Un texto fijo") },
         ai,
       ];
     default: {
       const numeric = q.validation?.kind === "number" || NUM_HINT.test(q.title);
       return [
-        { value: "random", label: "Automático (según la pregunta)" },
-        { value: "list", label: "Varios datos (uno por línea)" },
-        ...(numeric ? [{ value: "range" as const, label: "Número en un rango" }] : []),
-        { value: "fixed", label: "Un valor fijo" },
+        { value: "random", label: tr("Automático (según la pregunta)") },
+        { value: "list", label: tr("Varios datos (uno por línea)") },
+        ...(numeric ? [{ value: "range" as const, label: tr("Número en un rango") }] : []),
+        { value: "fixed", label: tr("Un valor fijo") },
         ai,
       ];
     }
@@ -107,8 +110,9 @@ export function QuestionControls({
   total: number;
   onChange: (patch: Partial<QConf>) => void;
 }) {
+  const { tr } = useLang();
   const kind = kindOf(q);
-  const modes = modesFor(q, aiAllowed);
+  const modes = modesFor(q, aiAllowed, tr);
   const ui = uiModeOf(q, conf);
   const selectId = `mode-${q.entry}`;
   const v = (conf.value ?? "").trim();
@@ -144,7 +148,7 @@ export function QuestionControls({
     <>
       <div className="q-config">
         <label className="sr" htmlFor={selectId}>
-          Cómo responder la pregunta {index + 1}
+          {tr("Cómo responder la pregunta {n}", { n: index + 1 })}
         </label>
         <select id={selectId} value={ui} onChange={(e) => pickMode(e.target.value as UiMode)}>
           {modes.map((m) => (
@@ -158,8 +162,8 @@ export function QuestionControls({
           <input
             type="text"
             maxLength={300}
-            aria-label={`Valor fijo para la pregunta ${index + 1}`}
-            placeholder={kind === "paragraph" ? "El texto que se enviará siempre" : "Ej: Lima"}
+            aria-label={tr("Valor fijo para la pregunta {n}", { n: index + 1 })}
+            placeholder={kind === "paragraph" ? tr("El texto que se enviará siempre") : tr("Ej: Lima")}
             value={conf.value}
             onChange={(e) => onChange({ value: e.target.value.replace(/\|/g, "") })}
           />
@@ -167,7 +171,7 @@ export function QuestionControls({
         {ui === "fixed" && kind === "date" && (
           <input
             type="date"
-            aria-label={`Fecha para la pregunta ${index + 1}`}
+            aria-label={tr("Fecha para la pregunta {n}", { n: index + 1 })}
             value={/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ""}
             onChange={(e) => onChange({ value: e.target.value })}
           />
@@ -175,7 +179,7 @@ export function QuestionControls({
         {ui === "fixed" && kind === "time" && (
           <input
             type="time"
-            aria-label={`Hora para la pregunta ${index + 1}`}
+            aria-label={tr("Hora para la pregunta {n}", { n: index + 1 })}
             value={/^\d{1,2}:\d{2}$/.test(v) ? v : ""}
             onChange={(e) => onChange({ value: e.target.value })}
           />
@@ -184,8 +188,8 @@ export function QuestionControls({
           <input
             type="text"
             maxLength={300}
-            aria-label={`Indicación para la IA en la pregunta ${index + 1}`}
-            placeholder="Indicación opcional (ej: respuestas cortas y positivas)"
+            aria-label={tr("Indicación para la IA en la pregunta {n}", { n: index + 1 })}
+            placeholder={tr("Indicación opcional (ej: respuestas cortas y positivas)")}
             value={conf.prompt ?? ""}
             onChange={(e) => onChange({ prompt: e.target.value })}
           />
@@ -193,7 +197,7 @@ export function QuestionControls({
       </div>
 
       {ui === "fixed" && (kind === "single" || kind === "multi") && (
-        <div className="chips" role="group" aria-label={`Opciones para la pregunta ${index + 1}`}>
+        <div className="chips" role="group" aria-label={tr("Opciones para la pregunta {n}", { n: index + 1 })}>
           {q.options.map((opt) => (
             <button
               key={opt}
@@ -209,13 +213,13 @@ export function QuestionControls({
           <p className="q-hint">
             {kind === "multi"
               ? chips.size
-                ? `Cada respuesta marcará estas ${chips.size} casillas.`
-                : "Toca las casillas que quieres marcar siempre."
+                ? tr("Cada respuesta marcará estas {n} casillas.", { n: chips.size })
+                : tr("Toca las casillas que quieres marcar siempre.")
               : chips.size > 1
-                ? `Cada respuesta elegirá al azar una de estas ${chips.size}.`
+                ? tr("Cada respuesta elegirá al azar una de estas {n}.", { n: chips.size })
                 : chips.size === 1
-                  ? "Todas las respuestas elegirán esta opción."
-                  : "Toca una o varias opciones."}
+                  ? tr("Todas las respuestas elegirán esta opción.")
+                  : tr("Toca una o varias opciones.")}
           </p>
         </div>
       )}
@@ -223,24 +227,24 @@ export function QuestionControls({
       {ui === "range" && kind === "text" && (
         <div className="range-row">
           <label>
-            Desde
+            {tr("Desde")}
             <input type="number" value={numRange?.[1] ?? ""} onChange={(e) => onChange({ value: `${e.target.value || 0}-${numRange?.[2] ?? "65"}` })} />
           </label>
           <label>
-            Hasta
+            {tr("Hasta")}
             <input type="number" value={numRange?.[2] ?? ""} onChange={(e) => onChange({ value: `${numRange?.[1] ?? "18"}-${e.target.value || 0}` })} />
           </label>
-          <p className="q-hint">Cada respuesta tendrá un número entero al azar dentro del rango.</p>
+          <p className="q-hint">{tr("Cada respuesta tendrá un número entero al azar dentro del rango.")}</p>
         </div>
       )}
       {ui === "range" && kind === "date" && (
         <div className="range-row">
           <label>
-            Desde
+            {tr("Desde")}
             <input type="date" value={dateRange?.[1] ?? ""} onChange={(e) => onChange({ value: `${e.target.value}~${dateRange?.[2] ?? e.target.value}` })} />
           </label>
           <label>
-            Hasta
+            {tr("Hasta")}
             <input type="date" value={dateRange?.[2] ?? ""} onChange={(e) => onChange({ value: `${dateRange?.[1] ?? e.target.value}~${e.target.value}` })} />
           </label>
         </div>
@@ -248,11 +252,11 @@ export function QuestionControls({
       {ui === "range" && kind === "time" && (
         <div className="range-row">
           <label>
-            Desde
+            {tr("Desde")}
             <input type="time" value={timeRange?.[1] ?? ""} onChange={(e) => onChange({ value: `${e.target.value}~${timeRange?.[2] ?? e.target.value}` })} />
           </label>
           <label>
-            Hasta
+            {tr("Hasta")}
             <input type="time" value={timeRange?.[2] ?? ""} onChange={(e) => onChange({ value: `${timeRange?.[1] ?? e.target.value}~${e.target.value}` })} />
           </label>
         </div>
@@ -264,7 +268,7 @@ export function QuestionControls({
       {conf.mode === "list" && (
         <ListEditor
           id={`list-${q.entry}`}
-          label={`Respuestas para la pregunta ${index + 1}`}
+          label={tr("Respuestas para la pregunta {n}", { n: index + 1 })}
           value={conf.value}
           order={conf.order ?? "random"}
           total={total}

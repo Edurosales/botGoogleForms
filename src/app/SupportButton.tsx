@@ -62,7 +62,7 @@ function when(iso: string): string {
 export default function SupportButton() {
   const settings = usePublicSettings();
   const { me } = useMe();
-  const { t } = useLang();
+  const { t, tr } = useLang();
   const path = usePathname() || "/";
   // ?chat=1 (enlace de la notificación) abre el chat al cargar.
   const askedByUrl = useSyncExternalStore(
@@ -154,19 +154,19 @@ export default function SupportButton() {
         body: JSON.stringify({ body }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!d.ok) setError(String(d.error || "No se pudo enviar."));
+      if (!d.ok) setError(String(d.error || tr("No se pudo enviar.")));
       else {
         setDraft("");
         await load();
       }
     } catch {
-      setError("No se pudo conectar. Intenta de nuevo.");
+      setError(tr("No se pudo conectar. Intenta de nuevo."));
     } finally {
       setSending(false);
     }
   }
 
-  const msg = `Hola, necesito ayuda con FormsBot (página ${path}).`;
+  const msg = tr("Hola, necesito ayuda con FormsBot (página {path}).", { path });
   const channels = (
     <div className="support-channels">
       <a href={whatsappLink(settings.whatsappNumber, msg)} target="_blank" rel="noopener noreferrer">
@@ -181,7 +181,7 @@ export default function SupportButton() {
         </span>{" "}
         Telegram
       </a>
-      <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Ayuda con FormsBot")}&body=${encodeURIComponent(msg)}`}>
+      <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(tr("Ayuda con FormsBot"))}&body=${encodeURIComponent(msg)}`}>
         <span className="sm-ico sm-mail" aria-hidden="true">
           @
         </span>{" "}

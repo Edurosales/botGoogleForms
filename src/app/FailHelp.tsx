@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { SUPPORT_EMAIL, SUPPORT_TELEGRAM, usePublicSettings, whatsappLink } from "./clientData";
+import { Rich, useLang } from "./LangProvider";
 
 export type FailCode = "NOT_PUBLIC" | "NEEDS_EMAIL" | "CLOSED" | "REQUIRED" | "VALIDATION" | "RATE_LIMIT" | "NETWORK" | "LOST_TURN" | "OTHER";
 
@@ -102,6 +103,7 @@ export default function FailHelp({
   onClose: () => void;
 }) {
   const settings = usePublicSettings();
+  const { tr } = useLang();
   const closeRef = useRef<HTMLButtonElement>(null);
   const help = HELP[code];
   const example = failures.find((f) => f.code === code) ?? failures[failures.length - 1];
@@ -113,7 +115,9 @@ export default function FailHelp({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const supportMsg = `Hola, mi envío en FormsBot falló (${help.title}).${example?.message ? ` Google dijo: "${example.message}".` : ""} ¿Me ayudan?`;
+  const supportMsg = example?.message
+    ? tr("Hola, mi envío en FormsBot falló ({title}). Google dijo: \"{msg}\". ¿Me ayudan?", { title: tr(help.title), msg: example.message })
+    : tr("Hola, mi envío en FormsBot falló ({title}). ¿Me ayudan?", { title: tr(help.title) });
 
   return (
     <div className="paymodal" role="dialog" aria-modal="true" aria-labelledby="fh-title">
@@ -121,44 +125,50 @@ export default function FailHelp({
       <div className="paymodal-card fh-card">
         <div className="paymodal-head fh-head">
           <div>
-            <p className="paymodal-kicker">Tu envío no se completó</p>
-            <h2 id="fh-title">{help.title}</h2>
+            <p className="paymodal-kicker">{tr("Tu envío no se completó")}</p>
+            <h2 id="fh-title">{tr(help.title)}</h2>
           </div>
-          <button ref={closeRef} type="button" className="paymodal-x" aria-label="Cerrar" onClick={onClose}>
+          <button ref={closeRef} type="button" className="paymodal-x" aria-label={tr("Cerrar")} onClick={onClose}>
             ×
           </button>
         </div>
-        <p className="fh-why">{help.why}</p>
+        <p className="fh-why">{tr(help.why)}</p>
         {example && (example.question || example.message) && (
           <div className="fh-google">
-            <p className="fh-label">Lo que respondió Google</p>
-            {example.question && <p className="fh-q">Pregunta: “{example.question}”</p>}
+            <p className="fh-label">{tr("Lo que respondió Google")}</p>
+            {example.question && <p className="fh-q">{tr("Pregunta: “{q}”", { q: example.question })}</p>}
             {example.message && <p>{example.message}</p>}
           </div>
         )}
-        <p className="fh-label">Cómo arreglarlo</p>
+        <p className="fh-label">{tr("Cómo arreglarlo")}</p>
         <ol className="fh-steps">
           {help.steps.map((s) => (
-            <li key={s}>{s}</li>
+            <li key={s}>{tr(s)}</li>
           ))}
         </ol>
         {refundText && <p className="fh-refund">{refundText}</p>}
         <div className="fh-actions">
           {onRetry && (
             <button type="button" className="b b-primary" onClick={onRetry}>
-              Ajustar configuración y reintentar
+              {tr("Ajustar configuración y reintentar")}
             </button>
           )}
           <a className="b b-ghost" href={whatsappLink(settings.whatsappNumber, supportMsg)} target="_blank" rel="noopener noreferrer">
-            Soporte por WhatsApp
+            {tr("Soporte por WhatsApp")}
           </a>
         </div>
         <p className="fh-more">
-          También por{" "}
-          <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer">
-            Telegram
-          </a>{" "}
-          o a <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(help.title)}&body=${encodeURIComponent(supportMsg)}`}>{SUPPORT_EMAIL}</a>.
+          <Rich
+            text={tr("También por <tg>Telegram</tg> o a")}
+            tags={{
+              tg: (c) => (
+                <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer">
+                  {c}
+                </a>
+              ),
+            }}
+          />{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(tr(help.title))}&body=${encodeURIComponent(supportMsg)}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </div>
     </div>

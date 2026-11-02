@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteNav from "../SiteNav";
 import InvitaClient from "./InvitaClient";
+import { SimpleIntro } from "../PageIntro";
 
 export const metadata: Metadata = {
   title: "Invita y gana",
@@ -13,10 +14,7 @@ export default function InvitaPage() {
     <main className="tool-page">
       <SiteNav />
       <div className="tool-wrap">
-        <div className="intro">
-          <h1>Invita y gana</h1>
-          <p>Comparte tu enlace. Cuando alguien se registra con él y hace su primera compra, los dos reciben créditos.</p>
-        </div>
+        <SimpleIntro title="Invita y gana" lead="Comparte tu enlace. Cuando alguien se registra con él y hace su primera compra, los dos reciben créditos." />
         <InvitaClient />
       </div>
     </main>

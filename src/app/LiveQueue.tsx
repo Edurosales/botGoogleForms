@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Rich, useLang } from "./LangProvider";
 
 type LiveState = {
   status?: string;
@@ -30,6 +31,7 @@ export default function LiveQueue({
   onState: (d: Record<string, unknown>) => void;
   onBuy: () => void;
 }) {
+  const { tr } = useLang();
   const [live, setLive] = useState<LiveState>({ queuePosition: initialPosition });
   const [connected, setConnected] = useState(false);
   const [lostNotice, setLostNotice] = useState(false);
@@ -89,22 +91,24 @@ export default function LiveQueue({
     <div className={`lq${isPaid ? " lq-paid" : ""}`} aria-live="polite">
       <div className="lq-head">
         <span className={`lq-live${connected ? " on" : ""}`}>
-          <i aria-hidden="true" /> {connected ? "En vivo" : "Reconectando…"}
+          <i aria-hidden="true" /> {connected ? tr("En vivo") : tr("Reconectando…")}
         </span>
-        <span className="lq-kind">{isPaid ? "Fila prioritaria" : "Fila gratuita"}</span>
+        <span className="lq-kind">{isPaid ? tr("Fila prioritaria") : tr("Fila gratuita")}</span>
       </div>
 
       <div className="lq-ring">
-        <p className="lq-label">Tu posición</p>
+        <p className="lq-label">{tr("Tu posición")}</p>
         <p className="lq-number" key={pos}>
           {pos > 0 ? pos : "…"}
         </p>
         <p className="lq-sub">
           {pos === 1
-            ? "¡Eres el siguiente!"
+            ? tr("¡Eres el siguiente!")
             : pos > 1
-              ? `${ahead} ${ahead === 1 ? "envío" : "envíos"} antes que el tuyo`
-              : "Calculando tu lugar…"}
+              ? ahead === 1
+                ? tr("{n} envío antes que el tuyo", { n: ahead })
+                : tr("{n} envíos antes que el tuyo", { n: ahead })
+              : tr("Calculando tu lugar…")}
         </p>
       </div>
 
@@ -114,20 +118,20 @@ export default function LiveQueue({
             <span key={i} style={{ animationDelay: `${i * 90}ms` }} />
           ))}
           {ahead > dots && <em>+{ahead - dots}</em>}
-          <b>Tú</b>
+          <b>{tr("Tú")}</b>
         </div>
       )}
 
-      {live.promoted && <div className="note note-ok"><p>Te subimos de puesto en la fila.</p></div>}
+      {live.promoted && <div className="note note-ok"><p>{tr("Te subimos de puesto en la fila.")}</p></div>}
 
       {live.paused && (
         <div className="note note-warn">
           <p>
-            <strong>{isPaid ? "Servicio en pausa." : "La fila gratuita está en pausa."}</strong>{" "}
+            <strong>{isPaid ? tr("Servicio en pausa.") : tr("La fila gratuita está en pausa.")}</strong>{" "}
             {live.pauseMessage ||
               (isPaid
-                ? "Retomamos en breve; tu envío no pierde su lugar."
-                : "Ahora atendemos primero a los envíos prioritarios. Conservas tu lugar mientras sigas en esta ventana.")}
+                ? tr("Retomamos en breve; tu envío no pierde su lugar.")
+                : tr("Ahora atendemos primero a los envíos prioritarios. Conservas tu lugar mientras sigas en esta ventana."))}
           </p>
         </div>
       )}
@@ -135,21 +139,24 @@ export default function LiveQueue({
       {lostNotice && (
         <div className="note note-err">
           <p>
-            Saliste de la ventana y perdiste tu turno: volviste al final de la fila. Mantén esta pestaña abierta para no perderlo.
+            {tr("Saliste de la ventana y perdiste tu turno: volviste al final de la fila. Mantén esta pestaña abierta para no perderlo.")}
           </p>
         </div>
       )}
 
       {isPaid ? (
-        <p className="fine center">Tienes prioridad: puedes cerrar esta pestaña, tu envío sigue en la nube y te avisamos por correo.</p>
+        <p className="fine center">{tr("Tienes prioridad: puedes cerrar esta pestaña, tu envío sigue en la nube y te avisamos por correo.")}</p>
       ) : (
         <div className="lq-warn">
           <p>
-            <strong>No salgas de esta ventana o perderás tu turno.</strong> Si la cierras, tu envío pasa al final de la fila; si no
-            vuelves en 10 minutos, se cancela (te devolvemos tus respuestas gratis).
+            <Rich
+              text={tr(
+                "<b>No salgas de esta ventana o perderás tu turno.</b> Si la cierras, tu envío pasa al final de la fila; si no vuelves en 10 minutos, se cancela (te devolvemos tus respuestas gratis)."
+              )}
+            />
           </p>
           <button type="button" className="b b-small b-primary" onClick={onBuy}>
-            Saltar la fila con créditos
+            {tr("Saltar la fila con créditos")}
           </button>
         </div>
       )}

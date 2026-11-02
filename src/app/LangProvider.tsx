@@ -1,13 +1,22 @@
 "use client";
 
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_LOCALE, isLocale, LANG_COOKIE, localeFromAcceptLanguage, translate, type Locale, type MsgKey } from "@/lib/i18n";
+import { DEFAULT_LOCALE, isLocale, LANG_COOKIE, localeFromAcceptLanguage, translate, trPhrase, type Locale, type MsgKey } from "@/lib/i18n";
 
-type Ctx = { locale: Locale; setLocale: (l: Locale) => void; t: (key: MsgKey, vars?: Record<string, string | number>) => string };
+type Vars = Record<string, string | number>;
+type Ctx = {
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+  /** Texto corto por clave (lib/i18n.ts). */
+  t: (key: MsgKey, vars?: Vars) => string;
+  /** Frase por su texto en español (lib/phrases.ts). */
+  tr: (es: string, vars?: Vars) => string;
+};
 const LangContext = createContext<Ctx>({
   locale: DEFAULT_LOCALE,
   setLocale: () => {},
   t: (key, vars) => translate(DEFAULT_LOCALE, key, vars),
+  tr: (es, vars) => trPhrase(DEFAULT_LOCALE, es, vars),
 });
 
 const noSubscribe = () => () => {};
@@ -70,7 +79,10 @@ export function LangProvider({ children }: { children: ReactNode }) {
     saveChoice(l);
     setPicked(l);
   }, []);
-  const value = useMemo<Ctx>(() => ({ locale, setLocale, t: (key, vars) => translate(locale, key, vars) }), [locale, setLocale]);
+  const value = useMemo<Ctx>(
+    () => ({ locale, setLocale, t: (key, vars) => translate(locale, key, vars), tr: (es, vars) => trPhrase(locale, es, vars) }),
+    [locale, setLocale]
+  );
   return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
 }
 

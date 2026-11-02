@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { QConf } from "./QuestionEditors";
+import { useLang } from "./LangProvider";
 
 type QView = { entry: string; title: string; type: number; options: string[] };
 type Rule = { entry: string; equals: string; value: string };
@@ -24,6 +25,7 @@ export function QuestionRules({
   all: QView[];
   onChange: (patch: Partial<QConf>) => void;
 }) {
+  const { tr } = useLang();
   const rules: Rule[] = conf.when ?? [];
   const sources = all.slice(0, index).filter((x) => x.options.length > 0);
   const [open, setOpen] = useState(rules.length > 0);
@@ -43,27 +45,34 @@ export function QuestionRules({
     <div className="qrules">
       {rules.length > 0 && (
         <p className="qrules-flow">
-          ↳ Depende de {[...new Set(rules.map((r) => `la pregunta ${numberOf(r.entry)}`))].join(" y ")}
+          {tr("↳ Depende de {list}", { list: [...new Set(rules.map((r) => tr("la pregunta {n}", { n: numberOf(r.entry) })))].join(tr(" y ")) })}
         </p>
       )}
       {!open ? (
         <button type="button" className="linkish" onClick={() => setOpen(true)}>
-          + Agregar condición
+          {tr("+ Agregar condición")}
         </button>
       ) : (
         <div className="qrules-box">
           {rules.map((r, i) => (
             <p key={i} className="qrules-item">
-              Si la pregunta {numberOf(r.entry)} es <b>“{r.equals}”</b> → {r.value ? <>responder <b>“{r.value}”</b></> : <b>dejar vacía</b>}{" "}
+              {tr("Si la pregunta {n} es", { n: numberOf(r.entry) })} <b>“{r.equals}”</b> →{" "}
+              {r.value ? (
+                <>
+                  {tr("responder")} <b>“{r.value}”</b>
+                </>
+              ) : (
+                <b>{tr("dejar vacía")}</b>
+              )}{" "}
               <button type="button" className="linkish" onClick={() => onChange({ when: rules.filter((_, j) => j !== i) })}>
-                quitar
+                {tr("quitar")}
               </button>
             </p>
           ))}
           <div className="qrules-row">
-            <span>Si la pregunta</span>
+            <span>{tr("Si la pregunta")}</span>
             <select
-              aria-label="Pregunta de la que depende"
+              aria-label={tr("Pregunta de la que depende")}
               value={src.entry}
               onChange={(e) => setDraft({ entry: e.target.value, equals: "", value: draft.value })}
             >
@@ -73,9 +82,9 @@ export function QuestionRules({
                 </option>
               ))}
             </select>
-            <span>es</span>
-            <select aria-label="Respuesta que activa la condición" value={draft.equals} onChange={(e) => setDraft({ ...draft, equals: e.target.value })}>
-              <option value="">elige…</option>
+            <span>{tr("es")}</span>
+            <select aria-label={tr("Respuesta que activa la condición")} value={draft.equals} onChange={(e) => setDraft({ ...draft, equals: e.target.value })}>
+              <option value="">{tr("elige…")}</option>
               {src.options.map((o) => (
                 <option key={o} value={o}>
                   {o}
@@ -84,30 +93,31 @@ export function QuestionRules({
             </select>
             <span>→</span>
             {q.options.length ? (
-              <select aria-label="Qué responder" value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })}>
-                <option value="">dejar vacía</option>
+              <select aria-label={tr("Qué responder")} value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })}>
+                <option value="">{tr("dejar vacía")}</option>
                 {q.options.map((o) => (
                   <option key={o} value={o}>
-                    responder “{o}”
+                    {tr("responder “{o}”", { o })}
                   </option>
                 ))}
               </select>
             ) : (
               <input
-                aria-label="Qué responder"
-                placeholder="vacío = dejar sin responder"
+                aria-label={tr("Qué responder")}
+                placeholder={tr("vacío = dejar sin responder")}
                 maxLength={300}
                 value={draft.value}
                 onChange={(e) => setDraft({ ...draft, value: e.target.value.replace(/\|/g, "") })}
               />
             )}
             <button type="button" className="b b-small b-ghost" onClick={add} disabled={!draft.equals}>
-              Agregar
+              {tr("Agregar")}
             </button>
           </div>
           <p className="q-hint">
-            Útil cuando una pregunta solo aplica según una respuesta anterior (ej. “¿Trabajas?” = No → dejar vacía “¿Dónde trabajas?”). Si esa
-            pregunta es obligatoria en Google Forms, ponla en una sección que se salte con ese mismo “No”.
+            {tr(
+              "Útil cuando una pregunta solo aplica según una respuesta anterior (ej. “¿Trabajas?” = No → dejar vacía “¿Dónde trabajas?”). Si esa pregunta es obligatoria en Google Forms, ponla en una sección que se salte con ese mismo “No”."
+            )}
           </p>
         </div>
       )}

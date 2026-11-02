@@ -1,6 +1,7 @@
 "use client";
 
 import type { QConf, QConfMap } from "./QuestionEditors";
+import { Rich, useLang } from "./LangProvider";
 
 type QView = { entry: string; title: string; type: number; options: string[]; section?: number; jumps?: Record<string, number> | null };
 
@@ -41,17 +42,20 @@ export function sectionGates(questions: QView[]): Map<number, string[]> {
  * abre una sección y a veces no).
  */
 export default function FlowSummary({ questions, qConfig }: { questions: QView[]; qConfig: QConfMap }) {
+  const { tr } = useLang();
   const branching = questions.map((q, i) => ({ q, i })).filter(({ q }) => q.jumps && Object.keys(q.jumps).length > 0);
   if (!branching.length) return null;
   const firstQuestionOf = (sec: number) => questions.findIndex((q) => (q.section ?? 1) === sec) + 1;
 
   return (
     <div className="flow">
-      <p className="flow-title">Flujo del formulario</p>
+      <p className="flow-title">{tr("Flujo del formulario")}</p>
       <p className="fine">
-        Tu formulario abre secciones según lo que se responda. Cada respuesta sigue su propio camino, como una persona: las preguntas de las
-        secciones que no se abren quedan vacías. Para cambiar cuántas respuestas van por cada camino, usa <b>Porcentajes</b> o <b>Fijo</b> en
-        la pregunta que salta.
+        <Rich
+          text={tr(
+            "Tu formulario abre secciones según lo que se responda. Cada respuesta sigue su propio camino, como una persona: las preguntas de las secciones que no se abren quedan vacías. Para cambiar cuántas respuestas van por cada camino, usa <b>Porcentajes</b> o <b>Fijo</b> en la pregunta que salta."
+          )}
+        />
       </p>
       {branching.map(({ q, i }) => {
         const shares = optionShares(q, qConfig[q.entry]);
@@ -69,9 +73,13 @@ export default function FlowSummary({ questions, qConfig }: { questions: QView[]
                     <span className="flow-opt">“{opt}”</span>
                     <span className="flow-arrow">→</span>
                     <span>
-                      {sec ? `sección ${sec}${firstQuestionOf(sec) > 0 ? ` (desde P${firstQuestionOf(sec)})` : ""}` : "sigue a la sección siguiente"}
+                      {sec
+                        ? firstQuestionOf(sec) > 0
+                          ? tr("sección {n} (desde P{q})", { n: sec, q: firstQuestionOf(sec) })
+                          : tr("sección {n}", { n: sec })
+                        : tr("sigue a la sección siguiente")}
                     </span>
-                    <span className="flow-bar" aria-label={`${pct}% de las respuestas`}>
+                    <span className="flow-bar" aria-label={tr("{n}% de las respuestas", { n: pct })}>
                       <i style={{ width: `${pct}%` }} />
                     </span>
                     <span className="flow-pct">{pct}%</span>

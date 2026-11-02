@@ -16,6 +16,16 @@ export function HomeIntro() {
   );
 }
 
+export function SimpleIntro({ title, lead }: { title: string; lead?: string }) {
+  const { tr } = useLang();
+  return (
+    <div className="intro">
+      <h1>{tr(title)}</h1>
+      {lead && <p>{tr(lead)}</p>}
+    </div>
+  );
+}
+
 export function StoreIntro() {
   const { t } = useLang();
   return (

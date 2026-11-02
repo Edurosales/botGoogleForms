@@ -5,7 +5,7 @@ import Image from "next/image";
 import { SUPPORTED_LANGUAGES } from "@/lib/webConfig";
 import { detectLanguage } from "@/lib/langDetect";
 import { AI_LANGUAGE } from "@/lib/i18n";
-import { useLang } from "./LangProvider";
+import { Rich, useLang } from "./LangProvider";
 import { SignInCard } from "./SignIn";
 import FailHelp, { isFailCode, type FailCode } from "./FailHelp";
 import { announceBalanceChange, formatPhone, useDailyLimits, useMe, usePublicSettings, whatsappLink, SoftwareButton } from "./clientData";
@@ -125,16 +125,16 @@ const PARSE_HELP: Record<string, { title: string; fix: string }> = {
   },
 };
 
-function validationHint(v: Validation | null | undefined): string {
+function validationHint(v: Validation | null | undefined, tr: (es: string, vars?: Record<string, string | number>) => string): string {
   if (!v) return "";
   const text = v.description || v.message || v.text;
   if (text) return text;
   const hasMin = v.min !== undefined && v.min !== null && v.min !== "";
   const hasMax = v.max !== undefined && v.max !== null && v.max !== "";
-  if (hasMin && hasMax) return `Google exige un valor entre ${v.min} y ${v.max}.`;
-  if (hasMin) return `Google exige un valor mínimo de ${v.min}.`;
-  if (hasMax) return `Google exige un valor máximo de ${v.max}.`;
-  if (v.pattern) return "Google valida el formato de esta respuesta.";
+  if (hasMin && hasMax) return tr("Google exige un valor entre {min} y {max}.", { min: String(v.min), max: String(v.max) });
+  if (hasMin) return tr("Google exige un valor mínimo de {min}.", { min: String(v.min) });
+  if (hasMax) return tr("Google exige un valor máximo de {max}.", { max: String(v.max) });
+  if (v.pattern) return tr("Google valida el formato de esta respuesta.");
   return "";
 }
 
@@ -161,7 +161,7 @@ function readDraft(): SavedDraft | null {
 
 export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: { initialUrl?: string; paidOrder?: string }) {
   const { me } = useMe();
-  const { locale } = useLang();
+  const { locale, tr } = useLang();
   const { limits: daily } = useDailyLimits(Boolean(me));
   /** Fecha del último envío de este formulario cuya configuración se aplicó sola. */
   const [restoredAt, setRestoredAt] = useState("");
@@ -375,7 +375,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           failStreak++;
           if (failStreak >= 3) {
             stoppedRef.current = true;
-            setJob((prev) => (prev ? { ...prev, reason: String(data.reason || data.error || "No se pudo completar el envío.") } : prev));
+            setJob((prev) => (prev ? { ...prev, reason: String(data.reason || data.error || tr("No se pudo completar el envío.")) } : prev));
             setStep("failed");
             return;
           }
@@ -394,7 +394,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
       void tick();
     },
-    [applyJobData]
+    [applyJobData, tr]
   );
 
   // ── Retomar un envío en curso ──────────────────────────────────
@@ -476,14 +476,14 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       });
       const d = await res.json().catch(() => ({}));
       if (!d.ok || !d.recommendations) {
-        setNotice({ code: String(d.code || "AI_SUGGEST_FAILED"), reason: String(d.reason || d.error || "No se pudieron generar sugerencias ahora.") });
+        setNotice({ code: String(d.code || "AI_SUGGEST_FAILED"), reason: String(d.reason || d.error || tr("No se pudieron generar sugerencias ahora.")) });
         return;
       }
       const merged = { ...recs, ...(d.recommendations as Record<string, Rec>) };
       setRecs(merged);
       setQConfig(sanitizeRecs(merged, form.questions, aiAllowed));
     } catch {
-      setNotice({ code: "AI_SUGGEST_FAILED", reason: "No se pudo conectar con el servidor." });
+      setNotice({ code: "AI_SUGGEST_FAILED", reason: tr("No se pudo conectar con el servidor.") });
     } finally {
       setAiSuggesting(false);
     }
@@ -507,7 +507,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   async function handleSend() {
     if (!form || !me || sending) return;
     if (!confirmUse) {
-      setNotice({ code: "CONFIRM", reason: "Marca la confirmación de uso para enviar." });
+      setNotice({ code: "CONFIRM", reason: tr("Marca la confirmación de uso para enviar.") });
       return;
     }
     setSending(true);
@@ -524,7 +524,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         const activeId = String(data.activeJobId);
         const d = await fetch(`/api/web/jobs/${activeId}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
         if (d?.ok) {
-          setResumedTitle(String(d.title || "tu formulario"));
+          setResumedTitle(String(d.title || tr("tu formulario")));
           applyJobData(activeId, d);
           if (d.status === "queued" || d.status === "processing") startPolling(activeId);
           return;
@@ -533,7 +533,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       if (!data.ok) {
         setNotice({
           code: String(data.code || (data.needsCredits ? "NO_CREDITS" : "SEND_FAILED")),
-          reason: String(data.reason || data.error || "No se pudo crear el envío."),
+          reason: String(data.reason || data.error || tr("No se pudo crear el envío.")),
         });
         return;
       }
@@ -551,7 +551,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       setStep(data.status === "queued" ? "queued" : "processing");
       startPolling(String(data.jobId));
     } catch {
-      setNotice({ code: "SEND_FAILED", reason: "No se pudo conectar con el servidor." });
+      setNotice({ code: "SEND_FAILED", reason: tr("No se pudo conectar con el servidor.") });
     } finally {
       setSending(false);
     }
@@ -577,14 +577,14 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
   const waHref = whatsappLink(
     settings.whatsappNumber,
-    url ? `Hola, quiero que me ayuden a llenar mi formulario: ${url}. Necesito ${total} respuestas.` : "Hola, quiero que me ayuden a llenar mi formulario."
+    url ? tr("Hola, quiero que me ayuden a llenar mi formulario: {url}. Necesito {n} respuestas.", { url, n: total }) : tr("Hola, quiero que me ayuden a llenar mi formulario.")
   );
 
   // ── Render ─────────────────────────────────────────────────────
   const stepIndex = step === "input" || step === "parseError" ? 0 : step === "preview" ? 1 : step === "queued" || step === "processing" ? 2 : 3;
   const stepsBar = (
-    <ol className="stepper" aria-label="Pasos">
-      {["Link", "Configurar", "Envío", "Resultado"].map((label, i) => (
+    <ol className="stepper" aria-label={tr("Pasos")}>
+      {[tr("Link"), tr("Configurar"), tr("Envío"), tr("Resultado")].map((label, i) => (
         <li key={label} className={i < stepIndex ? "is-done" : i === stepIndex ? "is-now" : ""} aria-current={i === stepIndex ? "step" : undefined}>
           <span className="stepper-n">{i + 1}</span>
           <span className="stepper-l">{label}</span>
@@ -596,9 +596,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   const banner = paidBanner ? (
     <div className="note note-ok" role="status">
       <p>
-        <strong>Pago confirmado.</strong> Tus créditos ya están en tu cuenta y las respuestas con IA quedaron disponibles.
+        <Rich text={tr("<b>Pago confirmado.</b> Tus créditos ya están en tu cuenta y las respuestas con IA quedaron disponibles.")} />
       </p>
-      <button type="button" className="note-close" onClick={() => setPaidBanner("")} aria-label="Cerrar aviso">
+      <button type="button" className="note-close" onClick={() => setPaidBanner("")} aria-label={tr("Cerrar aviso")}>
         ×
       </button>
     </div>
@@ -606,12 +606,12 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
   const softwarePitch = (
     <aside className="pitch">
-      <Image src="/soft.png" alt="Ventana del programa FormsBot para escritorio llenando un Google Form" width={1245} height={847} sizes="(max-width: 700px) 100vw, 640px" />
+      <Image src="/soft.png" alt={tr("Ventana del programa FormsBot para escritorio llenando un Google Form")} width={1245} height={847} sizes="(max-width: 700px) 100vw, 640px" />
       <div className="pitch-body">
-        <h3>¿Lo usas seguido? Llévate el programa</h3>
-        <p>FormsBot para Windows llena formularios sin fila, sin límite de respuestas y con tu propia IA. Pago único.</p>
+        <h3>{tr("¿Lo usas seguido? Llévate el programa")}</h3>
+        <p>{tr("FormsBot para Windows llena formularios sin fila, sin límite de respuestas y con tu propia IA. Pago único.")}</p>
         <SoftwareButton className="b b-ghost" href={settings.buySoftwareUrl}>
-          Ver el software
+          {tr("Ver el software")}
         </SoftwareButton>
       </div>
     </aside>
@@ -619,16 +619,16 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
   const concierge = (
     <section className="concierge" aria-labelledby="concierge-h">
-      <h3 id="concierge-h">¿Prefieres que lo llene yo?</h3>
-      <p>Mándame el link y la cantidad por WhatsApp. Antes, revisa que tu formulario cumpla esto:</p>
+      <h3 id="concierge-h">{tr("¿Prefieres que lo llene yo?")}</h3>
+      <p>{tr("Mándame el link y la cantidad por WhatsApp. Antes, revisa que tu formulario cumpla esto:")}</p>
       <ul>
-        <li>Se abre sin iniciar sesión con Google.</li>
-        <li>No recolecta correos verificados.</li>
-        <li>No tiene preguntas para subir archivos.</li>
-        <li>No es un concurso, sorteo ni votación.</li>
+        <li>{tr("Se abre sin iniciar sesión con Google.")}</li>
+        <li>{tr("No recolecta correos verificados.")}</li>
+        <li>{tr("No tiene preguntas para subir archivos.")}</li>
+        <li>{tr("No es un concurso, sorteo ni votación.")}</li>
       </ul>
       <a className="b b-wa" href={waHref} target="_blank" rel="noopener">
-        Escribir por WhatsApp al {formatPhone(settings.whatsappNumber)}
+        {tr("Escribir por WhatsApp al {phone}", { phone: formatPhone(settings.whatsappNumber) })}
       </a>
     </section>
   );
@@ -646,10 +646,10 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             void analyze(url);
           }}
         >
-          <h2>Pega el link de tu formulario</h2>
-          <p className="sheet-lead">Tiene que abrirse sin iniciar sesión. Leemos las preguntas y te mostramos cómo vamos a responderlas antes de enviar nada.</p>
+          <h2>{tr("Pega el link de tu formulario")}</h2>
+          <p className="sheet-lead">{tr("Tiene que abrirse sin iniciar sesión. Leemos las preguntas y te mostramos cómo vamos a responderlas antes de enviar nada.")}</p>
           <div className="field">
-            <label htmlFor="form-url">Link de tu Google Form</label>
+            <label htmlFor="form-url">{tr("Link de tu Google Form")}</label>
             <input
               id="form-url"
               type="url"
@@ -663,9 +663,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
             />
           </div>
           <button className="b b-primary b-block" type="submit" disabled={!url.trim() || analyzing}>
-            {analyzing ? "Leyendo el formulario…" : "Leer formulario"}
+            {analyzing ? tr("Leyendo el formulario…") : tr("Leer formulario")}
           </button>
-          <p className="fine">No procesamos concursos, sorteos ni votaciones.</p>
+          <p className="fine">{tr("No procesamos concursos, sorteos ni votaciones.")}</p>
         </form>
       </div>
     );
@@ -678,19 +678,19 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
       <div className="sheet">
         {stepsBar}
         <div className="sheet-body">
-          <h2>{help?.title ?? "No pudimos leer el formulario"}</h2>
+          <h2>{help ? tr(help.title) : tr("No pudimos leer el formulario")}</h2>
           {parseError?.reason && <p className="sheet-lead">{parseError.reason}</p>}
           <div className="note note-warn">
             <p>
-              <strong>Cómo arreglarlo.</strong> {help?.fix ?? "Revisa que el link sea correcto y que el formulario sea público."}
+              <strong>{tr("Cómo arreglarlo.")}</strong> {help ? tr(help.fix) : tr("Revisa que el link sea correcto y que el formulario sea público.")}
             </p>
           </div>
           <div className="actions">
             <button className="b b-primary" type="button" onClick={() => void analyze(url)} disabled={analyzing}>
-              {analyzing ? "Leyendo…" : "Volver a intentar"}
+              {analyzing ? tr("Leyendo…") : tr("Volver a intentar")}
             </button>
             <button className="b b-ghost" type="button" onClick={startOver}>
-              Usar otro link
+              {tr("Usar otro link")}
             </button>
           </div>
         </div>
@@ -706,16 +706,19 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
         {banner}
         {stepsBar}
         <div className="sheet-body">
-          <h2>{form.title || "Tu formulario"}</h2>
+          <h2>{form.title || tr("Tu formulario")}</h2>
           <p className="sheet-lead">
-            {form.questions.length} preguntas{form.numSections > 1 ? ` en ${form.numSections} secciones` : ""}. Elige cuántas respuestas quieres y cómo se llena cada pregunta.
+            {tr("{n} preguntas", { n: form.questions.length })}
+            {form.numSections > 1 ? tr(" en {n} secciones", { n: form.numSections }) : ""}
+            {tr(". Elige cuántas respuestas quieres y cómo se llena cada pregunta.")}
           </p>
 
           {restoredAt && (
             <div className="note note-ok">
               <p>
-                Usamos la configuración de tu último envío de este formulario ({new Date(restoredAt).toLocaleDateString("es-PE")}). Puedes
-                cambiar lo que quieras.
+                {tr("Usamos la configuración de tu último envío de este formulario ({date}). Puedes cambiar lo que quieras.", {
+                  date: new Date(restoredAt).toLocaleDateString(locale),
+                })}
               </p>
             </div>
           )}
@@ -727,7 +730,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               ))}
               {warnings.some((w) => w.code === "FORM_FREE_USED") && !(me && me.credits >= total) && (
                 <button type="button" className="b b-small b-primary" onClick={goBuy}>
-                  Comprar créditos para este formulario
+                  {tr("Comprar créditos para este formulario")}
                 </button>
               )}
             </div>
@@ -736,19 +739,24 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           {tooManyQuestions && !(me && me.credits >= total) && (
             <div className="note note-warn">
               <p>
-                <strong>Este formulario tiene {form.questions.length} preguntas.</strong> El plan gratis llega hasta {maxFreeQuestions}. Con créditos comprados puedes enviarlo completo.
+                <Rich
+                  text={tr("<b>Este formulario tiene {n} preguntas.</b> El plan gratis llega hasta {max}. Con créditos comprados puedes enviarlo completo.", {
+                    n: form.questions.length,
+                    max: maxFreeQuestions,
+                  })}
+                />
               </p>
               <button type="button" className="b b-small" onClick={goBuy}>
-                Comprar créditos
+                {tr("Comprar créditos")}
               </button>
             </div>
           )}
 
           <fieldset className="group">
-            <legend>Envío</legend>
+            <legend>{tr("Envío")}</legend>
             <div className="grid-2">
               <div className="field">
-                <label htmlFor="total">Cantidad de respuestas</label>
+                <label htmlFor="total">{tr("Cantidad de respuestas")}</label>
                 <input
                   id="total"
                   type="number"
@@ -759,30 +767,30 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 />
                 {daily && (
                   <p className="fine">
-                    Hoy te quedan <strong>{daily.responses.left}</strong> de {daily.responses.max} respuestas (se renueva cada 24 h).
+                    <Rich text={tr("Hoy te quedan <b>{left}</b> de {max} respuestas (se renueva cada 24 h).", { left: daily.responses.left, max: daily.responses.max })} />
                   </p>
                 )}
               </div>
               {me && me.credits >= total && (
                 <div className="field">
-                  <label htmlFor="spread">Ritmo de envío</label>
+                  <label htmlFor="spread">{tr("Ritmo de envío")}</label>
                   <select id="spread" value={spreadMinutes} onChange={(e) => setSpreadMinutes(Number(e.target.value))}>
-                    <option value={0}>Lo antes posible</option>
-                    <option value={15}>Repartir en 15 minutos</option>
-                    <option value={30}>Repartir en 30 minutos</option>
-                    <option value={60}>Repartir en 1 hora</option>
+                    <option value={0}>{tr("Lo antes posible")}</option>
+                    <option value={15}>{tr("Repartir en 15 minutos")}</option>
+                    <option value={30}>{tr("Repartir en 30 minutos")}</option>
+                    <option value={60}>{tr("Repartir en 1 hora")}</option>
                   </select>
                   <p className="fine">
                     {spreadMinutes
                       ? spreadMinutes / total >= 1
-                        ? `Llegará una respuesta cada ~${Math.round(spreadMinutes / total)} min, como encuestados reales. Puedes cerrar la pestaña.`
-                        : `Llegarán unas ${Math.ceil(total / spreadMinutes)} respuestas por minuto durante ${spreadMinutes} min. Puedes cerrar la pestaña.`
-                      : "Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales."}
+                        ? tr("Llegará una respuesta cada ~{n} min, como encuestados reales. Puedes cerrar la pestaña.", { n: Math.round(spreadMinutes / total) })
+                        : tr("Llegarán unas {n} respuestas por minuto durante {m} min. Puedes cerrar la pestaña.", { n: Math.ceil(total / spreadMinutes), m: spreadMinutes })
+                      : tr("Con créditos puedes repartir las respuestas en el tiempo para que lleguen como encuestados reales.")}
                   </p>
                 </div>
               )}
               <div className="field">
-                <label htmlFor="lang">Idioma de las respuestas</label>
+                <label htmlFor="lang">{tr("Idioma de las respuestas")}</label>
                 <select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
                   {SUPPORTED_LANGUAGES.map((l) => (
                     <option key={l.code} value={l.code}>
@@ -793,15 +801,21 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 {detectedLang && (
                   <p className="fine lang-note">
                     {detectedLang === language
-                      ? `Detectamos que tu formulario está en ${SUPPORTED_LANGUAGES.find((l) => l.code === detectedLang)?.label ?? detectedLang}: nombres, textos y respuestas con IA saldrán en ese idioma. Puedes cambiarlo.`
-                      : `Tu formulario parece estar en ${SUPPORTED_LANGUAGES.find((l) => l.code === detectedLang)?.label ?? detectedLang}, pero elegiste otro idioma para las respuestas.`}
+                      ? tr("Detectamos que tu formulario está en {lang}: nombres, textos y respuestas con IA saldrán en ese idioma. Puedes cambiarlo.", {
+                          lang: SUPPORTED_LANGUAGES.find((l) => l.code === detectedLang)?.label ?? detectedLang,
+                        })
+                      : tr("Tu formulario parece estar en {lang}, pero elegiste otro idioma para las respuestas.", {
+                          lang: SUPPORTED_LANGUAGES.find((l) => l.code === detectedLang)?.label ?? detectedLang,
+                        })}
                   </p>
                 )}
               </div>
             </div>
             {me && (
               <p className="fine">
-                Tienes {me.credits} créditos comprados{me.freeCredits > 0 ? ` y ${me.freeCredits} respuestas gratis` : ""}.
+                {me.freeCredits > 0
+                  ? tr("Tienes {n} créditos comprados y {f} respuestas gratis.", { n: me.credits, f: me.freeCredits })
+                  : tr("Tienes {n} créditos comprados.", { n: me.credits })}
               </p>
             )}
           </fieldset>
@@ -826,20 +840,21 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           )}
 
           <fieldset className="group">
-            <legend>Cómo se responde cada pregunta</legend>
+            <legend>{tr("Cómo se responde cada pregunta")}</legend>
             <p className="group-hint">
-              Aleatorio y fijo se llenan al instante y no gastan IA. La IA escribe respuestas naturales y necesita créditos comprados
-              {aiAllowed ? "." : `: tener al menos ${total} para este envío.`}
+              {aiAllowed
+                ? tr("Aleatorio y fijo se llenan al instante y no gastan IA. La IA escribe respuestas naturales y necesita créditos comprados.")
+                : tr("Aleatorio y fijo se llenan al instante y no gastan IA. La IA escribe respuestas naturales y necesita créditos comprados: tener al menos {n} para este envío.", { n: total })}
             </p>
             <div className="toolbar">
               {hasRecs && (
                 <button type="button" className="b b-small b-ghost" onClick={applyRecommended}>
-                  Aplicar configuración recomendada
+                  {tr("Aplicar configuración recomendada")}
                 </button>
               )}
               {me && me.credits > 0 && (
                 <button type="button" className="b b-small b-ghost" onClick={suggestWithAi} disabled={aiSuggesting}>
-                  {aiSuggesting ? "Pensando sugerencias…" : "Sugerencias con IA"}
+                  {aiSuggesting ? tr("Pensando sugerencias…") : tr("Sugerencias con IA")}
                 </button>
               )}
             </div>
@@ -851,7 +866,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 const gates = sectionGates(form.questions);
                 const conf = effectiveQ[q.entry] ?? { mode: "random" as Mode, value: "" };
                 const rec = recs[q.entry];
-                const vHint = validationHint(q.validation);
+                const vHint = validationHint(q.validation, tr);
                 const selectId = `mode-${q.entry}`;
                 const valueId = `value-${q.entry}`;
                 return (
@@ -861,22 +876,22 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                       <div>
                         <p className="q-title">
                           {q.title}
-                          {q.required && <span className="q-req" aria-label="obligatoria"> *</span>}
+                          {q.required && <span className="q-req" aria-label={tr("obligatoria")}> *</span>}
                         </p>
                         <p className="q-type">
                           {q.typeName}
-                          {form.numSections > 1 && q.section ? ` · Sección ${q.section}` : ""}
+                          {form.numSections > 1 && q.section ? tr(" · Sección {n}", { n: q.section }) : ""}
                         </p>
                         {(q.section ?? 1) > 1 && gates.get(q.section ?? 1) && (
-                          <p className="q-gate">Solo se responde si {gates.get(q.section ?? 1)?.join(" o ")}.</p>
+                          <p className="q-gate">{tr("Solo se responde si {cond}.", { cond: (gates.get(q.section ?? 1) ?? []).join(tr(" o ")) })}</p>
                         )}
                         {q.jumps && Object.keys(q.jumps).length > 0 && (
                           <p className="q-jumps">
-                            Según la respuesta salta:{" "}
+                            {tr("Según la respuesta salta:")}{" "}
                             {Object.entries(q.jumps)
-                              .map(([opt, sec]) => `“${opt}” → sección ${sec}`)
+                              .map(([opt, sec]) => `“${opt}” → ${tr("sección {n}", { n: sec })}`)
                               .join(" · ")}
-                            . Cada respuesta sigue su camino solo: lo que no se abre queda vacío.
+                            {tr(". Cada respuesta sigue su camino solo: lo que no se abre queda vacío.")}
                           </p>
                         )}
                       </div>
@@ -891,7 +906,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                     />
                     <QuestionRules q={q} index={i} conf={conf} all={form.questions} onChange={(patch) => setQ(q.entry, patch)} />
                     {vHint && <p className="q-hint q-hint-strong">{vHint}</p>}
-                    {rec?.reason && <p className="q-hint">Recomendado: {rec.reason}</p>}
+                    {rec?.reason && <p className="q-hint">{tr("Recomendado: {why}", { why: rec.reason })}</p>}
                   </li>
                 );
               })}
@@ -899,15 +914,15 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           </fieldset>
 
           <fieldset className="group">
-            <legend>Perfil de quien responde</legend>
-            <p className="group-hint">Opcional. Solo lo usan las preguntas en modo IA.</p>
+            <legend>{tr("Perfil de quien responde")}</legend>
+            <p className="group-hint">{tr("Opcional. Solo lo usan las preguntas en modo IA.")}</p>
             <label className="sr" htmlFor="persona">
-              Perfil de quien responde
+              {tr("Perfil de quien responde")}
             </label>
             <textarea
               id="persona"
               maxLength={600}
-              placeholder="Ej: estudiantes universitarios de 18 a 24 años de Lima"
+              placeholder={tr("Ej: estudiantes universitarios de 18 a 24 años de Lima")}
               value={customInstructions}
               onChange={(e) => setCustomInstructions(e.target.value)}
             />
@@ -922,11 +937,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 notice.code === "FORM_FREE_USED") && (
                 <div className="actions">
                   <button type="button" className="b b-small b-primary" onClick={goBuy}>
-                    Comprar créditos
+                    {tr("Comprar créditos")}
                   </button>
                   {notice.code === "AI_REQUIRES_PAID" && (
                     <button type="button" className="b b-small b-ghost" onClick={switchAiToRandom}>
-                      Cambiar IA por aleatorio
+                      {tr("Cambiar IA por aleatorio")}
                     </button>
                   )}
                 </div>
@@ -934,7 +949,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
               {(notice.code === "TOO_MANY_QUESTIONS_WEB" || notice.code === "DAILY_LIMIT") && (
                 <div className="actions">
                   <SoftwareButton className="b b-small b-primary" href={settings.buySoftwareUrl}>
-                    Ver FormsBot para Windows
+                    {tr("Ver FormsBot para Windows")}
                   </SoftwareButton>
                 </div>
               )}
@@ -942,20 +957,22 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           )}
 
           <div className="submit-area">
-            {me === undefined && <p className="fine">Comprobando tu sesión…</p>}
+            {me === undefined && <p className="fine">{tr("Comprobando tu sesión…")}</p>}
 
             {me === null && (
-              <SignInCard next="/" freeCredits={settings.freeSignupCredits} title="Inicia sesión para enviar" compact onNavigate={saveDraft} />
+              <SignInCard next="/" freeCredits={settings.freeSignupCredits} title={tr("Inicia sesión para enviar")} compact onNavigate={saveDraft} />
             )}
 
             {me && !enough && (
               <>
                 <p className="submit-why">
-                  Este envío necesita {total} {needsPaid ? "créditos comprados" : "créditos o respuestas gratis"} y tienes {available}.
-                  {needsPaid && usesAi ? " Las preguntas con IA solo usan créditos comprados." : ""}
+                  {needsPaid
+                    ? tr("Este envío necesita {n} créditos comprados y tienes {have}.", { n: total, have: available })
+                    : tr("Este envío necesita {n} créditos o respuestas gratis y tienes {have}.", { n: total, have: available })}
+                  {needsPaid && usesAi ? tr(" Las preguntas con IA solo usan créditos comprados.") : ""}
                 </p>
                 <button type="button" className="b b-primary b-block" onClick={goBuy}>
-                  Comprar créditos y volver aquí
+                  {tr("Comprar créditos y volver aquí")}
                 </button>
               </>
             )}
@@ -965,28 +982,33 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 <div className="check">
                   <input id="confirm-use" type="checkbox" checked={confirmUse} onChange={(e) => setConfirmUse(e.target.checked)} />
                   <label htmlFor="confirm-use">
-                    El formulario es mío o tengo permiso para probarlo, y no es un concurso ni una votación. Acepto los{" "}
-                    <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
-                      términos
-                    </a>
-                    .
+                    <Rich
+                      text={tr("El formulario es mío o tengo permiso para probarlo, y no es un concurso ni una votación. Acepto los <terms>términos</terms>.")}
+                      tags={{
+                        terms: (c) => (
+                          <a href="/terminos-herramienta.html" target="_blank" rel="noopener">
+                            {c}
+                          </a>
+                        ),
+                      }}
+                    />
                   </label>
                 </div>
                 <button type="button" className="b b-primary b-block" onClick={handleSend} disabled={sending}>
-                  {sending ? "Creando el envío…" : `Enviar ${total} respuestas`}
+                  {sending ? tr("Creando el envío…") : tr("Enviar {n} respuestas", { n: total })}
                 </button>
                 <p className="fine">
                   {!needsPaid && me.freeCredits >= total
                     ? total < me.freeCredits
-                      ? `Es tu envío gratis: hay uno solo por cuenta. Pides ${total} de ${me.freeCredits}; las ${me.freeCredits - total} que no uses se pierden.`
-                      : `Es tu envío gratis: hay uno solo por cuenta.`
-                    : `Usa ${total} de tus ${me.credits} créditos.`}
+                      ? tr("Es tu envío gratis: hay uno solo por cuenta. Pides {n} de {f}; las {rest} que no uses se pierden.", { n: total, f: me.freeCredits, rest: me.freeCredits - total })
+                      : tr("Es tu envío gratis: hay uno solo por cuenta.")
+                    : tr("Usa {n} de tus {c} créditos.", { n: total, c: me.credits })}
                 </p>
               </>
             )}
 
             <button type="button" className="b b-text" onClick={startOver}>
-              Usar otro formulario
+              {tr("Usar otro formulario")}
             </button>
           </div>
         </div>
@@ -1031,25 +1053,27 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
     const ratio = job.total > 0 ? done / job.total : 0;
     const stage = job.spreadNextMin
       ? {
-          title: "Enviando de a poco",
-          detail: `Repartiendo las respuestas${job.spreadMinutes ? ` en ${job.spreadMinutes >= 60 ? `${job.spreadMinutes / 60} h` : `${job.spreadMinutes} min`}` : ""}. La próxima sale en ~${job.spreadNextMin} min; puedes cerrar la pestaña.`,
+          title: tr("Enviando de a poco"),
+          detail: job.spreadMinutes
+            ? tr("Repartiendo las respuestas en {d}. La próxima sale en ~{n} min; puedes cerrar la pestaña.", {
+                d: job.spreadMinutes >= 60 ? `${job.spreadMinutes / 60} h` : `${job.spreadMinutes} min`,
+                n: job.spreadNextMin,
+              })
+            : tr("Repartiendo las respuestas. La próxima sale en ~{n} min; puedes cerrar la pestaña.", { n: job.spreadNextMin }),
         }
       : preparing
       ? {
-          title: "Preparando las respuestas",
-          detail:
-            generated > 0
-              ? `${generated} de ${job.total} listas para enviar.`
-              : "Armando cada respuesta según tu configuración.",
+          title: tr("Preparando las respuestas"),
+          detail: generated > 0 ? tr("{n} de {t} listas para enviar.", { n: generated, t: job.total }) : tr("Armando cada respuesta según tu configuración."),
         }
       : ratio < 0.5
-        ? { title: "Enviando respuestas", detail: "Las respuestas están llegando a tu formulario." }
+        ? { title: tr("Enviando respuestas"), detail: tr("Las respuestas están llegando a tu formulario.") }
         : ratio < 0.9
-          ? { title: "Ya casi", detail: "Más de la mitad ya está en tu formulario." }
-          : { title: "Terminando", detail: "Enviando las últimas respuestas." };
+          ? { title: tr("Ya casi"), detail: tr("Más de la mitad ya está en tu formulario.") }
+          : { title: tr("Terminando"), detail: tr("Enviando las últimas respuestas.") };
     // ~12 respuestas cada ~5 s mientras envía; la preparación con IA es más lenta.
     const secs = preparing ? Math.ceil((job.total - generated) / 6) * 4 + Math.ceil(left / 12) * 5 : Math.ceil(left / 12) * 5;
-    const eta = left > 0 ? (secs < 60 ? `unos ${Math.max(5, secs)} s` : `unos ${Math.ceil(secs / 60)} min`) : "";
+    const eta = left > 0 ? (secs < 60 ? tr("unos {n} s", { n: Math.max(5, secs) }) : tr("unos {n} min", { n: Math.ceil(secs / 60) })) : "";
     return (
       <div className="sheet">
         {stepsBar}
@@ -1057,7 +1081,9 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           {resumedTitle && (
             <div className="note note-ok">
               <p>
-                Retomamos tu envío en curso{resumedTitle ? ` de “${resumedTitle}”` : ""}: siguió avanzando mientras no estabas.
+                {resumedTitle
+                  ? tr("Retomamos tu envío en curso de “{title}”: siguió avanzando mientras no estabas.", { title: resumedTitle })
+                  : tr("Retomamos tu envío en curso: siguió avanzando mientras no estabas.")}
               </p>
             </div>
           )}
@@ -1065,17 +1091,18 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           <p className="sheet-lead" aria-live="polite">
             {stage.detail}
           </p>
-          <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Avance del envío">
+          <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={tr("Avance del envío")}>
             <span style={{ width: `${pct}%` }} />
           </div>
           <p className="fine center">
-            {done} de {job.total} enviadas{job.failed > 0 ? `, ${job.failed} rechazadas` : ""}
-            {eta ? `. Quedan ${eta}.` : "."}
+            {tr("{d} de {t} enviadas", { d: done, t: job.total })}
+            {job.failed > 0 ? tr(", {n} rechazadas", { n: job.failed }) : ""}
+            {eta ? tr(". Quedan {eta}.", { eta }) : "."}
           </p>
-          <p className="fine center">Puedes cerrar esta pestaña: el envío sigue en la nube y lo verás al volver.</p>
+          <p className="fine center">{tr("Puedes cerrar esta pestaña: el envío sigue en la nube y lo verás al volver.")}</p>
           <div className="actions actions-center">
             <button type="button" className="b b-ghost b-small" onClick={refreshJob} disabled={refreshing}>
-              {refreshing ? "Actualizando…" : "Actualizar"}
+              {refreshing ? tr("Actualizando…") : tr("Actualizar")}
             </button>
           </div>
           {softwarePitch}
@@ -1092,10 +1119,10 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
     const refundText =
       job.sent === 0
         ? job.isPaid
-          ? `Te devolvimos los ${job.total} créditos: no se gastó nada.`
-          : "Te devolvimos tus respuestas gratis: arregla el formulario y vuelve a intentarlo."
+          ? tr("Te devolvimos los {n} créditos: no se gastó nada.", { n: job.total })
+          : tr("Te devolvimos tus respuestas gratis: arregla el formulario y vuelve a intentarlo.")
         : job.isPaid && job.total - job.sent > 0
-          ? `Te devolvimos ${job.total - job.sent} créditos por las respuestas que no llegaron.`
+          ? tr("Te devolvimos {n} créditos por las respuestas que no llegaron.", { n: job.total - job.sent })
           : "";
     return (
       <div className="sheet">
@@ -1117,9 +1144,10 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           />
         )}
         <div className="sheet-body">
-          <h2>{allFailed ? "No se pudieron enviar las respuestas" : job.failed > 0 ? "Envío terminado con algunos errores" : "Listo, respuestas enviadas"}</h2>
+          <h2>{allFailed ? tr("No se pudieron enviar las respuestas") : job.failed > 0 ? tr("Envío terminado con algunos errores") : tr("Listo, respuestas enviadas")}</h2>
           <p className="sheet-lead">
-            {job.sent} de {job.total} respuestas llegaron a tu formulario{job.failed > 0 ? `; ${job.failed} fueron rechazadas por Google` : ""}.
+            {tr("{s} de {t} respuestas llegaron a tu formulario", { s: job.sent, t: job.total })}
+            {job.failed > 0 ? tr("; {n} fueron rechazadas por Google", { n: job.failed }) : ""}.
           </p>
           {job.reason && (
             <div className="note note-err">
@@ -1129,20 +1157,20 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           {allFailed && (
             <div className="actions actions-center">
               <button type="button" className="b b-ghost b-small" onClick={() => setHelpOpen(true)}>
-                Ver cómo arreglarlo
+                {tr("Ver cómo arreglarlo")}
               </button>
             </div>
           )}
 
           {job.failures.length > 0 && (
             <section className="failures" aria-labelledby="failures-h">
-              <h3 id="failures-h">Qué rechazó Google</h3>
+              <h3 id="failures-h">{tr("Qué rechazó Google")}</h3>
               <ul>
                 {job.failures.slice(0, 20).map((f, i) => (
                   <li key={i}>
                     <p className="failure-what">
-                      {typeof f.index === "number" ? `Respuesta ${f.index}` : "Una respuesta"}
-                      {f.question ? `, pregunta "${f.question}"` : ""}
+                      {typeof f.index === "number" ? tr("Respuesta {n}", { n: f.index }) : tr("Una respuesta")}
+                      {f.question ? tr(", pregunta \"{q}\"", { q: f.question }) : ""}
                     </p>
                     {f.message && <p>{f.message}</p>}
                     {f.hint && <p className="failure-hint">{f.hint}</p>}
@@ -1161,11 +1189,11 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
           <div className="actions">
             {form && (job.failed > 0 || allFailed) && (
               <button type="button" className="b b-primary" onClick={backToConfig}>
-                Ajustar configuración y reintentar
+                {tr("Ajustar configuración y reintentar")}
               </button>
             )}
             <button type="button" className={form && (job.failed > 0 || allFailed) ? "b b-ghost" : "b b-primary"} onClick={startOver}>
-              Probar otro formulario
+              {tr("Probar otro formulario")}
             </button>
           </div>
 

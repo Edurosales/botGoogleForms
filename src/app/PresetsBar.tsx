@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { QConfMap } from "./QuestionEditors";
+import { Rich, useLang } from "./LangProvider";
 
 export type Preset = {
   id: string;
@@ -32,6 +33,7 @@ export default function PresetsBar({
   current: PresetData;
   onApply: (p: PresetData, name: string) => void;
 }) {
+  const { tr } = useLang();
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [premium, setPremium] = useState(false);
   const [unavailable, setUnavailable] = useState("");
@@ -57,7 +59,7 @@ export default function PresetsBar({
 
   async function save() {
     if (!name.trim()) {
-      setMsg("Ponle un nombre (ej: Encuesta clientes 60% mujeres).");
+      setMsg(tr("Ponle un nombre (ej: Encuesta clientes 60% mujeres)."));
       return;
     }
     setSaving(true);
@@ -70,11 +72,11 @@ export default function PresetsBar({
     const d = await r?.json().catch(() => null);
     setSaving(false);
     if (d?.ok) {
-      setMsg(`Guardada como “${name.trim()}”.`);
+      setMsg(tr("Guardada como “{name}”.", { name: name.trim() }));
       setName("");
       setOpen(false);
       load();
-    } else setMsg(String(d?.error || "No se pudo guardar."));
+    } else setMsg(String(d?.error || tr("No se pudo guardar.")));
   }
 
   async function remove(id: string) {
@@ -87,7 +89,7 @@ export default function PresetsBar({
     const p = presets?.find((x) => x.id === selected);
     if (!p) return;
     onApply({ total: p.total, language: p.language, customInstructions: p.custom_instructions, qConfig: p.q_config }, p.name);
-    setMsg(`Aplicaste “${p.name}”.`);
+    setMsg(tr("Aplicaste “{name}”.", { name: p.name }));
   }
 
   if (presets === null || unavailable) return null;
@@ -96,11 +98,11 @@ export default function PresetsBar({
     return (
       <div className="presets presets-locked">
         <p>
-          <span aria-hidden="true">🔒</span> <strong>Guarda esta configuración</strong> y reúsala en tu próximo envío de este
-          formulario. Disponible con créditos comprados.
+          <span aria-hidden="true">🔒</span>{" "}
+          <Rich text={tr("<b>Guarda esta configuración</b> y reúsala en tu próximo envío de este formulario. Disponible con créditos comprados.")} />
         </p>
         <Link className="b b-small b-ghost" href="/comprar-creditos">
-          Ver créditos
+          {tr("Ver créditos")}
         </Link>
       </div>
     );
@@ -108,49 +110,49 @@ export default function PresetsBar({
 
   return (
     <div className="presets">
-      <p className="presets-title">Configuraciones guardadas de este formulario</p>
+      <p className="presets-title">{tr("Configuraciones guardadas de este formulario")}</p>
       {presets.length > 0 ? (
         <div className="presets-row">
-          <select aria-label="Configuración guardada" value={selected} onChange={(e) => setSelected(e.target.value)}>
-            <option value="">Elige una…</option>
+          <select aria-label={tr("Configuración guardada")} value={selected} onChange={(e) => setSelected(e.target.value)}>
+            <option value="">{tr("Elige una…")}</option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} · {p.total} respuestas
+                {tr("{name} · {n} respuestas", { name: p.name, n: p.total })}
               </option>
             ))}
           </select>
           <button type="button" className="b b-small b-primary" onClick={apply} disabled={!selected}>
-            Usar
+            {tr("Usar")}
           </button>
           {selected && (
             <button type="button" className="b b-small b-ghost b-danger" onClick={() => remove(selected)}>
-              Borrar
+              {tr("Borrar")}
             </button>
           )}
         </div>
       ) : (
-        <p className="fine">Todavía no guardaste ninguna para este formulario.</p>
+        <p className="fine">{tr("Todavía no guardaste ninguna para este formulario.")}</p>
       )}
       {open ? (
         <div className="presets-row">
           <input
             type="text"
             maxLength={60}
-            placeholder="Nombre (ej: Prueba final 200 respuestas)"
+            placeholder={tr("Nombre (ej: Prueba final 200 respuestas)")}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            aria-label="Nombre de la configuración"
+            aria-label={tr("Nombre de la configuración")}
           />
           <button type="button" className="b b-small b-primary" onClick={save} disabled={saving}>
-            {saving ? "Guardando…" : "Guardar"}
+            {saving ? tr("Guardando…") : tr("Guardar")}
           </button>
           <button type="button" className="b b-small b-ghost" onClick={() => setOpen(false)}>
-            Cancelar
+            {tr("Cancelar")}
           </button>
         </div>
       ) : (
         <button type="button" className="b b-small b-ghost" onClick={() => setOpen(true)}>
-          Guardar la configuración actual
+          {tr("Guardar la configuración actual")}
         </button>
       )}
       {msg && (

@@ -4,6 +4,7 @@ import { useId, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useMe } from "./clientData";
 import { ConsentChecks } from "./SignIn";
+import { useLang } from "./LangProvider";
 
 const noSubscribe = () => () => {};
 
@@ -30,6 +31,7 @@ const LOGIN_ERRORS: Record<string, string> = {
  */
 export default function ConsentGate() {
   const { me, refresh } = useMe();
+  const { tr } = useLang();
   const path = usePathname() || "/";
   const loginError = useLoginError();
   const [dismissedError, setDismissedError] = useState(false);
@@ -44,15 +46,15 @@ export default function ConsentGate() {
   if (errorText && !dismissedError && !me) {
     return (
       <div className="login-alert" role="alert">
-        <p>{errorText}</p>
+        <p>{tr(errorText)}</p>
         <div className="login-alert-actions">
           {loginError === "terminos" && (
             <a className="b b-primary b-small" href={`/mi-cuenta?modo=registro&volver=${encodeURIComponent(path)}`}>
-              Crear mi cuenta
+              {tr("Crear mi cuenta")}
             </a>
           )}
           <button type="button" className="b b-ghost b-small" onClick={() => setDismissedError(true)}>
-            Cerrar
+            {tr("Cerrar")}
           </button>
         </div>
       </div>
@@ -72,10 +74,10 @@ export default function ConsentGate() {
         body: JSON.stringify({ terms: true, marketing, country }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!d.ok) setError(String(d.error || "No se pudo guardar. Intenta de nuevo."));
+      if (!d.ok) setError(String(d.error || tr("No se pudo guardar. Intenta de nuevo.")));
       else refresh();
     } catch {
-      setError("No se pudo conectar. Intenta de nuevo.");
+      setError(tr("No se pudo conectar. Intenta de nuevo."));
     } finally {
       setSaving(false);
     }
@@ -91,12 +93,13 @@ export default function ConsentGate() {
       <div className="paymodal-backdrop" />
       <div className="paymodal-card fh-card">
         <div className="paymodal-head">
-          <p className="paymodal-kicker">Antes de seguir</p>
-          <h2 id={`${id}-h`}>Actualizamos nuestros Términos y la Privacidad</h2>
+          <p className="paymodal-kicker">{tr("Antes de seguir")}</p>
+          <h2 id={`${id}-h`}>{tr("Actualizamos nuestros Términos y la Privacidad")}</h2>
         </div>
         <p className="fh-why">
-          Ahora te explicamos con más detalle qué datos guardamos, para qué y por cuánto tiempo, y te pedimos confirmar
-          que tienes 16 años o más. Léelos y acepta para seguir usando FormsBot.
+          {tr(
+            "Ahora te explicamos con más detalle qué datos guardamos, para qué y por cuánto tiempo, y te pedimos confirmar que tienes 16 años o más. Léelos y acepta para seguir usando FormsBot."
+          )}
         </p>
         <ConsentChecks
           idPrefix={id}
@@ -110,10 +113,10 @@ export default function ConsentGate() {
         {error && <p className="fh-err">{error}</p>}
         <div className="fh-actions">
           <button type="button" className="b b-primary" disabled={!accepted || saving} onClick={save}>
-            {saving ? "Guardando…" : "Aceptar y continuar"}
+            {saving ? tr("Guardando…") : tr("Aceptar y continuar")}
           </button>
           <button type="button" className="b b-ghost" onClick={logout}>
-            No acepto, cerrar sesión
+            {tr("No acepto, cerrar sesión")}
           </button>
         </div>
       </div>

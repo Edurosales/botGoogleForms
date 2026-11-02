@@ -7,6 +7,7 @@ import { SignInCard } from "../SignIn";
 import PrivacyPanel from "./PrivacyPanel";
 import ExportButton from "../ExportButton";
 import { openSupportChat } from "../SupportButton";
+import { Rich, useLang } from "../LangProvider";
 
 const SEEN_REFUNDS_KEY = "fb-seen-refunds";
 type Tab = "resumen" | "envios" | "compras" | "privacidad";
@@ -62,10 +63,10 @@ function normalizeJobs(d: unknown): JobRow[] {
   }));
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, locale = "es"): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 const noSubscribe = () => () => {};
@@ -99,6 +100,7 @@ function useVolver(): string {
 
 export default function MiCuentaClient() {
   const { me, refresh } = useMe();
+  const { locale, tr } = useLang();
   const volver = useVolver();
   const settings = usePublicSettings();
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
@@ -141,14 +143,14 @@ export default function MiCuentaClient() {
       });
       const d = await res.json().catch(() => ({}));
       if (d.ok) {
-        setRedeemMsg({ ok: true, text: `Listo: sumaste ${Number(d.creditsAdded) || 0} créditos.` });
+        setRedeemMsg({ ok: true, text: tr("Listo: sumaste {n} créditos.", { n: Number(d.creditsAdded) || 0 }) });
         setCode("");
         announceBalanceChange();
       } else {
-        setRedeemMsg({ ok: false, text: String(d.message || d.reason || "No se pudo aplicar el cupón.") });
+        setRedeemMsg({ ok: false, text: String(d.message || d.reason || tr("No se pudo aplicar el cupón.")) });
       }
     } catch {
-      setRedeemMsg({ ok: false, text: "No se pudo conectar con el servidor." });
+      setRedeemMsg({ ok: false, text: tr("No se pudo conectar con el servidor.") });
     } finally {
       setRedeeming(false);
     }
@@ -168,7 +170,7 @@ export default function MiCuentaClient() {
     return (
       <div className="sheet">
         <div className="sheet-body">
-          <p className="sheet-lead">Cargando tu cuenta…</p>
+          <p className="sheet-lead">{tr("Cargando tu cuenta…")}</p>
         </div>
       </div>
     );
@@ -178,7 +180,7 @@ export default function MiCuentaClient() {
     return (
       <div className="sheet">
         <div className="sheet-body">
-          <SignInCard next={volver || "/mi-cuenta"} freeCredits={settings.freeSignupCredits} title="Inicia sesión para ver tu cuenta" />
+          <SignInCard next={volver || "/mi-cuenta"} freeCredits={settings.freeSignupCredits} title={tr("Inicia sesión para ver tu cuenta")} />
         </div>
       </div>
     );
@@ -196,10 +198,10 @@ export default function MiCuentaClient() {
 
   const jobsList = (limit?: number) => (
     <>
-      {jobs === null && <p className="fine">Cargando…</p>}
+      {jobs === null && <p className="fine">{tr("Cargando…")}</p>}
       {jobs && jobs.length === 0 && (
         <p className="fine">
-          Todavía no enviaste ningún formulario. <Link href="/">Empieza con uno</Link>.
+          <Rich text={tr("Todavía no enviaste ningún formulario. <go>Empieza con uno</go>.")} tags={{ go: (c) => <Link href="/">{c}</Link> }} />
         </p>
       )}
       {jobs && jobs.length > 0 && (
@@ -210,16 +212,17 @@ export default function MiCuentaClient() {
             return (
               <li key={j.id}>
                 <div>
-                  <p className="job-title">{j.title}</p>
+                  <p className="job-title">{j.title === "Formulario sin título" ? tr(j.title) : j.title}</p>
                   <p className="job-meta">
-                    {fmtDate(j.createdAt)}
+                    {fmtDate(j.createdAt, locale)}
                     {j.createdAt ? " · " : ""}
-                    {j.sent} de {j.total} enviadas{j.failed > 0 ? ` · ${j.failed} con error` : ""}
-                    {back > 0 ? ` · se devolvieron ${back} ${j.isPaid ? "créditos" : "respuestas gratis"}` : ""}
+                    {tr("{s} de {t} enviadas", { s: j.sent, t: j.total })}
+                    {j.failed > 0 ? tr(" · {n} con error", { n: j.failed }) : ""}
+                    {back > 0 ? (j.isPaid ? tr(" · se devolvieron {n} créditos", { n: back }) : tr(" · se devolvieron {n} respuestas gratis", { n: back })) : ""}
                   </p>
                 </div>
                 <div className="job-side">
-                  <span className={`status status-${j.status}`}>{STATUS_LABEL[j.status] ?? j.status}</span>
+                  <span className={`status status-${j.status}`}>{STATUS_LABEL[j.status] ? tr(STATUS_LABEL[j.status]) : j.status}</span>
                   {j.sent > 0 && <ExportButton jobId={j.id} premium={me.hasPaid} small />}
                 </div>
               </li>
@@ -237,18 +240,18 @@ export default function MiCuentaClient() {
           {initial}
         </span>
         <div className="acct-id">
-          <p className="acct-name">{me.name || "Tu cuenta"}</p>
+          <p className="acct-name">{me.name || tr("Tu cuenta")}</p>
           <p className="acct-mail">{me.email}</p>
           <p className="acct-badges">
-            <span className={me.hasPaid ? "acct-badge acct-badge-pro" : "acct-badge"}>{me.hasPaid ? "Cliente con créditos" : "Plan gratis"}</span>
+            <span className={me.hasPaid ? "acct-badge acct-badge-pro" : "acct-badge"}>{me.hasPaid ? tr("Cliente con créditos") : tr("Plan gratis")}</span>
           </p>
         </div>
         <div className="acct-head-actions">
           <Link className="b b-primary b-small" href="/comprar-creditos">
-            Comprar créditos
+            {tr("Comprar créditos")}
           </Link>
           <button type="button" className="b b-ghost b-small" onClick={openSupportChat}>
-            Mensajes
+            {tr("Mensajes")}
           </button>
         </div>
       </div>
@@ -256,26 +259,26 @@ export default function MiCuentaClient() {
       <div className="acct-stats">
         <div>
           <strong>{me.credits}</strong>
-          <span>Créditos</span>
+          <span>{tr("Créditos")}</span>
         </div>
         <div>
           <strong>{me.freeCredits}</strong>
-          <span>Respuestas gratis</span>
+          <span>{tr("Respuestas gratis")}</span>
         </div>
         <div>
           <strong>{jobs ? jobs.length : "…"}</strong>
-          <span>Envíos</span>
+          <span>{tr("Envíos")}</span>
         </div>
         <div>
           <strong>{jobs ? totalSent : "…"}</strong>
-          <span>Respuestas enviadas</span>
+          <span>{tr("Respuestas enviadas")}</span>
         </div>
       </div>
 
-      <div className="acct-tabs" role="tablist" aria-label="Secciones de tu cuenta">
+      <div className="acct-tabs" role="tablist" aria-label={tr("Secciones de tu cuenta")}>
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
-            {t.label}
+            {tr(t.label)}
           </button>
         ))}
       </div>
@@ -284,13 +287,14 @@ export default function MiCuentaClient() {
         {freshRefunds.map((o) => (
           <div className="note note-warn acct-notice" role="status" key={`r-${o.order_id}`}>
             <p>
-              <strong>Te devolvimos {fmtPen(o.amount_cents)}</strong> del pedido {o.order_id} ({fmtDate(o.refunded_at ?? "")}).
-              {o.refund_reason ? ` Motivo: ${o.refund_reason}` : ""} Se retiraron de tu saldo los créditos de esa compra que aún tenías.
+              <Rich text={tr("<b>Te devolvimos {amount}</b> del pedido {id} ({date}).", { amount: fmtPen(o.amount_cents), id: o.order_id, date: fmtDate(o.refunded_at ?? "", locale) })} />
+              {o.refund_reason ? tr(" Motivo: {r}", { r: o.refund_reason }) : ""}
+              {tr(" Se retiraron de tu saldo los créditos de esa compra que aún tenías.")}
             </p>
             <button
               type="button"
               className="acct-notice-x"
-              aria-label="Cerrar aviso"
+              aria-label={tr("Cerrar aviso")}
               onClick={() => setFreshRefunds((l) => l.filter((x) => x.order_id !== o.order_id))}
             >
               ×
@@ -303,32 +307,32 @@ export default function MiCuentaClient() {
             {me.hasPaid && settings.lowCreditsThreshold > 0 && me.credits < settings.lowCreditsThreshold && (
               <div className="note note-warn acct-low" role="status">
                 <p>
-                  <strong>{me.credits > 0 ? `Te quedan ${me.credits} créditos.` : "Te quedaste sin créditos."}</strong> Recarga antes de tu
-                  próxima prueba para que no se quede a medias.
+                  <strong>{me.credits > 0 ? tr("Te quedan {n} créditos.", { n: me.credits }) : tr("Te quedaste sin créditos.")}</strong>
+                  {tr(" Recarga antes de tu próxima prueba para que no se quede a medias.")}
                 </p>
                 <Link className="b b-primary b-small" href={rechargeHref}>
-                  Recargar{rechargePack ? ` ${rechargePack.responses} créditos` : ""}
+                  {rechargePack ? tr("Recargar {n} créditos", { n: rechargePack.responses }) : tr("Recargar")}
                 </Link>
               </div>
             )}
             <div className="balances">
               <div className="balance">
-                <p className="balance-label">Créditos</p>
+                <p className="balance-label">{tr("Créditos")}</p>
                 <p className="balance-value">{me.credits}</p>
-                <p className="balance-note">Comprados o regalados. Sirven para IA, fila prioritaria y formularios grandes. No vencen.</p>
+                <p className="balance-note">{tr("Comprados o regalados. Sirven para IA, fila prioritaria y formularios grandes. No vencen.")}</p>
               </div>
               <div className="balance">
-                <p className="balance-label">Respuestas gratis</p>
+                <p className="balance-label">{tr("Respuestas gratis")}</p>
                 <p className="balance-value">{me.freeCredits}</p>
-                <p className="balance-note">De bienvenida, solo en modo aleatorio o fijo.</p>
+                <p className="balance-note">{tr("De bienvenida, solo en modo aleatorio o fijo.")}</p>
               </div>
             </div>
 
             <form className="group" onSubmit={redeem}>
-              <h3>Canjear un cupón</h3>
+              <h3>{tr("Canjear un cupón")}</h3>
               <div className="inline-field">
                 <label className="sr" htmlFor="coupon">
-                  Código del cupón
+                  {tr("Código del cupón")}
                 </label>
                 <input
                   id="coupon"
@@ -336,12 +340,12 @@ export default function MiCuentaClient() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   maxLength={40}
-                  placeholder="Código del cupón"
+                  placeholder={tr("Código del cupón")}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />
                 <button type="submit" className="b b-primary" disabled={!code.trim() || redeeming}>
-                  {redeeming ? "Canjeando…" : "Canjear"}
+                  {redeeming ? tr("Canjeando…") : tr("Canjear")}
                 </button>
               </div>
               {redeemMsg && (
@@ -355,8 +359,8 @@ export default function MiCuentaClient() {
               <Link className="ref-card" href="/invita">
                 <span className="ref-card-ico" aria-hidden="true">🎁</span>
                 <span>
-                  <strong>Invita y gana {settings.referral.referrerCredits} créditos</strong>
-                  <small>Por cada persona que se registre con tu enlace y haga su primera compra.</small>
+                  <strong>{tr("Invita y gana {n} créditos", { n: settings.referral.referrerCredits })}</strong>
+                  <small>{tr("Por cada persona que se registre con tu enlace y haga su primera compra.")}</small>
                 </span>
                 <span aria-hidden="true">→</span>
               </Link>
@@ -364,10 +368,10 @@ export default function MiCuentaClient() {
 
             <section className="group" aria-labelledby="recent-h">
               <div className="acct-sec-head">
-                <h3 id="recent-h">Últimos envíos</h3>
+                <h3 id="recent-h">{tr("Últimos envíos")}</h3>
                 {jobs && jobs.length > 3 && (
                   <button type="button" className="linkish" onClick={() => setTab("envios")}>
-                    Ver todos ({jobs.length})
+                    {tr("Ver todos ({n})", { n: jobs.length })}
                   </button>
                 )}
               </div>
@@ -376,7 +380,7 @@ export default function MiCuentaClient() {
 
             <div className="actions">
               <Link className="b b-primary" href="/">
-                Ir a la herramienta
+                {tr("Ir a la herramienta")}
               </Link>
             </div>
           </>
@@ -384,10 +388,9 @@ export default function MiCuentaClient() {
 
         {tab === "envios" && (
           <section aria-labelledby="jobs-h">
-            <h3 id="jobs-h">Mis envíos</h3>
+            <h3 id="jobs-h">{tr("Mis envíos")}</h3>
             <p className="fine">
-              {done.length} terminados. Lo que no llega a tu formulario se devuelve solo a tu saldo. Con créditos puedes descargar el Excel de
-              cada envío.
+              {tr("{n} terminados. Lo que no llega a tu formulario se devuelve solo a tu saldo. Con créditos puedes descargar el Excel de cada envío.", { n: done.length })}
             </p>
             {jobsList()}
           </section>
@@ -395,33 +398,35 @@ export default function MiCuentaClient() {
 
         {tab === "compras" && (
           <section aria-labelledby="orders-h">
-            <h3 id="orders-h">Mis compras</h3>
-            {orders === null && <p className="fine">Cargando…</p>}
+            <h3 id="orders-h">{tr("Mis compras")}</h3>
+            {orders === null && <p className="fine">{tr("Cargando…")}</p>}
             {orders && orders.length === 0 && (
               <p className="fine">
-                Todavía no compraste créditos. <Link href="/comprar-creditos">Ver paquetes</Link>.
+                <Rich text={tr("Todavía no compraste créditos. <go>Ver paquetes</go>.")} tags={{ go: (c) => <Link href="/comprar-creditos">{c}</Link> }} />
               </p>
             )}
             {orders && orders.length > 0 && (
               <>
                 <p className="fine">
-                  {paidOrders.length} {paidOrders.length === 1 ? "compra" : "compras"} · {fmtPen(paidOrders.reduce((n, o) => n + o.amount_cents, 0))} en
-                  total
+                  {tr(paidOrders.length === 1 ? "{n} compra · {total} en total" : "{n} compras · {total} en total", {
+                    n: paidOrders.length,
+                    total: fmtPen(paidOrders.reduce((n, o) => n + o.amount_cents, 0)),
+                  })}
                 </p>
                 <ul className="jobs">
                   {orders.map((o) => (
                     <li key={o.order_id}>
                       <div>
                         <p className="job-title">
-                          {o.credits} créditos por {fmtPen(o.amount_cents)}
+                          {tr("{n} créditos por {amount}", { n: o.credits, amount: fmtPen(o.amount_cents) })}
                         </p>
                         <p className="job-meta">
-                          Pedido {o.order_id} · {fmtDate(o.paid_at ?? o.created_at)}
-                          {o.status === "refunded" && o.refund_reason ? ` · Motivo de la devolución: ${o.refund_reason}` : ""}
+                          {tr("Pedido {id} · {date}", { id: o.order_id, date: fmtDate(o.paid_at ?? o.created_at, locale) })}
+                          {o.status === "refunded" && o.refund_reason ? tr(" · Motivo de la devolución: {r}", { r: o.refund_reason }) : ""}
                         </p>
                       </div>
                       <span className={`status status-${o.status === "refunded" ? "failed" : "done"}`}>
-                        {o.status === "refunded" ? "Devuelto" : "Pagado"}
+                        {o.status === "refunded" ? tr("Devuelto") : tr("Pagado")}
                       </span>
                     </li>
                   ))}
@@ -429,9 +434,9 @@ export default function MiCuentaClient() {
               </>
             )}
             <p className="fine">
-              ¿Un pago no se reflejó o quedó pendiente?{" "}
+              {tr("¿Un pago no se reflejó o quedó pendiente?")}{" "}
               <button type="button" className="linkish" onClick={openSupportChat}>
-                Escríbenos por Mensajes
+                {tr("Escríbenos por Mensajes")}
               </button>
               .
             </p>
@@ -443,7 +448,7 @@ export default function MiCuentaClient() {
             <PrivacyPanel me={me} onChange={refresh} />
             <div className="group">
               <button type="button" className="b b-ghost" onClick={logout} disabled={loggingOut}>
-                {loggingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+                {loggingOut ? tr("Cerrando sesión…") : tr("Cerrar sesión")}
               </button>
             </div>
           </>

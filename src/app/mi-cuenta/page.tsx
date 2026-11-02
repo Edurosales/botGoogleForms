@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import MiCuentaClient from "./MiCuentaClient";
 import SiteNav from "../SiteNav";
+import { SimpleIntro } from "../PageIntro";
 
 export const metadata: Metadata = {
   title: "Mi cuenta",
@@ -13,9 +14,7 @@ export default function MiCuentaPage() {
     <main className="tool-page">
       <SiteNav />
       <div className="tool-wrap">
-        <div className="intro">
-          <h1>Mi cuenta</h1>
-        </div>
+        <SimpleIntro title="Mi cuenta" />
         <MiCuentaClient />
       </div>
     </main>

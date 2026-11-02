@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useLang } from "./LangProvider";
 
 type Preview = { header: string[]; rows: string[][]; total: number };
 
@@ -10,6 +11,7 @@ type Preview = { header: string[]; rows: string[][]; total: number };
  * el botón con candado y una vista previa difuminada de lo que obtendrían.
  */
 export default function ExportButton({ jobId, premium, small = false }: { jobId: string; premium: boolean; small?: boolean }) {
+  const { tr } = useLang();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
       const r = await fetch(`/api/web/jobs/${jobId}/export?preview=1`, { cache: "no-store" });
       const d = await r.json().catch(() => ({}));
       if (d.ok) setPreview({ header: d.header, rows: d.rows, total: d.total });
-      else setError(String(d.error || "No se pudo cargar la vista previa."));
+      else setError(String(d.error || tr("No se pudo cargar la vista previa.")));
     } finally {
       setLoading(false);
     }
@@ -31,7 +33,7 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
   if (premium) {
     return (
       <a className={cls} href={`/api/web/jobs/${jobId}/export`} download>
-        Exportar a Excel
+        {tr("Exportar a Excel")}
       </a>
     );
   }
@@ -39,7 +41,7 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
   return (
     <>
       <button type="button" className={`${cls} is-locked`} onClick={openPreview} disabled={loading}>
-        <span aria-hidden="true">🔒</span> Exportar a Excel
+        <span aria-hidden="true">🔒</span> {tr("Exportar a Excel")}
       </button>
       {error && <p className="fine">{error}</p>}
       {preview && (
@@ -48,16 +50,17 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
           <div className="paymodal-card fh-card xp-card">
             <div className="paymodal-head fh-head">
               <div>
-                <p className="paymodal-kicker">Función Premium</p>
-                <h2 id={`xp-${jobId}`}>Tus {preview.total} respuestas en Excel</h2>
+                <p className="paymodal-kicker">{tr("Función Premium")}</p>
+                <h2 id={`xp-${jobId}`}>{tr("Tus {n} respuestas en Excel", { n: preview.total })}</h2>
               </div>
-              <button type="button" className="paymodal-x" aria-label="Cerrar" onClick={() => setPreview(null)}>
+              <button type="button" className="paymodal-x" aria-label={tr("Cerrar")} onClick={() => setPreview(null)}>
                 ×
               </button>
             </div>
             <p className="fh-why">
-              Descarga en un .xlsx cada respuesta que enviamos, con su estado: ideal para revisar tus gráficos, compartir la
-              prueba o guardar evidencia. Se activa al comprar cualquier paquete de créditos.
+              {tr(
+                "Descarga en un .xlsx cada respuesta que enviamos, con su estado: ideal para revisar tus gráficos, compartir la prueba o guardar evidencia. Se activa al comprar cualquier paquete de créditos."
+              )}
             </p>
             <div className="xp-table" aria-hidden="true">
               <table>
@@ -77,17 +80,17 @@ export default function ExportButton({ jobId, premium, small = false }: { jobId:
                     </tr>
                   ))}
                   <tr className="xp-blur">
-                    <td colSpan={Math.min(5, preview.header.length)}>… y {Math.max(0, preview.total - preview.rows.length)} filas más</td>
+                    <td colSpan={Math.min(5, preview.header.length)}>{tr("… y {n} filas más", { n: Math.max(0, preview.total - preview.rows.length) })}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <div className="fh-actions">
               <Link className="b b-primary" href="/comprar-creditos">
-                Comprar créditos y desbloquear
+                {tr("Comprar créditos y desbloquear")}
               </Link>
               <button type="button" className="b b-ghost" onClick={() => setPreview(null)}>
-                Ahora no
+                {tr("Ahora no")}
               </button>
             </div>
           </div>

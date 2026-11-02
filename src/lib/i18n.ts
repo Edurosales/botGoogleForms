@@ -242,6 +242,22 @@ const DICT = {
 
 export type MsgKey = keyof typeof DICT;
 
+/**
+ * Frases largas de la interfaz, indexadas por el texto en español
+ * (src/lib/phrases.ts). Si una frase no está, se muestra en español.
+ */
+import { PHRASES } from "./phrases";
+
+export function trPhrase(locale: Locale, es: string, vars?: Record<string, string | number>): string {
+  let s = es;
+  if (locale !== "es") {
+    const row = (PHRASES as Record<string, readonly string[]>)[es];
+    if (row) s = row[IDX[locale] - 1] || es;
+  }
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+  return s;
+}
+
 /** Texto traducido con {variables}. Sin traducción → español. */
 export function translate(locale: Locale, key: MsgKey, vars?: Record<string, string | number>): string {
   const entry = DICT[key] as Entry;
