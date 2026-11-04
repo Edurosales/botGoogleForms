@@ -23,6 +23,7 @@ import CreditCalculator from "./CreditCalculator";
 import { MP_REJECT_REASONS } from "./mpReasons";
 import Script from "next/script";
 import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "./PayLogos";
+import Flag from "./Flag";
 import { Rich, useLang } from "../LangProvider";
 import type { Locale } from "@/lib/i18n";
 
@@ -408,7 +409,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
             </p>
           )}
 
-          <>
+          <div className="buy-grid">
+            <div className="buy-main">
               <fieldset className="group group-first">
                 <legend>{tr("Elige un paquete")}</legend>
                 <p className="fine">
@@ -490,7 +492,12 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                     <tbody>
                       {Object.entries(fx).map(([cur, rate]) => (
                         <tr key={cur}>
-                          <td>{cur}</td>
+                          <td>
+                            <span className="fx-cur">
+                              <Flag code={cur} />
+                              {cur}
+                            </span>
+                          </td>
                           <td>≈ {((selected.priceCents / 100) * rate).toLocaleString(locale, { maximumFractionDigits: cur === "CLP" || cur === "COP" || cur === "ARS" ? 0 : 2 })}</td>
                         </tr>
                       ))}
@@ -499,6 +506,37 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                 </details>
               )}
 
+            </div>
+
+            {/* Resumen fijo al costado (PC) con todo lo del pago; en celular va debajo. */}
+            <aside className="buy-side" aria-labelledby="buy-sum-h">
+              <div className="buy-sum">
+                <h2 id="buy-sum-h">{tr("Resumen del pedido")}</h2>
+                {selected ? (
+                  <dl>
+                    <div>
+                      <dt>{tr("Paquete")}</dt>
+                      <dd>{tr("{n} créditos", { n: selected.responses })}</dd>
+                    </div>
+                    <div>
+                      <dt>{tr("Precio por respuesta")}</dt>
+                      <dd>{fmtPen(finalCents / selected.responses)}</dd>
+                    </div>
+                    {coupon.status === "ok" && (
+                      <div className="buy-sum-off">
+                        <dt>{tr("Descuento")}</dt>
+                        <dd>−{fmtPen(selected.priceCents - finalCents)}</dd>
+                      </div>
+                    )}
+                    <div className="buy-sum-total">
+                      <dt>{tr("Total")}</dt>
+                      <dd>{fmtPen(finalCents)}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="fine">{tr("Elige un paquete para ver el total.")}</p>
+                )}
+              </div>
               <fieldset className="group">
                 <legend>{tr("Cupón")}</legend>
                 <label className="sr" htmlFor="buy-coupon">
@@ -633,7 +671,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
                     : tr("Pagas en la página oficial de Mercado Pago y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta.")
                   : tr("Pago procesado por Izipay. No guardamos los datos de tu tarjeta.")}
               </p>
-          </>
+            </aside>
+          </div>
 
           {pay && (
             <div className="paymodal" role="dialog" aria-modal="true" aria-labelledby="paymodal-h">

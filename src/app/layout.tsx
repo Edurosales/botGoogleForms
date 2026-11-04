@@ -43,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             (SiteNav lo confirma o lo quita al saber la sesión real). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: "try{if(localStorage.getItem('fb-sess')==='1')document.documentElement.classList.add('sess')}catch(e){}",
+            __html: "try{var d=document.documentElement;if(localStorage.getItem('fb-sess')==='1')d.classList.add('sess');if(localStorage.getItem('fb-side-mini')==='1')d.classList.add('side-mini')}catch(e){}",
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

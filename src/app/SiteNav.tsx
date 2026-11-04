@@ -75,6 +75,22 @@ export default function SiteNav() {
   }, [me]);
 
   const [unread, setUnread] = useState(0);
+  // Menú contraído (solo íconos): se recuerda; el <head> pone la clase antes de pintar.
+  const [mini, setMini] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMini(document.documentElement.classList.contains("side-mini")), 0);
+    return () => clearTimeout(t);
+  }, []);
+  function toggleMini() {
+    const next = !mini;
+    setMini(next);
+    document.documentElement.classList.toggle("side-mini", next);
+    try {
+      localStorage.setItem("fb-side-mini", next ? "1" : "0");
+    } catch {
+      /* sin almacenamiento: vale para esta visita */
+    }
+  }
   useEffect(() => {
     const on = (e: Event) => setUnread(Number((e as CustomEvent).detail) || 0);
     window.addEventListener(UNREAD_EVENT, on);
@@ -94,13 +110,13 @@ export default function SiteNav() {
   const isHere = (href?: string) => !!href && pathname === href;
   const renderItem = (l: Item, size: number) =>
     l.chat ? (
-      <button key={l.key} type="button" onClick={openSupportChat}>
+      <button key={l.key} type="button" onClick={openSupportChat} title={l.label}>
         <Icon name={l.icon} size={size} />
         <span>{l.label}</span>
         {unread > 0 && <b className="nav-badge">{unread > 9 ? "9+" : unread}</b>}
       </button>
     ) : (
-      <Link key={l.key} href={l.href as string} aria-current={isHere(l.href) ? "page" : undefined}>
+      <Link key={l.key} href={l.href as string} aria-current={isHere(l.href) ? "page" : undefined} title={l.label}>
         <Icon name={l.icon} size={size} />
         <span>{l.label}</span>
       </Link>
@@ -109,9 +125,22 @@ export default function SiteNav() {
   return (
     <>
     <aside className="side" aria-label={tr("Navegación de la app")}>
-      <Link className="side-logo" href="/">
-        Forms<b>Bot</b>
-      </Link>
+      <div className="side-top">
+        <Link className="side-logo" href="/" aria-label="FormsBot">
+          <span className="side-logo-full">
+            Forms<b>Bot</b>
+          </span>
+          <span className="side-logo-mini" aria-hidden="true">
+            F<b>B</b>
+          </span>
+        </Link>
+        <button type="button" className="side-toggle" onClick={toggleMini} aria-label={mini ? tr("Expandir menú") : tr("Contraer menú")} title={mini ? tr("Expandir menú") : tr("Contraer menú")}>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 5h16v14H4zM9 5v14" />
+            <path d={mini ? "M13 10l2 2-2 2" : "M16 10l-2 2 2 2"} />
+          </svg>
+        </button>
+      </div>
       <nav>{items.map((l) => renderItem(l, 18))}</nav>
     </aside>
     <nav className="bnav" aria-label={tr("Navegación de la app")}>

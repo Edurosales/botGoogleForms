@@ -773,4 +773,12 @@ export const PHRASES: Record<string, Row> = {
   ", pregunta \"{q}\"": [", question \"{q}\"", ", pergunta \"{q}\"", ", domanda \"{q}\"", ", question « {q} »"],
   "Ajustar configuración y reintentar": ["Adjust settings and retry", "Ajustar configuração e tentar de novo", "Modifica impostazioni e riprova", "Ajuster les réglages et réessayer"],
   "Probar otro formulario": ["Try another form", "Testar outro formulário", "Prova un altro modulo", "Tester un autre formulaire"],
+  "Tu pedido": ["Your order", "Seu pedido", "Il tuo ordine", "Votre commande"],
+  "Paquete": ["Package", "Pacote", "Pacchetto", "Forfait"],
+  "Precio por respuesta": ["Price per response", "Preço por resposta", "Prezzo a risposta", "Prix par réponse"],
+  "Total": ["Total", "Total", "Totale", "Total"],
+  "Elige un paquete para ver el total.": ["Choose a package to see the total.", "Escolha um pacote para ver o total.", "Scegli un pacchetto per vedere il totale.", "Choisissez un forfait pour voir le total."],
+  "Resumen del pedido": ["Order summary", "Resumo do pedido", "Riepilogo dell'ordine", "Récapitulatif de la commande"],
+  "Contraer menú": ["Collapse menu", "Recolher menu", "Comprimi menu", "Réduire le menu"],
+  "Expandir menú": ["Expand menu", "Expandir menu", "Espandi menu", "Développer le menu"],
 };
