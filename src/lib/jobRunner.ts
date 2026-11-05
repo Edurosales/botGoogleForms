@@ -443,6 +443,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
               startIndex: l.start,
               usedAnswers,
               fixedRows: Array.isArray(job.data_rows) ? job.data_rows.slice(l.start, l.start + l.n) : undefined,
+              ownerId: job.user_id,
             })
           )
         );

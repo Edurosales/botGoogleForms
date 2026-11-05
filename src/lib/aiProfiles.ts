@@ -513,6 +513,8 @@ export interface GenerateProfilesOptions {
    * Sus valores reemplazan lo generado; las celdas vacías quedan con la configuración.
    */
   fixedRows?: (Record<string, string> | undefined)[];
+  /** Cuenta dueña del envío: lo generado con sus indicaciones queda solo para ella. */
+  ownerId?: string;
 }
 
 /** Retorna perfiles como Record<entry, respuesta>, uno por respuesta a enviar. */
@@ -564,7 +566,7 @@ async function generateProfilesRaw(
   const cacheKeys = new Map<string, CacheKey>(
     openAi.map((q) => [
       q.entry,
-      { norm: normalizeQuestion(q.title), lang: language, ctx: contextKey(qConfig[q.entry]?.prompt ?? "", opts.customInstructions ?? "") },
+      { norm: normalizeQuestion(q.title), lang: language, ctx: contextKey(qConfig[q.entry]?.prompt ?? "", opts.customInstructions ?? "", opts.ownerId ?? "") },
     ])
   );
   // Pregunta por pregunta: las abiertas que el banco cubre no se piden a la

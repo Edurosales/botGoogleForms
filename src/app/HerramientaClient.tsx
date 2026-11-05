@@ -81,9 +81,15 @@ type SavedDraft = {
   language: string;
   customInstructions: string;
   qConfig: QConfMap;
+  /** Correo de quien lo guardó (null = sin sesión, para el login que viene). */
+  owner?: string | null;
+  savedAt?: number;
 };
 
-const DRAFT_KEY = "formsbot_tool_draft";
+export const DRAFT_KEY = "formsbot_tool_draft";
+// Un borrador sirve para volver de iniciar sesión o de pagar; en una
+// computadora compartida no debe aparecerle a otra persona más tarde.
+const DRAFT_TTL_MS = 30 * 60_000;
 const POLL_MS = 2500;
 
 /** Explicación y arreglo por cada motivo por el que un formulario no se puede leer. */
@@ -151,10 +157,17 @@ function sanitizeRecs(recs: Record<string, Rec>, questions: QuestionView[], aiAl
   return out;
 }
 
-function readDraft(): SavedDraft | null {
+/**
+ * El borrador solo vuelve para su dueño: el mismo correo, o quien inicia
+ * sesión justo después de configurar sin cuenta. Vencido o ajeno, se descarta.
+ */
+function readDraft(email: string): SavedDraft | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as SavedDraft) : null;
+    const d = raw ? (JSON.parse(raw) as SavedDraft) : null;
+    if (!d || !d.savedAt || Date.now() - d.savedAt > DRAFT_TTL_MS) return null;
+    if (d.owner && d.owner.toLowerCase() !== email.toLowerCase()) return null;
+    return d;
   } catch {
     return null;
   }
@@ -215,11 +228,14 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
 
   const saveDraft = useCallback(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ url, total, language, customInstructions, qConfig } satisfies SavedDraft));
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ url, total, language, customInstructions, qConfig, owner: me?.email ?? null, savedAt: Date.now() } satisfies SavedDraft)
+      );
     } catch {
       /* sin localStorage: se pierde el borrador, aceptable */
     }
-  }, [url, total, language, customInstructions, qConfig]);
+  }, [url, total, language, customInstructions, qConfig, me?.email]);
 
   // ── Leer un formulario ─────────────────────────────────────────
   const analyze = useCallback(
@@ -295,7 +311,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   useEffect(() => {
     if (restoredRef.current || me === undefined) return;
     restoredRef.current = true;
-    const draft = me ? readDraft() : null;
+    const draft = me ? readDraft(me.email) : null;
     if (draft?.url) {
       try {
         localStorage.removeItem(DRAFT_KEY);

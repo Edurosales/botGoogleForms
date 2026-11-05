@@ -32,10 +32,16 @@ export function normalizeQuestion(title: string): string {
     .slice(0, 300);
 }
 
-/** Huella de las instrucciones: respuestas de "estudiantes de medicina" no se mezclan con otras. */
-export function contextKey(questionPrompt: string, customInstructions: string): string {
+/**
+ * Huella de las instrucciones. Lo generado con una indicación propia (lo que
+ * escribió el cliente para esa pregunta) queda SOLO para su cuenta (`owner`):
+ * otra persona con la misma indicación no recibe esas respuestas. Sin
+ * indicación, el banco es común (respuestas genéricas, sin datos de nadie).
+ */
+export function contextKey(questionPrompt: string, customInstructions: string, owner = ""): string {
   const raw = `${questionPrompt.trim().toLowerCase()}|${customInstructions.trim().toLowerCase()}`;
-  return raw === "|" ? "" : createHash("sha1").update(raw).digest("hex").slice(0, 16);
+  if (raw === "|") return "";
+  return createHash("sha1").update(`${owner}|${raw}`).digest("hex").slice(0, 16);
 }
 
 const hash = (s: string) => createHash("sha1").update(s).digest("hex");

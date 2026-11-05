@@ -50,6 +50,12 @@ export default function SiteNav() {
   async function logout() {
     setLoggingOut(true);
     try {
+      localStorage.removeItem("formsbot_tool_draft");
+      localStorage.removeItem(SESSION_HINT_KEY);
+    } catch {
+      /* sin almacenamiento */
+    }
+    try {
       await fetch("/api/auth/me", { method: "POST" });
     } finally {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
