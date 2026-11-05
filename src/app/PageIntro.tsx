@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useLang } from "./LangProvider";
+import { usePublicSettings } from "./clientData";
 
 /** Encabezados de las páginas (el servidor no sabe el idioma; se traduce en el navegador). */
 export function HomeIntro() {
-  const { t, locale } = useLang();
+  const { t, tr, locale } = useLang();
+  const settings = usePublicSettings();
   return (
     <div className="intro">
       <h1>{t("home.h1")}</h1>
       <p>
-        {t("home.lead")} <Link href={locale === "es" ? "/sobre" : `/${locale}`}>{t("home.how")}</Link>
+        {settings.freeSignupCredits > 0 && !settings.paidOnly ? t("home.lead") : tr("Pega el link, revisa cómo se responde cada pregunta y envía.")} <Link href={locale === "es" ? "/sobre" : `/${locale}`}>{t("home.how")}</Link>
       </p>
     </div>
   );

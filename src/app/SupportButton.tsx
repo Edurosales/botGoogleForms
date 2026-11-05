@@ -103,7 +103,7 @@ export default function SupportButton() {
   useEffect(() => {
     if (!logged) return;
     const first = setTimeout(load, 0);
-    const t = setInterval(() => document.visibilityState === "visible" && load(), open ? 6_000 : 45_000);
+    const t = setInterval(() => document.visibilityState === "visible" && load(), open ? 8_000 : 120_000);
     return () => {
       clearTimeout(first);
       clearInterval(t);

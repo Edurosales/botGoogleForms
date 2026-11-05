@@ -24,6 +24,9 @@ export type PublicSettings = {
   buySoftwareUrl: string;
   freeSignupCredits: number;
   maxFreeQuestions: number;
+  /** Solo pago: leer y enviar exige créditos. */
+  paidOnly: boolean;
+  freePaused: boolean;
   /** Medios de pago activos en la tienda (los elige el admin). */
   paymentProviders: ("izipay" | "mercadopago")[];
   /** Mercado Pago pide iniciar sesión en su cuenta para pagar. */
@@ -46,6 +49,8 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   whatsappNumber: "51935372306",
   buySoftwareUrl: "https://licenses-forms.vercel.app/comprar",
   freeSignupCredits: 30,
+  paidOnly: false,
+  freePaused: false,
   maxFreeQuestions: 30,
   paymentProviders: ["izipay"],
   mpRequiresLogin: false,
@@ -129,8 +134,10 @@ export function usePublicSettings(): PublicSettings {
           creditPackages: Array.isArray(d.creditPackages) ? d.creditPackages : DEFAULT_PUBLIC_SETTINGS.creditPackages,
           whatsappNumber: String(d.whatsappNumber || DEFAULT_PUBLIC_SETTINGS.whatsappNumber).replace(/\D/g, ""),
           buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
-          freeSignupCredits: Number(d.freeSignupCredits) || DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
-          maxFreeQuestions: Number(d.maxFreeQuestions) || DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
+          freeSignupCredits: Number.isFinite(Number(d.freeSignupCredits)) ? Number(d.freeSignupCredits) : DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
+          maxFreeQuestions: Number(d.maxFreeQuestions) > 0 ? Number(d.maxFreeQuestions) : DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
+          paidOnly: d.paidOnly === true,
+          freePaused: d.freePaused === true,
           paymentProviders: Array.isArray(d.paymentProviders)
             ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
             : DEFAULT_PUBLIC_SETTINGS.paymentProviders,

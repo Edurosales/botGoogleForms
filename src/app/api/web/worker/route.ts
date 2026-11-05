@@ -58,22 +58,26 @@ export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const start = Date.now();
+  // Mantenimiento (pagos pendientes, correos, rebotes, resumen…) cada 5 min:
+  // el cron llama cada minuto y casi siempre no había nada que hacer, pero
+  // cada vuelta gastaba CPU. Los envíos se siguen avanzando cada minuto.
+  const housekeeping = new Date().getUTCMinutes() % 5 === 0;
   // Gratis que cerraron la ventana: al final de la fila (o cancelados tras 10 min).
   const swept = await sweepAbsent().catch(() => null);
   // Rebotes de correo (buzón lleno, no existe…): como máximo una vez por hora.
-  const bounces = await scanBounces().catch(() => null);
+  const bounces = housekeeping ? await scanBounces().catch(() => null) : null;
   // Pagos rechazados o abandonados: un mensaje de ayuda (cada 10 min como mucho).
-  const followUps = await paymentFollowUps().catch(() => null);
+  const followUps = housekeeping ? await paymentFollowUps().catch(() => null) : null;
   // A las 24 h: cupón de 10 % para terminar la compra (cada 30 min como mucho).
-  const recovery = await paymentRecovery().catch(() => null);
+  const recovery = housekeeping ? await paymentRecovery().catch(() => null) : null;
   // Resumen del día anterior para el dueño, una vez al día desde las 8 a. m. (Lima).
-  const digest = await ownerDailyDigest().catch(() => null);
+  const digest = housekeeping ? await ownerDailyDigest().catch(() => null) : null;
   // Clientes con pocos créditos: aviso con recarga en un clic (cada 30 min como mucho).
-  const lowCredits = await lowCreditsAlerts().catch(() => null);
+  const lowCredits = housekeeping ? await lowCreditsAlerts().catch(() => null) : null;
   // Correos que no salieron cuando Gmail falló: de a pocos, del más nuevo al más viejo.
-  const outbox = await drainOutbox().catch(() => null);
+  const outbox = housekeeping ? await drainOutbox().catch(() => null) : null;
   // Seguridad: ¿cambió la cuenta que recibe los pagos? (cada hora como mucho)
-  const collector = await watchCollector().catch(() => null);
+  const collector = housekeeping ? await watchCollector().catch(() => null) : null;
   let advanced = 0;
   while (Date.now() - start < RUN_BUDGET_MS) {
     // Los envíos repartidos en el tiempo que aún no tienen nada que mandar se

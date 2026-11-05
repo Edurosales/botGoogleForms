@@ -323,6 +323,22 @@ export async function POST(request: Request) {
     }
   }
 
+  // Gratis apagado (solo pago) o fila gratis en pausa: no se encola nada ni se
+  // hace esperar. Con créditos suficientes sale como pagado; si no, aviso claro.
+  if (!isPaid) {
+    const settingsNow = await getAppSettings();
+    const pauseNow = await pauseState(settingsNow);
+    if (settingsNow.paid_only || pauseNow.free) {
+      if (user.credits >= total) isPaid = true;
+      else
+        return fail(402, {
+          code: "FREE_UNAVAILABLE",
+          ...balances,
+          reason: "Las respuestas gratis no están disponibles en este momento. Con créditos tu envío sale al instante, sin fila.",
+        });
+    }
+  }
+
   if (isPaid && user.credits < total) {
     if (dataRows) {
       return fail(402, {

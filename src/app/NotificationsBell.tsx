@@ -8,7 +8,8 @@ import Icon, { type IconName } from "./icons";
 
 type Item = { id: string; kind: string; title: string; body: string; link: string; read_at: string | null; created_at: string };
 
-const POLL_MS = 15_000;
+// Cada 60 s (y al volver a la pestaña o cambiar el saldo): cada consulta gasta CPU de Vercel.
+const POLL_MS = 60_000;
 
 /** Ícono según el tipo de aviso (solo decorativo). */
 const KIND_ICON: Record<string, IconName> = {

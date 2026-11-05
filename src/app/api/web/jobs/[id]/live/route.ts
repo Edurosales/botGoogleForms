@@ -8,7 +8,8 @@ import { touchPresence } from "@/lib/queue";
 export const maxDuration = 60;
 
 const STREAM_MS = 50_000;
-const EVERY_MS = 2_000;
+// Cada 4 s (antes 2): cada vuelta lee el envío y revisa el turno (CPU de Vercel).
+const EVERY_MS = 4_000;
 
 /**
  * GET /api/web/jobs/:id/live → eventos "state" cada 2 s mientras el envío

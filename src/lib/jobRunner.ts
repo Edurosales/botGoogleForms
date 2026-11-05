@@ -259,10 +259,10 @@ async function runPool<T, R>(
  * el worker solo toma envíos activos y un paso en curso lo detecta en ≤3 s.
  * Se devuelve lo no enviado con las mismas reglas que al terminar.
  */
-export async function cancelJob(job: WebJob): Promise<{ ok: boolean; refunded: number; sent: number }> {
+export async function cancelJob(job: WebJob, reason = "Cancelaste el envío."): Promise<{ ok: boolean; refunded: number; sent: number }> {
   const patch = await onlyExisting(
     "web_jobs",
-    { status: "failed", moderation_reason: "Cancelaste el envío.", finished_at: new Date().toISOString(), tick_lock_until: null },
+    { status: "failed", moderation_reason: reason, finished_at: new Date().toISOString(), tick_lock_until: null },
     ["tick_lock_until"]
   );
   const { data: won } = await db()
@@ -330,6 +330,15 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
   }
 
   if (job.status === "queued") {
+    // Fila gratis en pausa: el envío gratis que esperaba se cierra y se le
+    // devuelven sus respuestas al instante (sin seguir esperando ni consultando).
+    if (!job.is_paid) {
+      const pauseQ = await pauseState();
+      if (pauseQ.free && !pauseQ.all) {
+        const r = await cancelJob(job, "Las respuestas gratis no están disponibles en este momento. Con créditos tu envío sale al instante, sin fila.");
+        return ok(statusPayload({ ...job, status: "failed" }, { reason: "Las respuestas gratis no están disponibles en este momento. Con créditos tu envío sale al instante, sin fila.", refunded: r.refunded, freeUnavailable: true }));
+      }
+    }
     const claimed = await claimSlot(job);
     const queuePosition = await getQueuePosition(claimed);
     const pause = await pauseState();

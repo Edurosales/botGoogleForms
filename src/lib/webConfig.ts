@@ -20,7 +20,9 @@ export const FREE_ACCOUNTS_PER_FORM = 1;
 /** Lapsos de envío permitidos (minutos). 0 = lo antes posible. Solo envíos pagados. */
 // Ritmos largos (15 min a 1 h) mantenían el servidor ocupado: ahora nunca
 // pasan del tope de duración del envío (maxJobMinutes).
-export const SPREAD_OPTIONS = [0, 5, 10] as const;
+// Desde 2026-11-05 todo se entrega al instante: repartir en minutos mantenía
+// el servidor ocupado (CPU de Vercel). Solo queda 0.
+export const SPREAD_OPTIONS = [0] as const;
 
 /**
  * Tope de duración de un envío, desde que empieza a procesarse: 5 min para

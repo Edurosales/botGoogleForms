@@ -90,7 +90,8 @@ export const DRAFT_KEY = "formsbot_tool_draft";
 // Un borrador sirve para volver de iniciar sesión o de pagar; en una
 // computadora compartida no debe aparecerle a otra persona más tarde.
 const DRAFT_TTL_MS = 30 * 60_000;
-const POLL_MS = 2500;
+// El worker en la nube avanza el envío; el navegador solo consulta el estado.
+const POLL_MS = 4000;
 
 /** Explicación y arreglo por cada motivo por el que un formulario no se puede leer. */
 const PARSE_HELP: Record<string, { title: string; fix: string }> = {
@@ -721,6 +722,27 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
   }
 
   // Paso 1 — no se pudo leer
+  // Solo pago: no es un error del formulario, es que hay que comprar créditos.
+  if (step === "parseError" && parseError?.code === "PAID_ONLY") {
+    return (
+      <div className="sheet">
+        {stepsBar}
+        <div className="sheet-body">
+          <h2>{tr("Comprar créditos")}</h2>
+          <p className="sheet-lead">{tr(parseError.reason)}</p>
+          <div className="actions">
+            <button className="b b-primary" type="button" onClick={goBuy}>
+              {tr("Comprar créditos")}
+            </button>
+            <button className="b b-ghost" type="button" onClick={startOver}>
+              {tr("Usar otro link")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (step === "parseError") {
     const help = PARSE_HELP[parseError?.code ?? ""];
     return (
@@ -833,7 +855,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                   </p>
                 )}
               </div>
-              {me && me.credits >= total && (
+              {SPREAD_OPTIONS.length > 1 && me && me.credits >= total && (
                 <div className="field">
                   <label htmlFor="spread">{tr("Ritmo de envío")}</label>
                   <select
@@ -994,6 +1016,7 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                 notice.code === "TOO_MANY_QUESTIONS" ||
                 notice.code === "AI_REQUIRES_PAID" ||
                 notice.code === "DATA_REQUIRES_PAID" ||
+                notice.code === "FREE_UNAVAILABLE" ||
                 notice.code === "FORM_FREE_USED") && (
                 <div className="actions">
                   <button type="button" className="b b-small b-primary" onClick={goBuy}>

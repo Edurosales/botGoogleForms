@@ -15,8 +15,11 @@ export async function GET() {
     whatsappNumber: (s.whatsapp_number || DEFAULT_WHATSAPP).replace(/\D/g, ""),
     whatsappMessageTemplate: s.whatsapp_message_template,
     buySoftwareUrl: s.buy_software_url || DEFAULT_BUY_SOFTWARE_URL,
-    freeSignupCredits: s.free_signup_credits,
-    maxFreeQuestions: MAX_FREE_QUESTIONS,
+    // Solo pago: la página no promete nada gratis.
+    freeSignupCredits: s.paid_only ? 0 : s.free_signup_credits,
+    maxFreeQuestions: s.max_free_questions ?? MAX_FREE_QUESTIONS,
+    paidOnly: s.paid_only === true,
+    freePaused: s.free_paused === true || s.service_paused === true,
     paymentProviders: activeProviders(s),
     mpRequiresLogin: s.mp_require_login === true,
     purchasesPaused: s.purchases_paused === true,

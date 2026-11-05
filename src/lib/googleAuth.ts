@@ -124,7 +124,7 @@ async function signupBonus(ip: string, email: string): Promise<number> {
     .maybeSingle();
   if (wasDeleted) return 0;
   const settings = await getAppSettings();
-  if (settings.free_signup_credits <= 0) return 0;
+  if (settings.paid_only || settings.free_signup_credits <= 0) return 0;
   const { count, error } = await db()
     .from("web_users")
     .select("id", { count: "exact", head: true })

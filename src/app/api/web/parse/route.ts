@@ -22,6 +22,18 @@ export async function POST(request: Request) {
     return err("RATE_LIMITED", "Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.", 429);
   }
 
+  // Solo pago (panel → Control del servicio): leer un formulario exige créditos.
+  // Se corta ANTES de descargar nada de Google (no gasta servidor).
+  const early = await getAppSettings();
+  if (early.paid_only && !(user && user.credits > 0)) {
+    return err(
+      "PAID_ONLY",
+      user ? "En este momento FormsBot funciona solo con créditos. Compra un paquete y tu formulario se lee y se envía al instante, sin fila." : "Inicia sesión y compra créditos para leer tu formulario.",
+      402,
+      { paidOnly: true, reasonKey: user ? "PAID_ONLY" : "LOGIN_PAID" }
+    );
+  }
+
   let body: { url?: unknown };
   try {
     body = await request.json();

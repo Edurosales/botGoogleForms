@@ -109,6 +109,8 @@ export type AppSettings = {
   // Ronda 17: pausa del sistema
   service_paused?: boolean;
   free_paused?: boolean;
+  /** Solo pago: sin regalo de bienvenida y leer un formulario exige créditos (ronda_34.sql). */
+  paid_only?: boolean;
   auto_pause_free_at?: number;
   pause_message?: string;
   presence_grace_seconds?: number;

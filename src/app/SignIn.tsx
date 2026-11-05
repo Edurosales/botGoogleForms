@@ -69,7 +69,7 @@ export function SignInCard({
   const [marketing, setMarketing] = useState(false);
   const [country, setCountry] = useState(false);
   const checkId = useId();
-  const { t } = useLang();
+  const { t, tr } = useLang();
   // Pestaña inicial: la que se pidió (?modo=entrar|registro desde el menú) o,
   // si este navegador ya tiene cuenta, "Iniciar sesión"; si no, "Crear cuenta".
   const initial = useSyncExternalStore(
@@ -115,13 +115,19 @@ export function SignInCard({
       ) : (
         <div role="tabpanel">
           <h3>{t("auth.createFree")}</h3>
-          <p className="signin-offer">
-            <Rich text={t("auth.createOffer", { n: freeCredits })} />
-          </p>
-          <ul className="signin-points">
-            <li>{t("auth.point1")}</li>
-            <li>{t("auth.point2")}</li>
-          </ul>
+          {freeCredits > 0 ? (
+            <>
+              <p className="signin-offer">
+                <Rich text={t("auth.createOffer", { n: freeCredits })} />
+              </p>
+              <ul className="signin-points">
+                <li>{t("auth.point1")}</li>
+                <li>{t("auth.point2")}</li>
+              </ul>
+            </>
+          ) : (
+            <p className="signin-offer">{tr("Crea tu cuenta con Google, sin contraseña. Compra créditos y envía al instante, sin fila.")}</p>
+          )}
           <ConsentChecks
             idPrefix={checkId}
             accepted={accepted}
