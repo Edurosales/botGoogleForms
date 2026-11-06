@@ -132,29 +132,6 @@ export default function Sobre() {
           </div>
         </section>
 
-        <section className="ad-section" aria-label="Publicidad">
-          <div className="w">
-            <p className="ad-label">Contenido patrocinado</p>
-            <div className="ad-slot ad-slot-wide">
-              <script async data-cfasync="false" src="https://abscloud.org/1/07db29a64bd7b48faed9a33e546f06d2"></script>
-            </div>
-            <a
-              className="ad-direct-link"
-              href="https://araplhn.org/4/1e40ef10fa915b77e0e219426d40ab27"
-              target="_blank"
-              rel="sponsored noopener"
-            >
-              Ver anuncio
-            </a>
-            <div className="ad-slot">
-              <script async data-cfasync="false" src="https://bauval.org/14/782dacab651cd462139a728f471d7582"></script>
-            </div>
-            <div className="ad-slot ad-slot-wide">
-              <script async data-cfasync="false" src="https://bauval.org/21/ff70015e1463c68e0f8c8477b447e1a4"></script>
-              <div id="container-ff70015e1463c68e0f8c8477b447e1a4"></div>
-            </div>
-          </div>
-        </section>
 
         <section id="como">
           <div className="w">

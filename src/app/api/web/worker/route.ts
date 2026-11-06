@@ -58,10 +58,12 @@ export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const start = Date.now();
-  // Mantenimiento (pagos pendientes, correos, rebotes, resumen…) cada 5 min:
-  // el cron llama cada minuto y casi siempre no había nada que hacer, pero
-  // cada vuelta gastaba CPU. Los envíos se siguen avanzando cada minuto.
-  const housekeeping = new Date().getUTCMinutes() % 5 === 0;
+  // Mantenimiento (pagos pendientes, correos, rebotes, resumen…) cada 6 min:
+  // casi siempre no había nada que hacer y cada vuelta gastaba CPU. Múltiplo de
+  // 6 para que funcione igual con el cron cada 1 o cada 2 min (ronda_35.sql).
+  // Los envíos activos se siguen avanzando en cada llamada (y el worker se
+  // re-encadena solo mientras quede trabajo).
+  const housekeeping = new Date().getUTCMinutes() % 6 === 0;
   // Gratis que cerraron la ventana: al final de la fila (o cancelados tras 10 min).
   const swept = await sweepAbsent().catch(() => null);
   // Rebotes de correo (buzón lleno, no existe…): como máximo una vez por hora.

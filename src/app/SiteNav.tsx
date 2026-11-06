@@ -52,6 +52,7 @@ export default function SiteNav() {
     try {
       localStorage.removeItem("formsbot_tool_draft");
       localStorage.removeItem(SESSION_HINT_KEY);
+      localStorage.removeItem("fb-locale-sent");
     } catch {
       /* sin almacenamiento */
     }
@@ -72,12 +73,8 @@ export default function SiteNav() {
   useEffect(() => {
     if (me === undefined) return;
     document.documentElement.classList.toggle("sess", Boolean(me));
-    try {
-      if (me) localStorage.setItem(SESSION_HINT_KEY, "1");
-      else localStorage.removeItem(SESSION_HINT_KEY);
-    } catch {
-      /* sin almacenamiento: solo se pierde el aviso previo */
-    }
+    // El aviso guardado (fb-sess) lo pone o quita clientData al CONFIRMAR la
+    // sesión con el servidor; un corte de red (p. ej. recargar) no lo borra.
   }, [me]);
 
   const [unread, setUnread] = useState(0);

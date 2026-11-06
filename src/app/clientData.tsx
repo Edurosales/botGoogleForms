@@ -93,82 +93,151 @@ function normalizeMe(raw: unknown): Me | null {
 /** Sesión actual. `undefined` mientras carga, `null` sin sesión. */
 export const HAS_ACCOUNT_KEY = "fb-has-account";
 
-export function useMe(): { me: Me | null | undefined; refresh: () => void } {
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
+// Sesión compartida por toda la página: antes cada componente que la usaba
+// (menú, soporte, anuncios, herramienta…) hacía su propia consulta —unas 8 por
+// visita, y otras 8 en cada cambio de saldo— y cada una gastaba CPU de Vercel.
+// Ahora hay UNA consulta en vuelo a la vez y todos leen el mismo resultado.
+let meValue: Me | null | undefined = undefined;
+let meAt = 0;
+let meInflight: Promise<void> | null = null;
+let meListening = false;
+// Pedido de refresco que llegó con una consulta en vuelo: se repite al terminar.
+let meAgain = false;
+const meSubs = new Set<() => void>();
+// Al volver a montar (navegar entre páginas) se reutiliza si es reciente.
+const ME_FRESH_MS = 60_000;
 
-  const refresh = useCallback(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        const m = normalizeMe(d?.user);
+function loadMe(force = false): Promise<void> {
+  if (meInflight) {
+    if (force) meAgain = true;
+    return meInflight;
+  }
+  meInflight = fetch("/api/auth/me", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((d) => {
+      const m = normalizeMe(d?.user);
+      try {
         // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
-        if (m) {
-          try {
-            localStorage.setItem(HAS_ACCOUNT_KEY, "1");
-          } catch {}
-        }
-        setMe(m);
-      })
-      .catch(() => setMe(null));
-  }, []);
+        if (m) localStorage.setItem(HAS_ACCOUNT_KEY, "1");
+        // Aviso para mostrar el menú de la app desde el primer pintado (ver layout).
+        // Solo con la respuesta real del servidor: un fallo de red no lo borra.
+        if (m) localStorage.setItem("fb-sess", "1");
+        else localStorage.removeItem("fb-sess");
+      } catch {}
+      meValue = m;
+    })
+    .catch(() => {
+      meValue = null;
+    })
+    .finally(() => {
+      meAt = Date.now();
+      meInflight = null;
+      meSubs.forEach((f) => f());
+      if (meAgain) {
+        meAgain = false;
+        void loadMe();
+      }
+    });
+  return meInflight;
+}
+
+function subscribeMe(cb: () => void) {
+  meSubs.add(cb);
+  return () => meSubs.delete(cb);
+}
+
+export function useMe(): { me: Me | null | undefined; refresh: () => void } {
+  const me = useSyncExternalStore(
+    subscribeMe,
+    () => meValue,
+    () => undefined
+  );
 
   useEffect(() => {
-    refresh();
-    window.addEventListener(BALANCE_EVENT, refresh);
-    return () => window.removeEventListener(BALANCE_EVENT, refresh);
-  }, [refresh]);
+    if (meValue === undefined || Date.now() - meAt > ME_FRESH_MS) void loadMe();
+    // Un solo oyente para toda la página: un cambio de saldo = una consulta.
+    if (!meListening) {
+      meListening = true;
+      window.addEventListener(BALANCE_EVENT, () => void loadMe(true));
+    }
+  }, []);
 
+  const refresh = useCallback(() => void loadMe(true), []);
   return { me, refresh };
 }
 
+// Configuración pública compartida por toda la página (antes ~7 consultas por
+// visita, una por componente). Una consulta en vuelo; se reutiliza 5 min.
+let settingsValue: PublicSettings = DEFAULT_PUBLIC_SETTINGS;
+let settingsAt = 0;
+let settingsInflight: Promise<void> | null = null;
+const settingsSubs = new Set<() => void>();
+const SETTINGS_FRESH_MS = 5 * 60_000;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toPublicSettings(d: any): PublicSettings {
+  return {
+    creditPackages: Array.isArray(d.creditPackages) ? d.creditPackages : DEFAULT_PUBLIC_SETTINGS.creditPackages,
+    whatsappNumber: String(d.whatsappNumber || DEFAULT_PUBLIC_SETTINGS.whatsappNumber).replace(/\D/g, ""),
+    buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
+    freeSignupCredits: Number.isFinite(Number(d.freeSignupCredits)) ? Number(d.freeSignupCredits) : DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
+    maxFreeQuestions: Number(d.maxFreeQuestions) > 0 ? Number(d.maxFreeQuestions) : DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
+    paidOnly: d.paidOnly === true,
+    freePaused: d.freePaused === true,
+    paymentProviders: Array.isArray(d.paymentProviders)
+      ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
+      : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
+    mpRequiresLogin: d.mpRequiresLogin === true,
+    purchasesPaused: d.purchasesPaused === true,
+    purchasesPauseMessage: typeof d.purchasesPauseMessage === "string" ? d.purchasesPauseMessage : "",
+    banner:
+      d.banner && typeof d.banner.message === "string" && d.banner.message
+        ? { message: d.banner.message, kind: d.banner.kind === "warn" || d.banner.kind === "error" ? d.banner.kind : "info" }
+        : null,
+    maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
+    maxDailyResponses: Number(d.maxDailyResponses) || 500,
+    dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
+    referral:
+      d.referral && typeof d.referral === "object"
+        ? {
+            referrerCredits: Number(d.referral.referrerCredits) || 0,
+            referredCredits: Number(d.referral.referredCredits) || 0,
+            minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
+            days: Number(d.referral.days) || 30,
+          }
+        : null,
+    lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
+  };
+}
+
+function loadPublicSettings(): Promise<void> {
+  if (settingsInflight) return settingsInflight;
+  settingsInflight = fetch("/api/web/settings/public")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (d) settingsValue = toPublicSettings(d);
+    })
+    .catch(() => {})
+    .finally(() => {
+      settingsAt = Date.now();
+      settingsInflight = null;
+      settingsSubs.forEach((f) => f());
+    });
+  return settingsInflight;
+}
+
 export function usePublicSettings(): PublicSettings {
-  const [settings, setSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS);
-
+  const settings = useSyncExternalStore(
+    (cb) => {
+      settingsSubs.add(cb);
+      return () => settingsSubs.delete(cb);
+    },
+    () => settingsValue,
+    () => DEFAULT_PUBLIC_SETTINGS
+  );
   useEffect(() => {
-    let active = true;
-    fetch("/api/web/settings/public")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!active || !d) return;
-        setSettings({
-          creditPackages: Array.isArray(d.creditPackages) ? d.creditPackages : DEFAULT_PUBLIC_SETTINGS.creditPackages,
-          whatsappNumber: String(d.whatsappNumber || DEFAULT_PUBLIC_SETTINGS.whatsappNumber).replace(/\D/g, ""),
-          buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
-          freeSignupCredits: Number.isFinite(Number(d.freeSignupCredits)) ? Number(d.freeSignupCredits) : DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
-          maxFreeQuestions: Number(d.maxFreeQuestions) > 0 ? Number(d.maxFreeQuestions) : DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
-          paidOnly: d.paidOnly === true,
-          freePaused: d.freePaused === true,
-          paymentProviders: Array.isArray(d.paymentProviders)
-            ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
-            : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
-          mpRequiresLogin: d.mpRequiresLogin === true,
-          purchasesPaused: d.purchasesPaused === true,
-          purchasesPauseMessage: typeof d.purchasesPauseMessage === "string" ? d.purchasesPauseMessage : "",
-          banner:
-            d.banner && typeof d.banner.message === "string" && d.banner.message
-              ? { message: d.banner.message, kind: d.banner.kind === "warn" || d.banner.kind === "error" ? d.banner.kind : "info" }
-              : null,
-          maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
-          maxDailyResponses: Number(d.maxDailyResponses) || 500,
-          dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
-          referral:
-            d.referral && typeof d.referral === "object"
-              ? {
-                  referrerCredits: Number(d.referral.referrerCredits) || 0,
-                  referredCredits: Number(d.referral.referredCredits) || 0,
-                  minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
-                  days: Number(d.referral.days) || 30,
-                }
-              : null,
-          lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
-        });
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
+    if (!settingsAt || Date.now() - settingsAt > SETTINGS_FRESH_MS) void loadPublicSettings();
   }, []);
-
   return settings;
 }
 
@@ -285,7 +354,11 @@ export function useDailyLimits(enabled: boolean): { limits: DailyLimits | null; 
   }, [enabled, n]);
   useEffect(() => {
     if (!enabled) return;
-    window.addEventListener(BALANCE_EVENT, () => setN((x) => x + 1));
+    // Antes el oyente nunca se quitaba: cada vez que se abría la página se sumaba
+    // otro y un cambio de saldo disparaba varias consultas iguales.
+    const onBalance = () => setN((x) => x + 1);
+    window.addEventListener(BALANCE_EVENT, onBalance);
+    return () => window.removeEventListener(BALANCE_EVENT, onBalance);
   }, [enabled]);
   return { limits, reload: () => setN((x) => x + 1) };
 }

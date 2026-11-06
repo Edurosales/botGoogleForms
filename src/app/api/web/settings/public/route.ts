@@ -38,5 +38,15 @@ export async function GET() {
         }
       : null,
     lowCreditsThreshold: s.low_credits_enabled === false ? 0 : (s.low_credits_threshold ?? 20),
+  }, {
+    // Igual para todos (no lee cookies ni cabeceras del usuario): el CDN de Vercel
+    // la sirve sin ejecutar la función. Un cambio en el panel se ve en ≤1 min;
+    // pausas, precios y "solo pago" igual los hace cumplir el servidor al comprar/enviar.
+    // Navegador: 30 s sin volver a preguntar. CDN de Vercel: 60 s y, mientras
+    // revalida, sirve la copia anterior hasta 5 min (sin ejecutar la función).
+    headers: {
+      "Cache-Control": "public, max-age=30",
+      "Vercel-CDN-Cache-Control": "max-age=60, stale-while-revalidate=300",
+    },
   });
 }

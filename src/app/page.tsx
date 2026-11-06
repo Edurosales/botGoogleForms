@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
-import HerramientaClient from "./HerramientaClient";
-import PurchaseCelebration from "./PurchaseCelebration";
+import HomeTool from "./HomeTool";
 import SiteNav from "./SiteNav";
 import { HomeIntro } from "./PageIntro";
 
-// Esta página lee `searchParams` directamente (para precargar el link
-// pegado desde /sobre o un link viejo /herramienta?url=..., y el aviso de
-// pago ?pagado=...). Bajo Cache Components eso vuelve la página dinámica —
-// se permite explícitamente en vez de forzarla detrás de un <Suspense>
-// (que dejaría el formulario invisible hasta que el navegador hidrate).
-export const instant = false;
+// Portada estática (la sirve el CDN): `?url=` y `?pagado=` se leen en el
+// navegador (ver HomeTool.tsx).
 
 export const metadata: Metadata = {
   title: { absolute: "FormsBot (Bot Forms) — Prueba tu Google Form con respuestas automáticas" },
@@ -35,18 +30,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function HomePage({ searchParams }: PageProps<"/">) {
-  const sp = await searchParams;
-  const initialUrl = typeof sp.url === "string" ? sp.url.slice(0, 500) : "";
-  const paidOrder = typeof sp.pagado === "string" ? sp.pagado.slice(0, 64) : "";
-
+export default function HomePage() {
   return (
     <main className="tool-page">
       <SiteNav />
       <div className="tool-wrap">
         <HomeIntro />
-        <HerramientaClient initialUrl={initialUrl} paidOrder={paidOrder} />
-        <PurchaseCelebration orderId={paidOrder || null} />
+        <HomeTool />
       </div>
     </main>
   );
