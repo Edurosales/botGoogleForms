@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import Ads from "./Ads";
 import Analytics from "./Analytics";
 import SupportButton from "./SupportButton";
 import ConsentGate from "./ConsentGate";
@@ -58,17 +57,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <LangProvider>
         <SiteBanner />
         <InvitedNote />
-        {/* Medición y anuncios solo con "Aceptar" en el banner (ver Analytics.tsx y Ads.tsx). */}
+        {/* Medición solo con "Aceptar" en el banner (ver Analytics.tsx). Sin anuncios en el sitio. */}
         <Analytics />
-        {/* Los formatos invasivos de Adsterra (popunder / social bar) NO van en el
-            layout global: probado en vivo, el popunder abre una pestaña de
-            publicidad en el primer clic (el campo del link, "Leer formulario") y
-            la herramienta parece no responder; el social bar además cambia el
-            título de la pestaña a "(1) New Message!". Siguen en /sobre. */}
         {children}
 
-        {/* Anuncios solo para visitantes gratuitos y fuera de las páginas de pago (ver Ads.tsx). */}
-        <Ads />
         <SupportButton />
         <ReferralFab />
         <ConsentGate />

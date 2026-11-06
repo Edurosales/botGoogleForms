@@ -15,7 +15,7 @@ export default function Analytics() {
   return (
     <>
       <Script id="ga-consent" strategy="afterInteractive">
-        {`window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments)} window.gtag = gtag; gtag('consent','default',{analytics_storage:'granted',ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'}); gtag('js', new Date()); gtag('config', '${GA_ID}');`}
+        {`window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments)} window.gtag = gtag; gtag('consent','default',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'}); gtag('js', new Date()); gtag('config', '${GA_ID}');`}
       </Script>
       <Script id="ga-loader" strategy="afterInteractive" src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
     </>

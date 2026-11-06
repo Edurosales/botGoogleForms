@@ -138,11 +138,11 @@ const DICT = {
 
   // Cookies
   "cookie.text": [
-    "Usamos cookies necesarias para que el sitio funcione y, solo si aceptas, cookies de medición (Google Analytics) y de publicidad. Puedes rechazarlas sin perder ninguna función. Más en la <privacy>política de privacidad</privacy>.",
-    "We use cookies needed for the site to work and, only if you accept, analytics (Google Analytics) and advertising cookies. You can reject them without losing any feature. More in the <privacy>privacy policy</privacy>.",
-    "Usamos cookies necessários para o site funcionar e, só se você aceitar, cookies de medição (Google Analytics) e de publicidade. Você pode recusá-los sem perder nenhuma função. Mais na <privacy>política de privacidade</privacy>.",
-    "Usiamo cookie necessari al funzionamento del sito e, solo se accetti, cookie di misurazione (Google Analytics) e pubblicitari. Puoi rifiutarli senza perdere alcuna funzione. Maggiori informazioni nell'<privacy>informativa sulla privacy</privacy>.",
-    "Nous utilisons des cookies nécessaires au fonctionnement du site et, seulement si vous acceptez, des cookies de mesure (Google Analytics) et publicitaires. Vous pouvez les refuser sans perdre aucune fonction. Plus d'infos dans la <privacy>politique de confidentialité</privacy>.",
+    "Usamos cookies necesarias para que el sitio funcione y, solo si aceptas, cookies de medición (Google Analytics). Puedes rechazarlas sin perder ninguna función. Más en la <privacy>política de privacidad</privacy>.",
+    "We use cookies needed for the site to work and, only if you accept, analytics cookies (Google Analytics). You can reject them without losing any feature. More in the <privacy>privacy policy</privacy>.",
+    "Usamos cookies necessários para o site funcionar e, só se você aceitar, cookies de medição (Google Analytics). Você pode recusá-los sem perder nenhuma função. Mais na <privacy>política de privacidade</privacy>.",
+    "Usiamo cookie necessari al funzionamento del sito e, solo se accetti, cookie di misurazione (Google Analytics). Puoi rifiutarli senza perdere alcuna funzione. Maggiori informazioni nell'<privacy>informativa sulla privacy</privacy>.",
+    "Nous utilisons des cookies nécessaires au fonctionnement du site et, seulement si vous acceptez, des cookies de mesure (Google Analytics). Vous pouvez les refuser sans perdre aucune fonction. Plus d'infos dans la <privacy>politique de confidentialité</privacy>.",
   ],
   "cookie.reject": ["Rechazar", "Reject", "Recusar", "Rifiuta", "Refuser"],
   "cookie.accept": ["Aceptar", "Accept", "Aceitar", "Accetta", "Accepter"],
