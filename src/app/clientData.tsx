@@ -93,31 +93,74 @@ function normalizeMe(raw: unknown): Me | null {
 /** Sesión actual. `undefined` mientras carga, `null` sin sesión. */
 export const HAS_ACCOUNT_KEY = "fb-has-account";
 
-export function useMe(): { me: Me | null | undefined; refresh: () => void } {
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
+// Sesión compartida por toda la página: antes cada componente que la usaba
+// (menú, soporte, anuncios, herramienta…) hacía su propia consulta —unas 8 por
+// visita, y otras 8 en cada cambio de saldo— y cada una gastaba CPU de Vercel.
+// Ahora hay UNA consulta en vuelo a la vez y todos leen el mismo resultado.
+let meValue: Me | null | undefined = undefined;
+let meAt = 0;
+let meInflight: Promise<void> | null = null;
+let meListening = false;
+// Pedido de refresco que llegó con una consulta en vuelo: se repite al terminar.
+let meAgain = false;
+const meSubs = new Set<() => void>();
+// Al volver a montar (navegar entre páginas) se reutiliza si es reciente.
+const ME_FRESH_MS = 60_000;
 
-  const refresh = useCallback(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        const m = normalizeMe(d?.user);
-        // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
-        if (m) {
-          try {
-            localStorage.setItem(HAS_ACCOUNT_KEY, "1");
-          } catch {}
-        }
-        setMe(m);
-      })
-      .catch(() => setMe(null));
-  }, []);
+function loadMe(force = false): Promise<void> {
+  if (meInflight) {
+    if (force) meAgain = true;
+    return meInflight;
+  }
+  meInflight = fetch("/api/auth/me", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((d) => {
+      const m = normalizeMe(d?.user);
+      // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
+      if (m) {
+        try {
+          localStorage.setItem(HAS_ACCOUNT_KEY, "1");
+        } catch {}
+      }
+      meValue = m;
+    })
+    .catch(() => {
+      meValue = null;
+    })
+    .finally(() => {
+      meAt = Date.now();
+      meInflight = null;
+      meSubs.forEach((f) => f());
+      if (meAgain) {
+        meAgain = false;
+        void loadMe();
+      }
+    });
+  return meInflight;
+}
+
+function subscribeMe(cb: () => void) {
+  meSubs.add(cb);
+  return () => meSubs.delete(cb);
+}
+
+export function useMe(): { me: Me | null | undefined; refresh: () => void } {
+  const me = useSyncExternalStore(
+    subscribeMe,
+    () => meValue,
+    () => undefined
+  );
 
   useEffect(() => {
-    refresh();
-    window.addEventListener(BALANCE_EVENT, refresh);
-    return () => window.removeEventListener(BALANCE_EVENT, refresh);
-  }, [refresh]);
+    if (meValue === undefined || Date.now() - meAt > ME_FRESH_MS) void loadMe();
+    // Un solo oyente para toda la página: un cambio de saldo = una consulta.
+    if (!meListening) {
+      meListening = true;
+      window.addEventListener(BALANCE_EVENT, () => void loadMe(true));
+    }
+  }, []);
 
+  const refresh = useCallback(() => void loadMe(true), []);
   return { me, refresh };
 }
 
