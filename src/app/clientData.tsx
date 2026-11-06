@@ -116,12 +116,14 @@ function loadMe(force = false): Promise<void> {
     .then((r) => r.json())
     .then((d) => {
       const m = normalizeMe(d?.user);
-      // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
-      if (m) {
-        try {
-          localStorage.setItem(HAS_ACCOUNT_KEY, "1");
-        } catch {}
-      }
+      try {
+        // Este navegador ya tiene cuenta: al volver a entrar no se piden los términos otra vez.
+        if (m) localStorage.setItem(HAS_ACCOUNT_KEY, "1");
+        // Aviso para mostrar el menú de la app desde el primer pintado (ver layout).
+        // Solo con la respuesta real del servidor: un fallo de red no lo borra.
+        if (m) localStorage.setItem("fb-sess", "1");
+        else localStorage.removeItem("fb-sess");
+      } catch {}
       meValue = m;
     })
     .catch(() => {
