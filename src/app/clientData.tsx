@@ -352,7 +352,11 @@ export function useDailyLimits(enabled: boolean): { limits: DailyLimits | null; 
   }, [enabled, n]);
   useEffect(() => {
     if (!enabled) return;
-    window.addEventListener(BALANCE_EVENT, () => setN((x) => x + 1));
+    // Antes el oyente nunca se quitaba: cada vez que se abría la página se sumaba
+    // otro y un cambio de saldo disparaba varias consultas iguales.
+    const onBalance = () => setN((x) => x + 1);
+    window.addEventListener(BALANCE_EVENT, onBalance);
+    return () => window.removeEventListener(BALANCE_EVENT, onBalance);
   }, [enabled]);
   return { limits, reload: () => setN((x) => x + 1) };
 }
