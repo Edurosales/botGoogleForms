@@ -55,12 +55,35 @@ export function LangProvider({ children }: { children: ReactNode }) {
       return;
     }
     let active = true;
+    // El idioma por país se guarda 7 días en este navegador: antes se preguntaba
+    // al servidor en CADA página (cada consulta gasta CPU de Vercel).
+    const GEO_KEY = "fb-geo";
+    const GEO_TTL = 7 * 24 * 3600_000;
+    try {
+      const saved = JSON.parse(localStorage.getItem(GEO_KEY) || "null") as { l?: string; at?: number } | null;
+      if (saved && isLocale(saved.l) && saved.at && Date.now() - saved.at < GEO_TTL) {
+        const l = saved.l;
+        void Promise.resolve().then(() => active && setDetected(l));
+        return () => {
+          active = false;
+        };
+      }
+    } catch {
+      /* sin almacenamiento: se pregunta al servidor */
+    }
     fetch("/api/web/geo", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!active) return;
         const l = isLocale(d?.locale) ? d.locale : localeFromAcceptLanguage(navigator.languages?.join(",") || navigator.language);
-        if (l) setDetected(l);
+        if (l) {
+          setDetected(l);
+          try {
+            localStorage.setItem(GEO_KEY, JSON.stringify({ l, at: Date.now() }));
+          } catch {
+            /* sin almacenamiento */
+          }
+        }
       })
       .catch(() => {
         const l = localeFromAcceptLanguage(navigator.language);
@@ -73,13 +96,23 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = locale;
-    // Para que los correos y avisos lleguen en este idioma (sin sesión responde 401 y no pasa nada).
+    // Para que los correos y avisos lleguen en este idioma. Solo con sesión y
+    // solo si cambió: antes se enviaba en CADA página, también sin sesión.
     const t = setTimeout(() => {
+      try {
+        if (localStorage.getItem("fb-sess") !== "1" || localStorage.getItem("fb-locale-sent") === locale) return;
+      } catch {
+        return;
+      }
       fetch("/api/web/account/locale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale }),
-      }).catch(() => {});
+      })
+        .then((r) => {
+          if (r.ok) localStorage.setItem("fb-locale-sent", locale);
+        })
+        .catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [locale]);

@@ -52,6 +52,7 @@ export default function SiteNav() {
     try {
       localStorage.removeItem("formsbot_tool_draft");
       localStorage.removeItem(SESSION_HINT_KEY);
+      localStorage.removeItem("fb-locale-sent");
     } catch {
       /* sin almacenamiento */
     }
