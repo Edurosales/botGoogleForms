@@ -37,8 +37,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Las respuestas de la API nunca deben quedar en cachés intermedias.
-        source: "/api/(.*)",
+        // Las respuestas de la API nunca deben quedar en cachés intermedias,
+        // salvo la configuración pública (igual para todos; ver su ruta).
+        source: "/api/:path((?!web/settings/public).*)",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
     ];

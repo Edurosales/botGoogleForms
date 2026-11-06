@@ -164,54 +164,78 @@ export function useMe(): { me: Me | null | undefined; refresh: () => void } {
   return { me, refresh };
 }
 
+// Configuración pública compartida por toda la página (antes ~7 consultas por
+// visita, una por componente). Una consulta en vuelo; se reutiliza 5 min.
+let settingsValue: PublicSettings = DEFAULT_PUBLIC_SETTINGS;
+let settingsAt = 0;
+let settingsInflight: Promise<void> | null = null;
+const settingsSubs = new Set<() => void>();
+const SETTINGS_FRESH_MS = 5 * 60_000;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toPublicSettings(d: any): PublicSettings {
+  return {
+    creditPackages: Array.isArray(d.creditPackages) ? d.creditPackages : DEFAULT_PUBLIC_SETTINGS.creditPackages,
+    whatsappNumber: String(d.whatsappNumber || DEFAULT_PUBLIC_SETTINGS.whatsappNumber).replace(/\D/g, ""),
+    buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
+    freeSignupCredits: Number.isFinite(Number(d.freeSignupCredits)) ? Number(d.freeSignupCredits) : DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
+    maxFreeQuestions: Number(d.maxFreeQuestions) > 0 ? Number(d.maxFreeQuestions) : DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
+    paidOnly: d.paidOnly === true,
+    freePaused: d.freePaused === true,
+    paymentProviders: Array.isArray(d.paymentProviders)
+      ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
+      : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
+    mpRequiresLogin: d.mpRequiresLogin === true,
+    purchasesPaused: d.purchasesPaused === true,
+    purchasesPauseMessage: typeof d.purchasesPauseMessage === "string" ? d.purchasesPauseMessage : "",
+    banner:
+      d.banner && typeof d.banner.message === "string" && d.banner.message
+        ? { message: d.banner.message, kind: d.banner.kind === "warn" || d.banner.kind === "error" ? d.banner.kind : "info" }
+        : null,
+    maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
+    maxDailyResponses: Number(d.maxDailyResponses) || 500,
+    dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
+    referral:
+      d.referral && typeof d.referral === "object"
+        ? {
+            referrerCredits: Number(d.referral.referrerCredits) || 0,
+            referredCredits: Number(d.referral.referredCredits) || 0,
+            minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
+            days: Number(d.referral.days) || 30,
+          }
+        : null,
+    lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
+  };
+}
+
+function loadPublicSettings(): Promise<void> {
+  if (settingsInflight) return settingsInflight;
+  settingsInflight = fetch("/api/web/settings/public")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (d) settingsValue = toPublicSettings(d);
+    })
+    .catch(() => {})
+    .finally(() => {
+      settingsAt = Date.now();
+      settingsInflight = null;
+      settingsSubs.forEach((f) => f());
+    });
+  return settingsInflight;
+}
+
 export function usePublicSettings(): PublicSettings {
-  const [settings, setSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS);
-
+  const settings = useSyncExternalStore(
+    (cb) => {
+      settingsSubs.add(cb);
+      return () => settingsSubs.delete(cb);
+    },
+    () => settingsValue,
+    () => DEFAULT_PUBLIC_SETTINGS
+  );
   useEffect(() => {
-    let active = true;
-    fetch("/api/web/settings/public")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!active || !d) return;
-        setSettings({
-          creditPackages: Array.isArray(d.creditPackages) ? d.creditPackages : DEFAULT_PUBLIC_SETTINGS.creditPackages,
-          whatsappNumber: String(d.whatsappNumber || DEFAULT_PUBLIC_SETTINGS.whatsappNumber).replace(/\D/g, ""),
-          buySoftwareUrl: safeHttpUrl(d.buySoftwareUrl) || DEFAULT_PUBLIC_SETTINGS.buySoftwareUrl,
-          freeSignupCredits: Number.isFinite(Number(d.freeSignupCredits)) ? Number(d.freeSignupCredits) : DEFAULT_PUBLIC_SETTINGS.freeSignupCredits,
-          maxFreeQuestions: Number(d.maxFreeQuestions) > 0 ? Number(d.maxFreeQuestions) : DEFAULT_PUBLIC_SETTINGS.maxFreeQuestions,
-          paidOnly: d.paidOnly === true,
-          freePaused: d.freePaused === true,
-          paymentProviders: Array.isArray(d.paymentProviders)
-            ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
-            : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
-          mpRequiresLogin: d.mpRequiresLogin === true,
-          purchasesPaused: d.purchasesPaused === true,
-          purchasesPauseMessage: typeof d.purchasesPauseMessage === "string" ? d.purchasesPauseMessage : "",
-          banner:
-            d.banner && typeof d.banner.message === "string" && d.banner.message
-              ? { message: d.banner.message, kind: d.banner.kind === "warn" || d.banner.kind === "error" ? d.banner.kind : "info" }
-              : null,
-          maxPaidQuestions: Number(d.maxPaidQuestions) || 60,
-          maxDailyResponses: Number(d.maxDailyResponses) || 500,
-          dailyPurchaseCap: Number(d.dailyPurchaseCap) || 500,
-          referral:
-            d.referral && typeof d.referral === "object"
-              ? {
-                  referrerCredits: Number(d.referral.referrerCredits) || 0,
-                  referredCredits: Number(d.referral.referredCredits) || 0,
-                  minPurchaseCents: Number(d.referral.minPurchaseCents) || 0,
-                  days: Number(d.referral.days) || 30,
-                }
-              : null,
-          lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
-        });
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
+    if (!settingsAt || Date.now() - settingsAt > SETTINGS_FRESH_MS) void loadPublicSettings();
   }, []);
-
   return settings;
 }
 
