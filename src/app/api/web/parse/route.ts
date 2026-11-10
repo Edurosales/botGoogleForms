@@ -84,7 +84,9 @@ export async function POST(request: Request) {
   }
 
   const warnings: { code: string; message: string }[] = [];
-  if (form.questions.length > lim.maxFreeQuestions) {
+  // El tope de preguntas gratis no aplica a quien tiene créditos (comprados o
+  // regalados): antes se le seguía avisando aunque ya hubiera comprado.
+  if (form.questions.length > lim.maxFreeQuestions && !(user && user.credits > 0)) {
     warnings.push({
       code: "TOO_MANY_QUESTIONS_FREE",
       message: `Tu formulario tiene ${form.questions.length} preguntas. Con respuestas gratis el máximo es ${lim.maxFreeQuestions}: para enviarlo necesitas créditos comprados.`,

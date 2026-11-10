@@ -19,6 +19,19 @@ import { emailHash } from "./googleAuth";
 
 export const USER_MSG_MAX_CHARS = 500;
 export const USER_MSG_PER_DAY = 2;
+/** Clientes que compraron (o tienen créditos): dos mensajes más por día. */
+export const USER_MSG_PER_DAY_PAID = 4;
+
+/** ¿Cliente de pago? Créditos en saldo o algún pedido pagado (igual que /api/auth/me). */
+export async function isPayingCustomer(userId: string, credits: number): Promise<boolean> {
+  if (credits > 0) return true;
+  const { count } = await db()
+    .from("web_credit_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "paid");
+  return (count ?? 0) > 0;
+}
 
 export type ChatMessage = { id: number; sender: "user" | "admin" | "system"; body: string; created_at: string; read_at: string | null };
 
@@ -69,15 +82,6 @@ export function cleanMessage(v: unknown): string {
     .trim();
 }
 
-export async function canMessage(userId: string): Promise<boolean> {
-  const supa = db();
-  const [orders, fromUs] = await Promise.all([
-    supa.from("web_credit_orders").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    supa.from("web_messages").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("sender", "user"),
-  ]);
-  return (orders.count ?? 0) > 0 || (fromUs.count ?? 0) > 0;
-}
-
 export async function sentToday(userId: string): Promise<number> {
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
   const { count } = await db()
@@ -101,8 +105,9 @@ export async function thread(userId: string): Promise<ChatMessage[]> {
 }
 
 /** Mensaje del cliente (tope diario en la base). null = llegó al tope. */
-export async function sendUserMessage(user: { id: string; email: string }, body: string): Promise<number | null> {
-  const { data, error } = await db().rpc("web_send_user_message", { p_user: user.id, p_body: body, p_max_per_day: USER_MSG_PER_DAY });
+export async function sendUserMessage(user: { id: string; email: string }, body: string, perDay = USER_MSG_PER_DAY): Promise<number | null> {
+  // El tope lo hace cumplir la base de forma atómica (varios envíos a la vez no lo saltan).
+  const { data, error } = await db().rpc("web_send_user_message", { p_user: user.id, p_body: body, p_max_per_day: perDay });
   if (error) throw new Error(error.message);
   const id = typeof data === "number" ? data : data ? Number(data) : null;
   if (!id) return null;
@@ -112,7 +117,7 @@ export async function sendUserMessage(user: { id: string; email: string }, body:
     body: body.slice(0, 300),
     link: `/admin#mensajes`,
   });
-  // Correo al dueño (el tope de 2 por día ya limita cuántos llegan).
+  // Correo al dueño (el tope diario por cuenta ya limita cuántos llegan).
   await notifyOwnerMessage({ email: user.email, body }).catch(() => {});
   await audit({ action: "message.user", userId: user.id, email: user.email, target: String(id), details: { chars: body.length } });
   return id;

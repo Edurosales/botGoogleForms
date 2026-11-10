@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getWebUser } from "@/lib/googleAuth";
 import { db } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
-import { canMessage, cleanMessage, sendUserMessage, sentToday, splitConversations, thread, USER_MSG_MAX_CHARS, USER_MSG_PER_DAY } from "@/lib/messages";
+import { cleanMessage, isPayingCustomer, sendUserMessage, sentToday, splitConversations, thread, USER_MSG_MAX_CHARS, USER_MSG_PER_DAY, USER_MSG_PER_DAY_PAID } from "@/lib/messages";
 
 const missing = (m: string) => /does not exist|schema cache/i.test(m);
 
@@ -16,9 +16,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ ok: false }, { status: 401 });
   // El chat abierto consulta cada 6 s; más que esto es abuso.
   if (!rateLimit(`msg-read:${user.id}`, 40, 60_000)) return NextResponse.json({ ok: false }, { status: 429 });
-  const [messages, allowed, used, unread] = await Promise.all([
+  const [messages, paying, used, unread] = await Promise.all([
     thread(user.id),
-    canMessage(user.id).catch(() => false),
+    isPayingCustomer(user.id, user.credits).catch(() => false),
     sentToday(user.id).catch(() => 0),
     db()
       .from("web_messages")
@@ -38,14 +38,15 @@ export async function GET() {
     messages: current,
     previous,
     unread,
-    canSend: allowed && !user.bannedReason,
-    left: Math.max(0, USER_MSG_PER_DAY - used),
-    perDay: USER_MSG_PER_DAY,
+    // Toda cuenta puede escribir: 2 por día, 4 si ya compró.
+    canSend: !user.bannedReason,
+    left: Math.max(0, (paying ? USER_MSG_PER_DAY_PAID : USER_MSG_PER_DAY) - used),
+    perDay: paying ? USER_MSG_PER_DAY_PAID : USER_MSG_PER_DAY,
     maxChars: USER_MSG_MAX_CHARS,
   });
 }
 
-/** POST { body } → envía un mensaje (máx. 500 caracteres, 2 por día). */
+/** POST { body } → envía un mensaje (máx. 500 caracteres; 2 por día, 4 si ya compró). */
 export async function POST(req: Request) {
   const user = await getWebUser();
   if (!user) return NextResponse.json({ ok: false, error: "Inicia sesión." }, { status: 401 });
@@ -59,17 +60,12 @@ export async function POST(req: Request) {
   if (body.length > USER_MSG_MAX_CHARS) {
     return NextResponse.json({ ok: false, error: `Máximo ${USER_MSG_MAX_CHARS} caracteres.` }, { status: 400 });
   }
-  if (!(await canMessage(user.id).catch(() => false))) {
-    return NextResponse.json(
-      { ok: false, error: "El chat se activa cuando intentas una compra. Mientras tanto escríbenos por WhatsApp, Telegram o correo." },
-      { status: 403 }
-    );
-  }
+  const perDay = (await isPayingCustomer(user.id, user.credits).catch(() => false)) ? USER_MSG_PER_DAY_PAID : USER_MSG_PER_DAY;
   try {
-    const id = await sendUserMessage(user, body);
+    const id = await sendUserMessage(user, body, perDay);
     if (!id) {
       return NextResponse.json(
-        { ok: false, error: `Ya enviaste ${USER_MSG_PER_DAY} mensajes en las últimas 24 h. Te respondemos por aquí; si es urgente, usa WhatsApp o Telegram.` },
+        { ok: false, error: `Ya enviaste ${perDay} mensajes en las últimas 24 h. Te respondemos por aquí; si es urgente, usa WhatsApp o Telegram.` },
         { status: 429 }
       );
     }

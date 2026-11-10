@@ -17,8 +17,12 @@ async function logEvent(answer: IzipayAnswer, result: string) {
       .insert({
         order_id: answer.orderDetails?.orderId ?? "",
         order_status: answer.orderStatus ?? "",
+        // Con el motivo del banco o del antifraude cuando hay rechazo (antes no se
+        // guardaba y no se sabía por qué fallaban los pagos).
         transactions: (answer.transactions ?? [])
-          .map((t) => [t.operationType, t.status, t.detailedStatus].filter(Boolean).join(" "))
+          .map((t) =>
+            [t.operationType, t.status, t.detailedStatus, t.errorCode, t.detailedErrorCode, t.detailedErrorMessage || t.errorMessage].filter(Boolean).join(" ")
+          )
           .join("; ")
           .slice(0, 300),
         result: result.slice(0, 300),

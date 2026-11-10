@@ -43,6 +43,10 @@ type Pay = {
 };
 type CouponState = { status: "idle" | "checking" | "ok" | "bad"; discountPercent: number; finalCents: number; reason: string };
 
+/** Rechazo de Izipay: qué hacer (en vez de reintentar con la misma tarjeta). */
+const IZI_REFUSED_MSG =
+  "Tu banco rechazó el pago. No se te cobró nada. Lo más común: la tarjeta no tiene activadas las compras por internet (actívalas en la app de tu banco), no tiene saldo o es una tarjeta de débito sin pagos en línea. Prueba otra tarjeta o paga con Mercado Pago (Yape, PagoEfectivo o tarjeta).";
+
 const IDLE_COUPON: CouponState = { status: "idle", discountPercent: 0, finalCents: 0, reason: "" };
 
 export default function ComprarCreditosClient({ packages: serverPackages }: { packages: Pkg[] }) {
@@ -212,10 +216,12 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
 
         if (!active) return;
 
+        type KrError = { errorCode?: string; errorMessage?: string; detailedErrorCode?: string; detailedErrorMessage?: string };
         type KrApi = {
           setFormToken?: (token: string) => Promise<unknown>;
           setFormConfig?: (cfg: Record<string, unknown>) => Promise<unknown>;
           removeForms?: () => Promise<unknown>;
+          onError?: (cb: (e: KrError) => void) => unknown;
         };
         const getKr = () => (window as unknown as { KR?: KrApi }).KR;
         const startTime = Date.now();
@@ -236,6 +242,20 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
           await kr.setFormToken(currentPay.formToken);
         } else if (typeof kr.setFormConfig === "function") {
           await kr.setFormConfig({ formToken: currentPay.formToken, "kr-post-url-success": currentPay.returnUrl, "kr-language": IZIPAY_LANG[locale] });
+        }
+
+        // Rechazo del banco o del antifraude: explicar qué hacer en vez de dejar
+        // que reintente con la misma tarjeta (se acumulaban intentos rechazados).
+        // Los errores de escritura de la tarjeta (CLIENT_…) los muestra el propio formulario.
+        if (typeof kr.onError === "function") {
+          kr.onError((e) => {
+            const code = String(e?.errorCode || "");
+            if (!active || !code || code.startsWith("CLIENT_")) return;
+            const detail = [e.detailedErrorCode, e.detailedErrorMessage || e.errorMessage].filter(Boolean).join(" ").slice(0, 120);
+            setErr(
+              tr(IZI_REFUSED_MSG) + (detail ? ` ${tr("Motivo: {m}", { m: detail })}` : "")
+            );
+          });
         }
 
         if (active) setFormReady(true);

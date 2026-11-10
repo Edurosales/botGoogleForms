@@ -81,7 +81,19 @@ export type IzipayAnswer = {
   orderStatus?: string;
   orderDetails?: { orderId?: string; orderTotalAmount?: number; orderCurrency?: string; mode?: string };
   customer?: { email?: string };
-  transactions?: { uuid?: string; status?: string; detailedStatus?: string; amount?: number; currency?: string; operationType?: string }[];
+  transactions?: {
+    uuid?: string;
+    status?: string;
+    detailedStatus?: string;
+    amount?: number;
+    currency?: string;
+    operationType?: string;
+    /** Motivo del rechazo (banco o antifraude), p. ej. "ACQ_001" / "Transacción rechazada". */
+    errorCode?: string;
+    errorMessage?: string;
+    detailedErrorCode?: string;
+    detailedErrorMessage?: string;
+  }[];
 };
 
 /**
