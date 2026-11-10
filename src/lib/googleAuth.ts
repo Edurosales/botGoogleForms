@@ -108,30 +108,47 @@ async function exchangeCode(code: string): Promise<GoogleProfile | null> {
   return info;
 }
 
+/** Este navegador ya recibió un regalo de bienvenida (cookie de un año, solo lectura del servidor). */
+const FREE_GIVEN_COOKIE = "fb_fg";
+
+type NoBonusReason = "off" | "no_ip" | "deleted" | "device" | "ip";
+
 /**
- * Créditos de bienvenida solo para cuentas NUEVAS y solo si desde esa IP
- * no se registraron ya `max_signups_per_ip` cuentas — así nadie junta
- * respuestas gratis abriendo varias cuentas de Google desde la misma
- * conexión. Sin IP conocida no se regala nada (no se puede verificar).
+ * Créditos de bienvenida solo para cuentas NUEVAS y una vez por persona:
+ * - no si el regalo está apagado (solo pago o 0 en el panel);
+ * - no sin IP conocida (no se puede verificar);
+ * - no si ese correo ya tuvo una cuenta y la borró;
+ * - no si ESTE NAVEGADOR ya creó una cuenta con regalo (aunque cambie de red);
+ * - no si desde esa IP ya se registraron `max_signups_per_ip` cuentas.
+ * Devuelve también el motivo para explicárselo a la persona.
  */
-async function signupBonus(ip: string, email: string): Promise<number> {
-  if (!ip) return 0;
-  // Ya tuvo una cuenta y la borró: no se regala otra vez.
+async function signupBonus(ip: string, email: string): Promise<{ credits: number; reason: NoBonusReason | null }> {
+  const settings = await getAppSettings();
+  if (settings.paid_only || settings.free_signup_credits <= 0) return { credits: 0, reason: "off" };
+  if (!ip) return { credits: 0, reason: "no_ip" };
   const { data: wasDeleted } = await db()
     .from("web_deleted_accounts")
     .select("email_hash")
     .eq("email_hash", emailHash(email))
     .maybeSingle();
-  if (wasDeleted) return 0;
-  const settings = await getAppSettings();
-  if (settings.paid_only || settings.free_signup_credits <= 0) return 0;
+  if (wasDeleted) return { credits: 0, reason: "deleted" };
+  if ((await cookies()).get(FREE_GIVEN_COOKIE)?.value === "1") return { credits: 0, reason: "device" };
   const { count, error } = await db()
     .from("web_users")
     .select("id", { count: "exact", head: true })
     .eq("signup_ip", ip);
-  if (error) return 0;
-  return (count ?? 0) < settings.max_signups_per_ip ? settings.free_signup_credits : 0;
+  if (error) return { credits: 0, reason: "no_ip" };
+  return (count ?? 0) < settings.max_signups_per_ip ? { credits: settings.free_signup_credits, reason: null } : { credits: 0, reason: "ip" };
 }
+
+/** Aviso en la campana (en su idioma) de por qué no recibió las respuestas gratis. */
+const NO_BONUS_BODY: Record<NoBonusReason, string> = {
+  off: "En este momento no hay respuestas gratis para cuentas nuevas. Con créditos envías al instante, sin fila.",
+  no_ip: "No pudimos verificar tu conexión para asignarte el regalo. Escríbenos por Mensajes si crees que es un error, o compra créditos y envía al instante.",
+  deleted: "Este correo ya tuvo una cuenta en FormsBot que usó su regalo. Con créditos envías al instante, sin fila.",
+  device: "Las respuestas gratis son una vez por persona y desde este navegador ya se creó una cuenta que las recibió. Con créditos envías al instante, sin fila.",
+  ip: "Las respuestas gratis son una vez por persona y desde esta conexión ya se creó una cuenta que las recibió. Con créditos envías al instante, sin fila.",
+};
 
 /** Reclama los regalos de créditos pendientes para este correo (cada uno una sola vez). */
 async function claimPendingGrants(userId: string, email: string): Promise<void> {
@@ -264,7 +281,7 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
       await audit({ action: "auth.signup_blocked", level: "warn", email, details: { why: "terms_not_accepted" } });
       return { error: "terms" };
     }
-    const bonus = await signupBonus(ip, email);
+    const { credits: bonus, reason: noBonus } = await signupBonus(ip, email);
     const { data: created, error } = await supa
       .from("web_users")
       .insert({
@@ -285,6 +302,19 @@ export async function completeGoogleLogin(code: string, ip = "", choices: Signup
     }
     userId = created.id;
     await recordChoices(userId, email, choices);
+    if (bonus > 0) {
+      // Marca este navegador: otra cuenta creada desde aquí ya no recibe regalo.
+      (await cookies()).set(FREE_GIVEN_COOKIE, "1", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 365 * 24 * 3600,
+      });
+    } else if (noBonus) {
+      await notifyUser(userId, (tr) => ({ kind: "account", title: tr("Las respuestas gratis no se te asignaron"), body: tr(NO_BONUS_BODY[noBonus]), link: "/comprar-creditos" }));
+      await audit({ action: "auth.signup_no_bonus", userId, email, details: { reason: noBonus } });
+    }
     // Idioma con el que se registró (cookie del botón de idioma) para sus correos y avisos.
     const lang = (await cookies()).get(LANG_COOKIE)?.value;
     if (isLocale(lang)) {
