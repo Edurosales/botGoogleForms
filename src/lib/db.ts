@@ -139,6 +139,8 @@ export type AppSettings = {
   referral_cookie_days?: number;
   low_credits_enabled?: boolean;
   low_credits_threshold?: number;
+  /** Comentarios reales de clientes que el dueño carga en el panel (ronda_45). */
+  testimonials?: { text: string; name: string; place?: string; stars?: number }[];
   updated_at: string;
 };
 

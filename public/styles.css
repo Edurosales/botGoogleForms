@@ -965,3 +965,25 @@ nav.bnav a:not(.btn){display:flex;padding:0}
 .sheet{overflow:clip}
 @media(min-width:1280px){.tool-wrap-wide{max-width:1120px}}
 
+/* Compra con confianza (tienda): garantías reales + comentarios reales del panel */
+.tool-page .store-trust{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:24px 24px 26px}
+.store-trust h2{font-size:1.375rem;margin:0 0 4px}
+.trust-stats{margin:0 0 4px;color:var(--ok);font-weight:600}
+.trust-grid{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:14px}
+@media(min-width:700px){.trust-grid{grid-template-columns:1fr 1fr}}
+@media(min-width:1100px){.trust-grid{grid-template-columns:repeat(4,1fr)}}
+.trust-grid li{display:flex;gap:12px;align-items:flex-start}
+.trust-grid li > span:last-child{display:flex;flex-direction:column;gap:2px;font-size:.92rem;color:var(--mute);min-width:0}
+.trust-grid b{color:var(--ink);font-size:.98rem}
+.trust-ic{flex:none;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--soft);color:var(--acc)}
+.tst-h{margin:24px 0 10px!important;font-size:1.125rem!important}
+.tst-grid{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+@media(min-width:700px){.tst-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}}
+.tst{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#FBFAFD;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tst blockquote{margin:0;color:var(--ink);font-size:.95rem;line-height:1.45;overflow-wrap:anywhere}
+.tst-stars{color:#E0A100;letter-spacing:2px;font-size:1rem}
+.tst-stars-off{color:var(--line-strong)}
+.tst-who{display:flex;gap:10px;align-items:center;margin:0;font-size:.88rem;color:var(--mute)}
+.tst-who b{color:var(--ink)}
+.tst-av{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;font-weight:700;font-size:.85rem}
+@media(max-width:560px){.tool-page .store-trust{padding:20px 16px 22px}}

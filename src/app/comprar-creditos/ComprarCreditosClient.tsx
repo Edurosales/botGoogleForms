@@ -24,6 +24,7 @@ import { MP_REJECT_REASONS } from "./mpReasons";
 import Script from "next/script";
 import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "./PayLogos";
 import Flag from "./Flag";
+import StoreTrust from "./StoreTrust";
 import { Rich, useLang } from "../LangProvider";
 import type { Locale } from "@/lib/i18n";
 
@@ -753,6 +754,8 @@ export default function ComprarCreditosClient({ packages: serverPackages }: { pa
           )}
         </div>
       </div>
+
+      <StoreTrust />
 
       <div className="alt-ways">
         <section className="sheet" aria-labelledby="diy-h">

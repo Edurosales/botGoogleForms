@@ -9,6 +9,8 @@
 import type { ParsedForm, ParsedQuestion } from "./formParser";
 import type { QuestionMode } from "./aiProfiles";
 import { callGroqJson } from "./aiProfiles";
+import { detectFollowUps } from "./coherence";
+import { isNameField, thingKind } from "./dataGen";
 
 export type Recommendation = {
   mode: QuestionMode;
@@ -80,7 +82,10 @@ function recommendOne(q: ParsedQuestion, isPeru: boolean): Recommendation {
   if (/\b(correo|email|e-mail)\b/.test(t)) {
     return rec("random", "Correo", "Correo realista que coincide con el nombre generado.");
   }
-  if (/\b(nombre|nombres|name|full name|apellidos?)\b/.test(t)) {
+  if (thingKind(t)) {
+    return rec("random", "Nombre de una cosa", "Pide el nombre de una cosa (app, empresa, curso…), no de una persona: se responde con una de ese tipo.");
+  }
+  if (isNameField(q) || /\bapellidos?\b/.test(t)) {
     return rec("random", "Nombre completo", "Nombre y dos apellidos distintos, sin repetir entre respuestas.");
   }
   if (/\b(ciudad|distrito|provincia|city|pais|country|ocupacion|profesion|carrera)\b/.test(t)) {
@@ -105,6 +110,11 @@ export function heuristicRecommendations(form: Pick<ParsedForm, "title" | "descr
   // El servicio está orientado a Perú: celulares de 9 dígitos que empiezan en 9.
   const out: RecommendationMap = {};
   for (const q of form.questions) out[q.entry] = recommendOne(q, true);
+  // "Si marcaste Otro, detalla…": se responde solo cuando corresponde (coherence.ts).
+  const num = new Map(form.questions.map((q, i) => [q.entry, i + 1]));
+  for (const f of detectFollowUps(form.questions as ParsedQuestion[])) {
+    out[f.entry] = rec("random", "Detalle de una opción", `Solo se responde cuando en la pregunta ${num.get(f.parent)} marcan “${f.trigger}”, y con algo de ese tipo.`);
+  }
   return out;
 }
 

@@ -15,6 +15,7 @@ import { createNameState, smartRandom, isNameField, isEmailField, conformToValid
 import { answersFromCache, contextKey, normalizeQuestion, storeAnswers, type CacheKey } from "./aiCache";
 import { aiChat } from "./aiPool";
 import { routeProfile } from "./formRoute";
+import { applyCoherence } from "./coherence";
 
 export type QuestionMode = "ai" | "random" | "fixed" | "weighted" | "list";
 
@@ -350,7 +351,10 @@ function buildPrompt(
     "- Para opción múltiple: usa EXACTAMENTE el texto de una de las opciones dadas.",
     "- Para texto libre: respuesta corta, natural y al grano (MÁXIMO 8 palabras).",
     "- Si una pregunta pide nombre completo: genera Nombre + DOS apellidos distintos, sin repetir apellidos entre perfiles.",
-    "- Para edad: número entero realista y coherente con el perfil."
+    "- Para edad: número entero realista y coherente con el perfil.",
+    "- Coherencia: fecha o año de nacimiento, edad y rango de edad deben coincidir en cada perfil.",
+    "- Responde lo que la pregunta pide: si pide el nombre de una cosa (aplicación, empresa, curso, producto), responde con esa cosa, NUNCA con un nombre de persona.",
+    "- \"Si marcaste Otro, especifica…\": escribe qué sería ese otro (algo que no esté entre las opciones de la pregunta anterior)."
   );
 
   lines.push("", "PREGUNTAS:", "");
@@ -532,7 +536,25 @@ export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesO
     : raw;
   // Primero las condiciones del usuario, después el recorrido por secciones
   // (las preguntas de secciones que no se visitan quedan vacías).
-  return applyRules(profiles, form.questions, opts.qConfig ?? {}).map((p) => routeProfile(p, form.questions, form.numSections));
+  const qConfig = opts.qConfig ?? {};
+  const byEntry = new Map(form.questions.map((q) => [q.entry, q]));
+  const modeOf = (entry: string) => {
+    const q = byEntry.get(entry);
+    return q ? effectiveMode(q, qConfig[entry] ?? {}) : "random";
+  };
+  const ruled = applyRules(profiles, form.questions, qConfig);
+  // Coherencia dentro de cada respuesta (edad ↔ nacimiento ↔ rango, "si
+  // marcaste Otro…"): ver coherence.ts. Lo que fijó el cliente no se toca.
+  const coherent = applyCoherence(ruled, form.questions, {
+    locked: (i, entry) => {
+      const m = modeOf(entry);
+      return m === "fixed" || m === "list" || m === "weighted" || !!opts.fixedRows?.[i]?.[entry];
+    },
+    regenerable: (entry) => modeOf(entry) === "random",
+    hasUserRules: (entry) => (qConfig[entry]?.when ?? []).length > 0,
+    language: opts.language,
+  });
+  return coherent.map((p) => routeProfile(p, form.questions, form.numSections));
 }
 
 async function generateProfilesRaw(

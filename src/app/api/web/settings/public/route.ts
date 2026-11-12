@@ -2,13 +2,26 @@ import { NextResponse, connection } from "next/server";
 import { getAppSettings } from "@/lib/appSettings";
 import { DEFAULT_BUY_SOFTWARE_URL, DEFAULT_WHATSAPP, MAX_FREE_QUESTIONS } from "@/lib/webConfig";
 import { activeProviders } from "@/lib/paymentProviders";
+import { db } from "@/lib/db";
+
+/** Cifras reales para la tienda (ronda_45). Sin la función aún creada: null y no se muestran. */
+async function publicStats(): Promise<{ responses: number; forms: number } | null> {
+  try {
+    const { data, error } = await db().rpc("web_public_stats");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (error || !row) return null;
+    return { responses: Number(row.responses) || 0, forms: Number(row.forms) || 0 };
+  } catch {
+    return null;
+  }
+}
 
 /** Configuración pública (sin secretos) para la UI. */
 export async function GET() {
   // Siempre en tiempo de petición: si se prerenderiza en el build, los
   // precios/WhatsApp que el admin cambie no se verían hasta el próximo deploy.
   await connection();
-  const s = await getAppSettings();
+  const [s, stats] = await Promise.all([getAppSettings(), publicStats()]);
   return NextResponse.json({
     ok: true,
     creditPackages: s.credit_packages,
@@ -38,6 +51,9 @@ export async function GET() {
         }
       : null,
     lowCreditsThreshold: s.low_credits_enabled === false ? 0 : (s.low_credits_threshold ?? 20),
+    // Solo comentarios que el dueño cargó en el panel (reales); nunca inventados.
+    testimonials: Array.isArray(s.testimonials) ? s.testimonials.slice(0, 12) : [],
+    stats,
   }, {
     // Igual para todos (no lee cookies ni cabeceras del usuario): el CDN de Vercel
     // la sirve sin ejecutar la función. Un cambio en el panel se ve en ≤1 min;

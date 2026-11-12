@@ -42,6 +42,10 @@ export type PublicSettings = {
   referral: { referrerCredits: number; referredCredits: number; minPurchaseCents: number; days: number } | null;
   /** Saldo por debajo del cual se sugiere recargar (0 = sin aviso). */
   lowCreditsThreshold: number;
+  /** Comentarios reales de clientes (los carga el dueño en el panel). */
+  testimonials: { text: string; name: string; place: string; stars: number }[];
+  /** Cifras reales del servicio (null si aún no hay). */
+  stats: { responses: number; forms: number } | null;
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -62,6 +66,8 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   dailyPurchaseCap: 500,
   referral: null,
   lowCreditsThreshold: 0,
+  testimonials: [],
+  stats: null,
 };
 
 /** Otros componentes disparan este evento cuando cambia el saldo (pago, cupón, envío). */
@@ -207,6 +213,21 @@ function toPublicSettings(d: any): PublicSettings {
           }
         : null,
     lowCreditsThreshold: Number(d.lowCreditsThreshold) || 0,
+    testimonials: Array.isArray(d.testimonials)
+      ? (d.testimonials as unknown[])
+          .filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && typeof (x as { text?: unknown }).text === "string")
+          .map((x) => ({
+            text: String(x.text).slice(0, 300),
+            name: String(x.name ?? "").slice(0, 60),
+            place: String(x.place ?? "").slice(0, 60),
+            stars: Math.min(5, Math.max(1, Number(x.stars) || 5)),
+          }))
+          .filter((x) => x.text.trim())
+      : [],
+    stats:
+      d.stats && typeof d.stats === "object" && Number(d.stats.responses) >= 0
+        ? { responses: Number(d.stats.responses) || 0, forms: Number(d.stats.forms) || 0 }
+        : null,
   };
 }
 

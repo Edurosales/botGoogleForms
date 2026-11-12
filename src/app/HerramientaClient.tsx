@@ -17,6 +17,7 @@ import { QuestionControls } from "./QuestionControls";
 import PresetsBar from "./PresetsBar";
 import { QuestionRules } from "./QuestionRules";
 import FlowSummary, { sectionGates } from "./FlowSummary";
+import { ageKind, detectFollowUps } from "@/lib/coherence";
 
 type Validation = {
   kind?: string;
@@ -494,6 +495,14 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
     return next;
   }, [qConfig, aiAllowed, me]);
   const usesAi = useMemo(() => Object.values(effectiveQ).some((c) => c.mode === "ai"), [effectiveQ]);
+  // Lo que el bot ajusta solo en cada respuesta (ver lib/coherence.ts), para
+  // decírselo al cliente en la pregunta: "solo si marcan Otro", "misma edad".
+  const autoLinks = useMemo(() => {
+    const qs = (form?.questions ?? []) as never as Parameters<typeof detectFollowUps>[0];
+    const follows = new Map(detectFollowUps(qs).map((f) => [f.entry, f]));
+    const ages = qs.filter((q) => ageKind(q));
+    return { follows, ages: new Set(ages.length >= 2 ? ages.map((q) => q.entry) : []) };
+  }, [form]);
   const tooManyQuestions = !!form && form.questions.length > maxFreeQuestions;
   const needsPaid = usesAi || tooManyQuestions;
   // El servidor no mezcla saldos: un envío sale entero de las respuestas
@@ -988,6 +997,21 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                         )}
                       </div>
                     </div>
+                    {(() => {
+                      const f = autoLinks.follows.get(q.entry);
+                      if (!f || (conf.when ?? []).length) return null;
+                      const pi = form.questions.findIndex((x) => x.entry === f.parent);
+                      return (
+                        <p className="q-gate">
+                          {q.required
+                            ? tr("Depende de la pregunta {n}: se detalla solo cuando ahí se marca “{opt}”; si no, se responde “No aplica”.", { n: pi + 1, opt: f.trigger })
+                            : tr("Depende de la pregunta {n}: solo se responde cuando ahí se marca “{opt}”; si no, queda vacía.", { n: pi + 1, opt: f.trigger })}
+                        </p>
+                      );
+                    })()}
+                    {autoLinks.ages.has(q.entry) && (
+                      <p className="q-gate">{tr("Edad coherente: en cada respuesta la fecha de nacimiento, la edad y el rango de edad coinciden.")}</p>
+                    )}
                     <QuestionControls
                       q={q}
                       index={i}

@@ -124,7 +124,7 @@ const EMAIL_DOMAINS = [
   "icloud.com",
 ];
 
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFKD")
@@ -440,7 +440,62 @@ export function conformToValidation(q: ParsedQuestion, value: string, state: Nam
 
 export function isNameField(q: ParsedQuestion): boolean {
   const t = normalize(q.title);
+  if (thingKind(t)) return false;
   return matches(t, KW.nombre_completo) || matches(t, KW.nombre);
+}
+
+// ── Nombres de COSAS (no de personas) ────────────────────────────
+// "Detalla el nombre de la aplicación" salía con "Carlos Pérez Ruiz" porque
+// "nombre" calzaba con la regla de persona. Si el nombre es de una cosa
+// (aplicación, empresa, curso…), se responde con una cosa de ese tipo.
+
+const PERSON_WORDS =
+  /^(la |el |los |las |tu |su |sus |tus |del |de la |de los )?(persona|encuestad|participante|entrevistad|estudiante|alumn|padre|madre|apoderad|docente|profesor|maestr|responsable|contacto|jefe|tutor|hij|herman|espos|pareja|usuario|cliente|paciente|trabajador|colaborador|representante|titular|nino|nina|bebe|menor|familiar|amig|autor|ganador|lider|encargad|solicitante|postulante|asesor|vendedor|medico|doctor)/;
+
+const THING_POOLS: [RegExp, string[]][] = [
+  [/\b(aplicacion|aplicaciones|app|apps|aplicativo|red social|redes sociales|plataforma|software|programa informatico|videojuego|juego)\b/, ["WhatsApp", "TikTok", "Instagram", "Facebook", "YouTube", "Spotify", "Netflix", "Telegram", "Zoom", "Google Meet", "Canva", "Duolingo", "Yape", "Plin", "Rappi", "Uber", "InDrive", "PedidosYa", "Discord", "Pinterest", "X (Twitter)", "Microsoft Teams", "Notion", "CapCut"]],
+  [/\b(navegador|browser)\b/, ["Google Chrome", "Mozilla Firefox", "Microsoft Edge", "Safari", "Opera", "Brave"]],
+  [/\b(sistema operativo)\b/, ["Windows", "Android", "iOS", "macOS", "Linux"]],
+  [/\b(marca de celular|marca de telefono|smartphone)\b/, ["Samsung", "Xiaomi", "Motorola", "iPhone", "Huawei", "Honor", "Oppo", "Realme"]],
+  [/\b(banco|entidad financiera)\b/, ["BCP", "BBVA", "Interbank", "Scotiabank", "Banco de la Nación", "Caja Arequipa", "BanBif"]],
+  [/\b(medio de pago|metodo de pago|forma de pago|billetera)\b/, ["Yape", "Plin", "Efectivo", "Tarjeta de débito", "Tarjeta de crédito", "Transferencia"]],
+  [/\b(universidad|instituto|institucion educativa|colegio|escuela|centro de estudios)\b/, ["Universidad Nacional Mayor de San Marcos", "PUCP", "Universidad de Lima", "UPC", "Universidad Nacional de Ingeniería", "Universidad César Vallejo", "SENATI", "Instituto Cibertec", "Colegio nacional del barrio", "Universidad San Ignacio de Loyola"]],
+  [/\b(empresa|negocio|compania|organizacion|tienda|emprendimiento|institucion)\b/, ["Bodega Don Lucho", "Inversiones Andina SAC", "Comercial Rivera", "Servicios Generales Lima", "Distribuidora del Sur", "Taller Mecánico Rojas", "Librería Central", "Minimarket El Ahorro"]],
+  [/\b(curso|materia|asignatura|carrera|especialidad)\b/, ["Matemática", "Comunicación", "Inglés", "Ciencia y Tecnología", "Historia", "Administración", "Contabilidad", "Ingeniería de Sistemas", "Psicología", "Enfermería", "Derecho", "Educación"]],
+  [/\b(deporte|actividad fisica)\b/, ["Fútbol", "Vóley", "Básquet", "Natación", "Ciclismo", "Correr", "Gimnasio", "Yoga"]],
+  [/\b(transporte|movilidad|vehiculo)\b/, ["Bicicleta", "Moto", "Scooter eléctrico", "Colectivo", "Mototaxi", "Taxi por aplicativo", "Metropolitano"]],
+  [/\b(comida|plato|bebida|postre)\b/, ["Ceviche", "Lomo saltado", "Ají de gallina", "Pollo a la brasa", "Arroz con pollo", "Chicha morada", "Pizza", "Hamburguesa"]],
+  [/\b(musica|genero musical|cancion|artista|cantante|banda)\b/, ["Salsa", "Cumbia", "Rock", "Pop", "Reguetón", "Música criolla", "Baladas", "Electrónica"]],
+  [/\b(pelicula|serie|libro|programa de television)\b/, ["Una serie de Netflix", "Una película de acción", "Una novela peruana", "Un documental", "Una comedia"]],
+  [/\b(mascota|animal)\b/, ["Perro", "Gato", "Hámster", "Conejo", "Loro", "Peces"]],
+  [/\b(idioma|lengua)\b/, ["Inglés", "Quechua", "Portugués", "Francés", "Italiano", "Aimara"]],
+  [/\b(producto|marca|servicio)\b/, ["Gloria", "Inca Kola", "Coca-Cola", "Nike", "Adidas", "Samsung", "Claro", "Movistar", "Entel", "Bitel"]],
+  [/\b(motivo|razon|razones|causa|por que|porque)\b/, ["Por falta de tiempo", "Por recomendación de un amigo", "Por el precio", "Por comodidad", "Por trabajo", "Por motivos personales"]],
+];
+
+/** Tipo de "cosa" que pide el título (si pide el nombre de algo que no es una persona). */
+export function thingKind(titleNorm: string): string[] | null {
+  // Lo que se pide: "nombre de la X", o la X justo después de "¿cuál/qué…?",
+  // "especifica…", "detalla…" (saltando "es", "el", "tu", "aquí"…). Así
+  // "¿Cuál es tu satisfacción con el servicio?" NO pide el nombre de un servicio.
+  const m = titleNorm.match(/\bnombre(?:s)? (?:de |del )(.{0,40})/);
+  if (m && PERSON_WORDS.test(m[1])) return null;
+  const targets: string[] = [];
+  if (m) targets.push(m[1].replace(/^(?:(?:la|el|los|las|tu|su|tus|sus|esta|este|esa|ese)\s+)+/, ""));
+  const asks = /\b(?:cual|cuales|que|especifi\w*|detall\w*|menciona\w*|indica\w*|escrib\w*)\s+((?:(?:es|son|seria|fue|el|la|los|las|tu|su|tus|sus|de|del|aqui|otro|otra|otros|otras|cual|usas|usa|utilizas|utiliza|prefieres|prefiere)\s+){0,4})(.{0,40})/g;
+  for (const a of titleNorm.matchAll(asks)) targets.push(a[2]);
+  for (const t of targets) {
+    for (const [re, pool] of THING_POOLS) {
+      if (t.search(re) === 0) return pool;
+    }
+  }
+  return null;
+}
+
+/** Valor para "Otro, especifica" o "nombre de la aplicación": algo del tipo que pide. */
+export function thingValue(text: string): string | null {
+  const pool = thingKind(normalize(text));
+  return pool ? pool[Math.floor(Math.random() * pool.length)] : null;
 }
 
 export function isEmailField(q: ParsedQuestion): boolean {
@@ -467,6 +522,8 @@ export function smartRandom(q: ParsedQuestion, state: NameState): string {
 
   const t = normalize(q.title);
 
+  const thing = thingKind(t);
+  if (thing) return thing[Math.floor(Math.random() * thing.length)];
   if (matches(t, KW.nombre_completo) || matches(t, KW.nombre)) return state.nombreCompleto();
   if (t.includes("primer apellido") || t.includes("1er apellido")) return state.pickSurname();
   if (t.includes("segundo apellido") || t.includes("2do apellido")) return state.pickSurname();
