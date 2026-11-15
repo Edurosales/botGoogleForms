@@ -28,7 +28,7 @@ export type PublicSettings = {
   paidOnly: boolean;
   freePaused: boolean;
   /** Medios de pago activos en la tienda (los elige el admin). */
-  paymentProviders: ("izipay" | "mercadopago")[];
+  paymentProviders: ("izipay" | "mercadopago" | "dlocalgo")[];
   /** Mercado Pago pide iniciar sesión en su cuenta para pagar. */
   mpRequiresLogin: boolean;
   purchasesPaused: boolean;
@@ -191,7 +191,9 @@ function toPublicSettings(d: any): PublicSettings {
     paidOnly: d.paidOnly === true,
     freePaused: d.freePaused === true,
     paymentProviders: Array.isArray(d.paymentProviders)
-      ? (d.paymentProviders as string[]).filter((p): p is "izipay" | "mercadopago" => p === "izipay" || p === "mercadopago")
+      ? (d.paymentProviders as string[]).filter(
+          (p): p is "izipay" | "mercadopago" | "dlocalgo" => p === "izipay" || p === "mercadopago" || p === "dlocalgo"
+        )
       : DEFAULT_PUBLIC_SETTINGS.paymentProviders,
     mpRequiresLogin: d.mpRequiresLogin === true,
     purchasesPaused: d.purchasesPaused === true,

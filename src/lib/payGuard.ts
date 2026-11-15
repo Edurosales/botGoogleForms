@@ -1,6 +1,6 @@
 /**
  * Vigilancia de la cuenta de cobro. El dinero va a la cuenta dueña de las
- * credenciales guardadas en Vercel (MP_ACCESS_TOKEN, IZIPAY_USERNAME). Si
+ * credenciales guardadas en Vercel (DLOCALGO_API_KEY, MP_ACCESS_TOKEN, IZIPAY_USERNAME). Si
  * alguien las cambiara por las suyas, los pagos seguirían apareciendo en el
  * panel pero el dinero iría a otro lado. Aquí se toma una "huella" de esas
  * cuentas (sin exponer las claves) y, si cambia, se avisa al dueño.
@@ -15,6 +15,7 @@ const NO_REQ = { ip: "", country: "", userAgent: "", path: "" };
 export type CollectorInfo = {
   mercadopago: { configured: boolean; userId?: string; nickname?: string; site?: string; error?: string };
   izipay: { configured: boolean; shop?: string };
+  dlocalgo: { configured: boolean; key?: string; sandbox?: boolean };
 };
 
 const mask = (s: string, keep = 4) => (s.length <= keep ? s : `${"•".repeat(Math.min(6, s.length - keep))}${s.slice(-keep)}`);
@@ -23,7 +24,13 @@ const mask = (s: string, keep = 4) => (s.length <= keep ? s : `${"•".repeat(Ma
 export async function collectorInfo(): Promise<CollectorInfo & { fingerprint: string }> {
   const mpToken = (process.env.MP_ACCESS_TOKEN || "").trim();
   const izUser = (process.env.IZIPAY_USERNAME || "").trim();
-  const out: CollectorInfo = { mercadopago: { configured: Boolean(mpToken) }, izipay: { configured: Boolean(izUser) } };
+  const dlKey = (process.env.DLOCALGO_API_KEY || "").trim();
+  const out: CollectorInfo = {
+    mercadopago: { configured: Boolean(mpToken) },
+    izipay: { configured: Boolean(izUser) },
+    // La API key identifica la cuenta de dLocal Go: se muestra enmascarada.
+    dlocalgo: { configured: Boolean(dlKey), key: dlKey ? mask(dlKey) : undefined, sandbox: (process.env.DLOCALGO_SANDBOX || "").trim() === "true" },
+  };
   let mpId = "";
   if (mpToken) {
     try {
@@ -43,7 +50,7 @@ export async function collectorInfo(): Promise<CollectorInfo & { fingerprint: st
   }
   if (izUser) out.izipay = { configured: true, shop: mask(izUser) };
   // Huella completa (no reversible) para comparar entre revisiones.
-  const fingerprint = createHash("sha256").update(`mp:${mpId}|iz:${izUser}`).digest("hex").slice(0, 16);
+  const fingerprint = createHash("sha256").update(`mp:${mpId}|iz:${izUser}${dlKey ? `|dl:${dlKey}` : ""}`).digest("hex").slice(0, 16);
   return { ...out, fingerprint };
 }
 
@@ -71,7 +78,7 @@ export async function watchCollector(): Promise<{ changed: boolean } | null> {
     .maybeSingle<{ details: { fingerprint?: string } }>();
   await audit({
     action: "payments.collector_check",
-    details: { fingerprint: info.fingerprint, mp: info.mercadopago.userId ?? "", izipay: info.izipay.shop ?? "" },
+    details: { fingerprint: info.fingerprint, mp: info.mercadopago.userId ?? "", izipay: info.izipay.shop ?? "", dlocalgo: info.dlocalgo.key ?? "" },
     meta: NO_REQ,
   });
   const prev = last?.details?.fingerprint;
@@ -83,8 +90,9 @@ export async function watchCollector(): Promise<{ changed: boolean } | null> {
       {
         "Mercado Pago (cuenta)": `${info.mercadopago.userId ?? "—"} ${info.mercadopago.nickname ?? ""}`.trim(),
         "Izipay (tienda)": info.izipay.shop ?? "—",
+        "dLocal Go (API key)": info.dlocalgo.key ?? "—",
         "Qué hacer":
-          "Si no cambiaste MP_ACCESS_TOKEN ni IZIPAY_USERNAME en Vercel, alguien más pudo hacerlo: revisa Vercel → Settings → Environment Variables y el registro de actividad, cambia tus contraseñas y regenera las credenciales.",
+          "Si no cambiaste DLOCALGO_API_KEY, MP_ACCESS_TOKEN ni IZIPAY_USERNAME en Vercel (agregar dLocal Go por primera vez también cuenta como cambio), alguien más pudo hacerlo: revisa Vercel → Settings → Environment Variables y el registro de actividad, cambia tus contraseñas y regenera las credenciales.",
       },
       0
     );

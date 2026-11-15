@@ -52,7 +52,7 @@ const COPY: Record<Lang, Copy> = {
     faq: [
       ["Is FormsBot the same as Bot Forms?", "Yes. FormsBot is our name; many people search for it as Bot Forms, BotForms or Forms Bot."],
       ["Which forms can I use?", "Only your own forms or forms you have permission to test. FormsBot is a testing tool, not a way to inflate surveys."],
-      ["How do I pay?", "With international cards (Visa, Mastercard, Amex, Diners) or Mercado Pago. Prices are in Peruvian soles; your bank converts them."],
+      ["How do I pay?", "With international cards (Visa, Mastercard, Amex, Diners). Prices are in Peruvian soles; your bank converts them."],
     ],
     fine: "FormsBot is a tool for testing your own forms. It is not affiliated with Google.",
   },
@@ -80,7 +80,7 @@ const COPY: Record<Lang, Copy> = {
     faq: [
       ["FormsBot é o mesmo que Bot Forms?", "Sim. FormsBot é o nosso nome; muita gente procura como Bot Forms, BotForms ou Forms Bot."],
       ["Quais formulários posso usar?", "Somente formulários próprios ou que você tem permissão para testar. O FormsBot é uma ferramenta de teste, não serve para inflar pesquisas."],
-      ["Como pago?", "Com cartões internacionais (Visa, Mastercard, Amex, Diners) ou Mercado Pago. Os preços estão em soles peruanos; seu banco faz a conversão."],
+      ["Como pago?", "Com cartões internacionais (Visa, Mastercard, Amex, Diners). Os preços estão em soles peruanos; seu banco faz a conversão."],
     ],
     fine: "O FormsBot é uma ferramenta para testar seus próprios formulários. Não é afiliado ao Google.",
   },
@@ -108,7 +108,7 @@ const COPY: Record<Lang, Copy> = {
     faq: [
       ["FormsBot è lo stesso di Bot Forms?", "Sì. FormsBot è il nostro nome; molti lo cercano come Bot Forms, BotForms o Forms Bot."],
       ["Quali moduli posso usare?", "Solo moduli tuoi o che hai il permesso di provare. FormsBot è uno strumento di test, non serve a gonfiare sondaggi."],
-      ["Come pago?", "Con carte internazionali (Visa, Mastercard, Amex, Diners) o Mercado Pago. I prezzi sono in soles peruviani; la conversione la fa la tua banca."],
+      ["Come pago?", "Con carte internazionali (Visa, Mastercard, Amex, Diners). I prezzi sono in soles peruviani; la conversione la fa la tua banca."],
     ],
     fine: "FormsBot è uno strumento per provare i propri moduli. Non è affiliato a Google.",
   },
@@ -136,7 +136,7 @@ const COPY: Record<Lang, Copy> = {
     faq: [
       ["FormsBot est-il la même chose que Bot Forms ?", "Oui. FormsBot est notre nom ; beaucoup le cherchent sous Bot Forms, BotForms ou Forms Bot."],
       ["Quels formulaires puis-je utiliser ?", "Uniquement vos propres formulaires ou ceux que vous avez l'autorisation de tester. FormsBot est un outil de test, pas un moyen de gonfler des sondages."],
-      ["Comment payer ?", "Par cartes internationales (Visa, Mastercard, Amex, Diners) ou Mercado Pago. Les prix sont en soles péruviens ; votre banque fait la conversion."],
+      ["Comment payer ?", "Par cartes internationales (Visa, Mastercard, Amex, Diners). Les prix sont en soles péruviens ; votre banque fait la conversion."],
     ],
     fine: "FormsBot est un outil pour tester vos propres formulaires. Il n'est pas affilié à Google.",
   },

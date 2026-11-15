@@ -43,8 +43,11 @@ export default function StoreTrust() {
   const settings = usePublicSettings();
   const stats = settings.stats && settings.stats.responses >= MIN_STATS ? settings.stats : null;
   const fmt = (n: number) => n.toLocaleString(locale);
+  // Solo los medios que de verdad están activos en la tienda.
+  const NAMES: Record<string, string> = { dlocalgo: "dLocal Go", izipay: "Izipay", mercadopago: "Mercado Pago" };
+  const processors = (settings.paymentProviders.length ? settings.paymentProviders : ["izipay"]).map((x) => NAMES[x] ?? x).join(tr(" o "));
   const items = [
-    { icon: ICONS.lock, title: tr("Pago 100 % seguro"), text: tr("Lo procesa Izipay o Mercado Pago. FormsBot nunca ve ni guarda tu tarjeta.") },
+    { icon: ICONS.lock, title: tr("Pago 100 % seguro"), text: tr("Lo procesa {p}. FormsBot nunca ve ni guarda tu tarjeta.", { p: processors }) },
     { icon: ICONS.bolt, title: tr("Créditos al instante"), text: tr("Se cargan apenas se confirma el pago y te llega el comprobante por correo.") },
     { icon: ICONS.back, title: tr("Devolución automática"), text: tr("Si una respuesta no llega a tu formulario, el crédito vuelve solo a tu cuenta. Los créditos no vencen.") },
     { icon: ICONS.chat, title: tr("Soporte de personas reales"), text: tr("Escríbenos por Mensajes o Telegram y te respondemos.") },

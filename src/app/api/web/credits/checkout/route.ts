@@ -12,6 +12,7 @@ import { rememberReturnTo, safeReturnPath } from "@/lib/returnTo";
 import { getCapacity } from "@/lib/capacity";
 import { activeProviders } from "@/lib/paymentProviders";
 import { createPreference } from "@/lib/mercadopago";
+import { createDlocalPayment } from "@/lib/dlocalgo";
 import { onlyExisting } from "@/lib/schemaFlags";
 import { creditsBoughtToday, limitsFor } from "@/lib/limits";
 
@@ -89,6 +90,9 @@ export async function POST(req: Request) {
   }
   const provider = providers.find((p) => p === body.provider) ?? providers[0];
   // Muchos intentos seguidos con los mismos datos suben el riesgo en Mercado Pago.
+  if (provider === "dlocalgo" && !rateLimit(`dl-checkout:${user.id}`, 5, 10 * 60_000)) {
+    return NextResponse.json({ message: "Hiciste varios intentos seguidos. Espera unos minutos y vuelve a intentar." }, { status: 429 });
+  }
   if (provider === "mercadopago" && !rateLimit(`mp-checkout:${user.id}`, 3, 10 * 60_000)) {
     return NextResponse.json(
       { message: "Hiciste varios intentos seguidos con Mercado Pago. Espera unos minutos o elige otro medio de pago." },
@@ -165,6 +169,38 @@ export async function POST(req: Request) {
   if (insertError) {
     console.error("[web-checkout] insert", insertError.message);
     return NextResponse.json({ message: "No se pudo crear la orden. Intenta de nuevo en un momento." }, { status: 500 });
+  }
+
+  if (provider === "dlocalgo") {
+    try {
+      const site = siteUrl();
+      const pay = await createDlocalPayment({
+        orderId,
+        amountCents,
+        description: `FormsBot: ${pkg.responses} créditos`,
+        email: user.email,
+        name: user.name,
+        userId: user.id,
+        successUrl: `${site}/api/web/dlocalgo/return?pedido=${orderId}`,
+        backUrl: `${site}/comprar-creditos/pagar?dl=cancelado`,
+        notificationUrl: `${site}/api/web/dlocalgo/webhook`,
+      });
+      // El id del pago (DP-…) se guarda en la orden para consultarlo al volver.
+      await db().from("web_credit_orders").update({ izipay_uuid: pay.id }).eq("order_id", orderId);
+      await rememberReturnTo(orderId, returnTo);
+      return NextResponse.json({
+        orderId,
+        provider,
+        amountCents,
+        originalCents: pkg.priceCents,
+        credits: pkg.responses,
+        redirectUrl: pay.url,
+      });
+    } catch (e) {
+      await db().from("web_credit_orders").update({ status: "failed" }).eq("order_id", orderId);
+      console.error("[web-checkout] dlocalgo", e instanceof Error ? e.message : e);
+      return NextResponse.json({ message: "No se pudo iniciar el pago. Intenta de nuevo en unos minutos." }, { status: 502 });
+    }
   }
 
   if (provider === "mercadopago") {

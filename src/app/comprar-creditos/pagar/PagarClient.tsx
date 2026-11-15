@@ -17,7 +17,7 @@ import { CREDIT_PURCHASE_CHECKS } from "@/lib/webLegal";
 import { fmtPen, useDailyLimits, useMe, usePublicSettings } from "../../clientData";
 import { SignInCard } from "../../SignIn";
 import { Rich, useLang } from "../../LangProvider";
-import { IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "../PayLogos";
+import { DLOCAL_BRANDS, IZIPAY_BRANDS, MP_BRANDS, PayLogos, SecurePayStrip } from "../PayLogos";
 import { MP_REJECT_REASONS } from "../mpReasons";
 import Flag from "../Flag";
 import { packSavings } from "../savings";
@@ -41,7 +41,7 @@ type Capacity = { globalRemaining: number; perUserDaily: number; testPayments: b
 
 /** Rechazo de Izipay: qué hacer (en vez de reintentar con la misma tarjeta). */
 const IZI_REFUSED_MSG =
-  "Tu banco rechazó el pago. No se te cobró nada. Lo más común: la tarjeta no tiene activadas las compras por internet (actívalas en la app de tu banco), no tiene saldo o es una tarjeta de débito sin pagos en línea. Prueba otra tarjeta o paga con Mercado Pago (Yape, PagoEfectivo o tarjeta).";
+  "Tu banco rechazó el pago. No se te cobró nada. Lo más común: la tarjeta no tiene activadas las compras por internet (actívalas en la app de tu banco), no tiene saldo o es una tarjeta de débito sin pagos en línea. Prueba otra tarjeta u otro medio de pago.";
 
 const IDLE_COUPON: CouponState = { status: "idle", discountPercent: 0, finalCents: 0, reason: "" };
 
@@ -75,6 +75,7 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
   const selfHref = `/comprar-creditos/pagar?paquete=${selectedIndex}${volver ? "&volver=1" : ""}`;
   const errorParam = searchParams.get("error");
   const mpParam = searchParams.get("mp");
+  const dlParam = searchParams.get("dl");
   const mpReason = searchParams.get("motivo") || "";
 
   const [fx, setFx] = useState<Record<string, number>>({});
@@ -105,7 +106,7 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
   const [couponOpen, setCouponOpen] = useState(() => !!searchParams.get("cupon"));
   const [coupon, setCoupon] = useState<CouponState>(IDLE_COUPON);
   const [busy, setBusy] = useState(false);
-  const [method, setMethod] = useState<"izipay" | "mercadopago" | "">("");
+  const [method, setMethod] = useState<"izipay" | "mercadopago" | "dlocalgo" | "">("");
   const [err, setErr] = useState("");
   const [pay, setPay] = useState<Pay | null>(null);
   const [formReady, setFormReady] = useState(false);
@@ -306,8 +307,12 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
         }),
       });
       const d = await r.json().catch(() => ({}));
-      if (r.ok && typeof d.redirectUrl === "string" && /^https:\/\/[a-z0-9.-]*mercadopago\.com(\.[a-z]{2})?\//i.test(d.redirectUrl)) {
-        // Mercado Pago: se paga en su página oficial y vuelve aquí.
+      if (
+        r.ok &&
+        typeof d.redirectUrl === "string" &&
+        (/^https:\/\/[a-z0-9.-]*mercadopago\.com(\.[a-z]{2})?\//i.test(d.redirectUrl) || /^https:\/\/checkout(-sbx)?\.dlocalgo\.com\//i.test(d.redirectUrl))
+      ) {
+        // dLocal Go / Mercado Pago: se paga en su página segura y vuelve aquí.
         window.location.assign(d.redirectUrl);
         return;
       }
@@ -387,6 +392,24 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
           {mpReason && <p className="fine">{tr("Código: {c}", { c: mpReason })}</p>}
         </div>
       )}
+      {dlParam === "pendiente" && (
+        <div className="note note-warn" role="status">
+          <p>{tr("Tu pago está en revisión. Apenas se confirme sumamos tus créditos y te avisamos por correo.")}</p>
+        </div>
+      )}
+      {dlParam === "rechazado" && (
+        <div className="note note-err" role="alert">
+          <p>
+            <strong>{tr("El pago fue rechazado. No se te cobró nada.")}</strong>{" "}
+            {tr("Prueba con otra tarjeta o revisa que tu tarjeta tenga activadas las compras por internet.")}
+          </p>
+        </div>
+      )}
+      {dlParam === "cancelado" && (
+        <div className="note note-warn" role="status">
+          <p>{tr("No se completó el pago. No se te cobró nada; puedes intentarlo de nuevo.")}</p>
+        </div>
+      )}
       {mpParam === "cancelado" && (
         <div className="note note-warn" role="status">
           <p>{tr("No se completó el pago. No se te cobró nada; puedes intentarlo de nuevo.")}</p>
@@ -425,6 +448,16 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
               {step(++stepN)} {t("store.method")}
             </h2>
             <div className="paymethods co-methods" role="radiogroup" aria-label={t("store.method")}>
+              {(providers as readonly string[]).includes("dlocalgo") && (
+                <label className={`paymethod${payWith === "dlocalgo" ? " on" : ""}`}>
+                  <input type="radio" name="paymethod" checked={payWith === "dlocalgo"} disabled={!!pay} onChange={() => setMethod("dlocalgo")} />
+                  <span className="paymethod-txt">
+                    <b>{tr("Tarjeta de crédito o débito")}</b>
+                    <small>{tr("Visa, Mastercard, Amex, Diners y otros medios (dLocal Go)")}</small>
+                  </span>
+                  <PayLogos brands={DLOCAL_BRANDS} />
+                </label>
+              )}
               {(providers as readonly string[]).includes("mercadopago") && (
                 <label className={`paymethod${payWith === "mercadopago" ? " on" : ""}`}>
                   <input type="radio" name="paymethod" checked={payWith === "mercadopago"} disabled={!!pay} onChange={() => setMethod("mercadopago")} />
@@ -447,7 +480,9 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
               )}
             </div>
             <p className="fine">
-              {payWith === "mercadopago"
+              {payWith === "dlocalgo"
+                ? tr("Al pulsar Pagar vas a la página segura de dLocal Go, escribes tu tarjeta y vuelves aquí con los créditos cargados. No vemos ni guardamos los datos de tu tarjeta.")
+                : payWith === "mercadopago"
                 ? settings.mpRequiresLogin
                   ? tr("Pagas en la página oficial de Mercado Pago con tu cuenta de Mercado Pago (inicia sesión para pagar) y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta.")
                   : tr("Pagas en la página oficial de Mercado Pago y vuelves aquí. No vemos ni guardamos los datos de tu tarjeta.")

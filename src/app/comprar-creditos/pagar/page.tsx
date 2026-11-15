@@ -7,7 +7,7 @@ import SiteNav from "../../SiteNav";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
-  description: "Pago seguro de créditos de FormsBot con Izipay o Mercado Pago.",
+  description: "Pago seguro de créditos de FormsBot con tarjeta de crédito o débito.",
   robots: { index: false },
 };
 

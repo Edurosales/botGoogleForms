@@ -33,11 +33,12 @@ export type CreditOrder = {
   provider?: string;
 };
 
-export type Provider = "izipay" | "mercadopago";
+export type Provider = "izipay" | "mercadopago" | "dlocalgo";
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   izipay: "Tarjeta (Izipay)",
   mercadopago: "Mercado Pago",
+  dlocalgo: "dLocal Go",
 };
 
 export type FulfillResult = { ok: boolean; orderId?: string; reason?: string };

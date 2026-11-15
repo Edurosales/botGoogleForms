@@ -22,6 +22,8 @@ const LOGO: Record<Brand, { name: string; src: string }> = {
 
 export const IZIPAY_BRANDS: Brand[] = ["visa", "mastercard", "amex", "diners"];
 export const MP_BRANDS: Brand[] = ["mercadopago", "yape", "pagoefectivo"];
+/** dLocal Go: tarjetas de crédito y débito (y los medios locales que tenga activos). */
+export const DLOCAL_BRANDS: Brand[] = ["visa", "mastercard", "amex", "diners"];
 
 export function PayLogos({ brands, label }: { brands: Brand[]; label?: string }) {
   return (
@@ -40,7 +42,7 @@ export function PayLogos({ brands, label }: { brands: Brand[]; label?: string })
 export function SecurePayStrip({ providers }: { providers: readonly string[] }) {
   const brands: Brand[] = [
     ...(providers.includes("mercadopago") ? MP_BRANDS : []),
-    ...(providers.includes("izipay") ? IZIPAY_BRANDS : []),
+    ...(providers.includes("izipay") || providers.includes("dlocalgo") ? IZIPAY_BRANDS : []),
   ];
   const { t } = useLang();
   if (!brands.length) return null;

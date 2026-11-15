@@ -117,7 +117,7 @@ export type AppSettings = {
   /** Ronda 19: cuentas que pueden llenar gratis un mismo formulario (0 = sin límite). */
   free_accounts_per_form?: number;
   /** Ronda 20: medio de pago de la tienda. */
-  payment_provider?: "izipay" | "mercadopago" | "both";
+  payment_provider?: "izipay" | "mercadopago" | "both" | "dlocalgo" | "izipay_dlocalgo";
   /** Ronda 23: Mercado Pago solo con sesión iniciada (wallet_purchase). */
   mp_require_login?: boolean;
   // Ronda 24: límites y avisos configurables desde el panel
