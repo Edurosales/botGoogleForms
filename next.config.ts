@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
       // La herramienta vivía en /herramienta; ahora es la portada. El
       // querystring (ej. ?url=...) se reenvía solo a /.
       { source: "/herramienta", destination: "/", permanent: false },
+      // formsbot.app (con o sin www) solo lleva al sitio de siempre, con el
+      // mismo camino y querystring. Así el login con Google y las sesiones
+      // siguen en un solo dominio. Se hace en el borde de Vercel (no gasta invocaciones).
+      ...["formsbot.app", "www.formsbot.app"].map((host) => ({
+        source: "/:path*",
+        has: [{ type: "host" as const, value: host }],
+        destination: "https://bot-google-forms-servicio.vercel.app/:path*",
+        permanent: false,
+      })),
     ];
   },
   async headers() {
