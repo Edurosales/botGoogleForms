@@ -310,7 +310,7 @@ export default function PagarClient({ packages: serverPackages }: { packages: Pk
       if (
         r.ok &&
         typeof d.redirectUrl === "string" &&
-        (/^https:\/\/[a-z0-9.-]*mercadopago\.com(\.[a-z]{2})?\//i.test(d.redirectUrl) || /^https:\/\/checkout(-sbx)?\.dlocalgo\.com\//i.test(d.redirectUrl))
+        (/^https:\/\/[a-z0-9.-]*mercadopago\.com(\.[a-z]{2})?\//i.test(d.redirectUrl) || /^https:\/\/([a-z0-9-]+\.)*dlocalgo\.com\//i.test(d.redirectUrl))
       ) {
         // dLocal Go / Mercado Pago: se paga en su página segura y vuelve aquí.
         window.location.assign(d.redirectUrl);

@@ -12,7 +12,8 @@ import { rememberReturnTo, safeReturnPath } from "@/lib/returnTo";
 import { getCapacity } from "@/lib/capacity";
 import { activeProviders } from "@/lib/paymentProviders";
 import { createPreference } from "@/lib/mercadopago";
-import { createDlocalPayment } from "@/lib/dlocalgo";
+import { createDlocalPayment, DlocalError } from "@/lib/dlocalgo";
+import { audit } from "@/lib/audit";
 import { onlyExisting } from "@/lib/schemaFlags";
 import { creditsBoughtToday, limitsFor } from "@/lib/limits";
 
@@ -180,7 +181,6 @@ export async function POST(req: Request) {
         description: `FormsBot: ${pkg.responses} créditos`,
         email: user.email,
         name: user.name,
-        userId: user.id,
         successUrl: `${site}/api/web/dlocalgo/return?pedido=${orderId}`,
         backUrl: `${site}/comprar-creditos/pagar?dl=cancelado`,
         notificationUrl: `${site}/api/web/dlocalgo/webhook`,
@@ -198,8 +198,15 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       await db().from("web_credit_orders").update({ status: "failed" }).eq("order_id", orderId);
-      console.error("[web-checkout] dlocalgo", e instanceof Error ? e.message : e);
-      return NextResponse.json({ message: "No se pudo iniciar el pago. Intenta de nuevo en unos minutos." }, { status: 502 });
+      const status = e instanceof DlocalError ? e.status : 0;
+      const detail = e instanceof DlocalError ? e.detail : e instanceof Error ? e.message : String(e);
+      console.error("[web-checkout] dlocalgo", status, detail);
+      // El motivo real (sin claves) queda en Admin → Registros para el dueño.
+      await audit({ action: "payment.checkout_error", level: "warn", target: orderId, details: { provider: "dlocalgo", status, detail: detail.slice(0, 300) } });
+      return NextResponse.json(
+        { message: `No se pudo iniciar el pago. Intenta de nuevo en unos minutos. (código DL-${status || "RED"})` },
+        { status: 502 }
+      );
     }
   }
 
