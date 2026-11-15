@@ -109,6 +109,14 @@ function sanitizeQConfig(raw: unknown): QuestionConfigMap {
               .map((r) => ({ entry: r.entry, equals: String(r.equals ?? "").slice(0, 300), value: String(r.value ?? "").slice(0, 300) })),
           }
         : {}),
+      // "Responder solo si la pregunta N es alguna de estas opciones".
+      ...(c.onlyIf && typeof c.onlyIf === "object" && /^entry\.\d{1,20}$/.test(String((c.onlyIf as { entry?: unknown }).entry))
+        ? (() => {
+            const o = c.onlyIf as { entry: string; anyOf?: unknown };
+            const anyOf = Array.isArray(o.anyOf) ? o.anyOf.slice(0, 60).map((x) => String(x).slice(0, 300)).filter(Boolean) : [];
+            return anyOf.length ? { onlyIf: { entry: o.entry, anyOf } } : {};
+          })()
+        : {}),
     };
   }
   return out;

@@ -33,15 +33,44 @@ export interface QuestionConfig {
    * se abre si marcan "Sí"). La primera que se cumpla gana.
    */
   when?: { entry: string; equals: string; value: string }[];
+  /**
+   * "Responder solo si la pregunta `entry` es alguna de `anyOf`" (ej. "Otro"
+   * o "Ninguna"). Si no, la pregunta queda vacía (o "No aplica" si Google la
+   * exige y es de texto). Cuando sí aplica, se responde con su modo (IA, etc.).
+   */
+  onlyIf?: { entry: string; anyOf: string[] };
 }
 
+const NOT_APPLICABLE_BY_LANG: [RegExp, string][] = [
+  [/^(ingl|english|en)/i, "N/A"],
+  [/^(portug|pt)/i, "Não se aplica"],
+  [/^(ital|it)/i, "Non applicabile"],
+  [/^(franc|fr)/i, "Sans objet"],
+];
+
 /** Aplica las condiciones entre preguntas a cada respuesta ya generada. */
-function applyRules(profiles: Record<string, string>[], questions: ParsedQuestion[], qConfig: QuestionConfigMap): Record<string, string>[] {
+function applyRules(
+  profiles: Record<string, string>[],
+  questions: ParsedQuestion[],
+  qConfig: QuestionConfigMap,
+  language = "español"
+): Record<string, string>[] {
   const byEntry = new Map(questions.map((q) => [q.entry, q]));
   const ruled = questions.filter((q) => (qConfig[q.entry]?.when ?? []).length);
-  if (!ruled.length) return profiles;
+  const gated = questions.filter((q) => (qConfig[q.entry]?.onlyIf?.anyOf ?? []).length);
+  if (!ruled.length && !gated.length) return profiles;
+  const na = NOT_APPLICABLE_BY_LANG.find(([re]) => re.test(language.trim()))?.[1] ?? "No aplica";
   return profiles.map((p) => {
     const out = { ...p };
+    for (const q of gated) {
+      const g = qConfig[q.entry]!.onlyIf!;
+      const chosen = (out[g.entry] ?? "").split("|").map((v) => v.trim());
+      if (g.anyOf.some((o) => chosen.includes(o.trim()))) continue;
+      // No aplica: vacía. Si Google la exige y es de texto, "No aplica";
+      // si es de opciones obligatoria no se puede dejar vacía y queda como está.
+      if (!q.required) delete out[q.entry];
+      else if (!q.options.length) out[q.entry] = na;
+    }
     for (const q of ruled) {
       for (const r of qConfig[q.entry]?.when ?? []) {
         const src = out[r.entry] ?? "";
@@ -542,7 +571,7 @@ export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesO
     const q = byEntry.get(entry);
     return q ? effectiveMode(q, qConfig[entry] ?? {}) : "random";
   };
-  const ruled = applyRules(profiles, form.questions, qConfig);
+  const ruled = applyRules(profiles, form.questions, qConfig, opts.language);
   // Coherencia dentro de cada respuesta (edad ↔ nacimiento ↔ rango, "si
   // marcaste Otro…"): ver coherence.ts. Lo que fijó el cliente no se toca.
   const coherent = applyCoherence(ruled, form.questions, {
@@ -551,7 +580,7 @@ export async function generateProfiles(form: ParsedForm, opts: GenerateProfilesO
       return m === "fixed" || m === "list" || m === "weighted" || !!opts.fixedRows?.[i]?.[entry];
     },
     regenerable: (entry) => modeOf(entry) === "random",
-    hasUserRules: (entry) => (qConfig[entry]?.when ?? []).length > 0,
+    hasUserRules: (entry) => (qConfig[entry]?.when ?? []).length > 0 || (qConfig[entry]?.onlyIf?.anyOf ?? []).length > 0,
     language: opts.language,
   });
   return coherent.map((p) => routeProfile(p, form.questions, form.numSections));

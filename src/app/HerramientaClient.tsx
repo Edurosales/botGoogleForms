@@ -999,13 +999,16 @@ export default function HerramientaClient({ initialUrl = "", paidOrder = "" }: {
                     </div>
                     {(() => {
                       const f = autoLinks.follows.get(q.entry);
-                      if (!f || (conf.when ?? []).length) return null;
+                      if (!f || (conf.when ?? []).length || conf.onlyIf?.anyOf?.length) return null;
                       const pi = form.questions.findIndex((x) => x.entry === f.parent);
                       return (
                         <p className="q-gate">
                           {q.required
                             ? tr("Depende de la pregunta {n}: se detalla solo cuando ahí se marca “{opt}”; si no, se responde “No aplica”.", { n: pi + 1, opt: f.trigger })
-                            : tr("Depende de la pregunta {n}: solo se responde cuando ahí se marca “{opt}”; si no, queda vacía.", { n: pi + 1, opt: f.trigger })}
+                            : tr("Depende de la pregunta {n}: solo se responde cuando ahí se marca “{opt}”; si no, queda vacía.", { n: pi + 1, opt: f.trigger })}{" "}
+                          <button type="button" className="linkish" onClick={() => setQ(q.entry, { onlyIf: { entry: f.parent, anyOf: [f.trigger] } })}>
+                            {tr("Ajustar")}
+                          </button>
                         </p>
                       );
                     })()}

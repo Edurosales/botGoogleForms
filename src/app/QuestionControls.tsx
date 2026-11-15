@@ -6,6 +6,7 @@
  * hay "porcentajes"), y debajo el editor que corresponde: opciones para
  * tocar, porcentajes, lista, rango de números, fechas u horas.
  */
+import { useState } from "react";
 import { evenWeights, ListEditor, WeightsEditor, type Mode, type QConf } from "./QuestionEditors";
 import { useLang } from "./LangProvider";
 
@@ -116,6 +117,8 @@ export function QuestionControls({
   const ui = uiModeOf(q, conf);
   const selectId = `mode-${q.entry}`;
   const v = (conf.value ?? "").trim();
+  // IA: con indicación ya guardada se muestra confirmada; sin ella, para escribir.
+  const [aiEditing, setAiEditing] = useState(() => !(conf.prompt ?? "").trim());
 
   function pickMode(next: UiMode) {
     if (next === "weighted") {
@@ -184,7 +187,7 @@ export function QuestionControls({
             onChange={(e) => onChange({ value: e.target.value })}
           />
         )}
-        {conf.mode === "ai" && (
+        {conf.mode === "ai" && aiEditing && (
           <input
             type="text"
             maxLength={300}
@@ -193,11 +196,37 @@ export function QuestionControls({
             title={tr("Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.")}
             value={conf.prompt ?? ""}
             onChange={(e) => onChange({ prompt: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setAiEditing(false);
+              }
+            }}
           />
+        )}
+        {conf.mode === "ai" && aiEditing && (
+          <button type="button" className="b b-small b-primary ai-save" onClick={() => setAiEditing(false)}>
+            {tr("Guardar")}
+          </button>
         )}
       </div>
 
-      {conf.mode === "ai" && <p className="q-hint">{tr("Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.")}</p>}
+      {/* "Guardar": se ve claro que la IA quedó configurada y cómo va a responder. */}
+      {conf.mode === "ai" && !aiEditing && (
+        <div className="ai-saved" role="status">
+          <span className="ai-saved-ic" aria-hidden="true">
+            ✓
+          </span>
+          <span className="ai-saved-txt">
+            <b>{tr("Respuesta con IA configurada")}</b>
+            <span>{(conf.prompt ?? "").trim() ? `«${(conf.prompt ?? "").trim()}»` : tr("La IA responde según la pregunta y el formulario.")}</span>
+          </span>
+          <button type="button" className="linkish" onClick={() => setAiEditing(true)}>
+            {tr("Editar")}
+          </button>
+        </div>
+      )}
+      {conf.mode === "ai" && aiEditing && <p className="q-hint">{tr("Indicación para la IA. Cada respuesta tendrá como máximo 8 palabras.")}</p>}
 
       {ui === "fixed" && (kind === "single" || kind === "multi") && (
         <div className="chips" role="group" aria-label={tr("Opciones para la pregunta {n}", { n: index + 1 })}>

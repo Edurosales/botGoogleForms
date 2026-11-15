@@ -29,6 +29,8 @@ export function QuestionRules({
   const rules: Rule[] = conf.when ?? [];
   const sources = all.slice(0, index).filter((x) => x.options.length > 0);
   const [open, setOpen] = useState(rules.length > 0);
+  const gate = conf.onlyIf;
+  const [gateOpen, setGateOpen] = useState(!!gate);
   const [draft, setDraft] = useState<Rule>({ entry: sources[0]?.entry ?? "", equals: "", value: "" });
 
   if (!sources.length) return null;
@@ -41,8 +43,74 @@ export function QuestionRules({
     setDraft({ entry: src.entry, equals: "", value: "" });
   }
 
+  const gateSrc = sources.find((x) => x.entry === gate?.entry) ?? sources[sources.length - 1];
+  const gateSet = new Set(gate?.entry === gateSrc.entry ? gate.anyOf : []);
+  function toggleGate(opt: string) {
+    const next = new Set(gateSet);
+    if (next.has(opt)) next.delete(opt);
+    else next.add(opt);
+    const anyOf = gateSrc.options.filter((o) => next.has(o));
+    onChange({ onlyIf: anyOf.length ? { entry: gateSrc.entry, anyOf } : undefined });
+  }
+
   return (
     <div className="qrules">
+      {/* "Responder solo si…": la pregunta solo se responde con ciertas respuestas
+          de otra (ej. P4 = "Otro" o "Ninguna"); con las demás queda vacía. */}
+      {gate && gate.anyOf.length > 0 && (
+        <p className="qrules-flow">
+          {tr("↳ Solo se responde si la pregunta {n} es {list}; si no, queda vacía.", {
+            n: numberOf(gate.entry),
+            list: gate.anyOf.map((o) => `“${o}”`).join(tr(" o ")),
+          })}
+        </p>
+      )}
+      {!gateOpen ? (
+        <button type="button" className="linkish" onClick={() => setGateOpen(true)}>
+          {tr("+ Responder solo si…")}
+        </button>
+      ) : (
+        <div className="qrules-box qgate">
+          <div className="qrules-row">
+            <span>{tr("Responder solo si la pregunta")}</span>
+            <select
+              aria-label={tr("Pregunta de la que depende")}
+              value={gateSrc.entry}
+              onChange={(e) => onChange({ onlyIf: { entry: e.target.value, anyOf: [] } })}
+            >
+              {sources.map((s2) => (
+                <option key={s2.entry} value={s2.entry}>
+                  {numberOf(s2.entry)}. {s2.title.slice(0, 50)}
+                </option>
+              ))}
+            </select>
+            <span>{tr("es:")}</span>
+          </div>
+          <div className="chips" role="group" aria-label={tr("Respuestas que activan esta pregunta")}>
+            {gateSrc.options.map((o) => (
+              <button key={o} type="button" className={`chip${gateSet.has(o) ? " on" : ""}`} aria-pressed={gateSet.has(o)} onClick={() => toggleGate(o)}>
+                {gateSet.has(o) ? "✓ " : ""}
+                {o}
+              </button>
+            ))}
+          </div>
+          <p className="q-hint">
+            {gateSet.size
+              ? tr("Con cualquier otra respuesta, esta pregunta queda vacía. Cuando sí aplica, se responde como la configuraste arriba (IA, aleatorio, fijo…).")
+              : tr("Toca una o varias respuestas (ej. “Otro”).")}
+          </p>
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => {
+              onChange({ onlyIf: undefined });
+              setGateOpen(false);
+            }}
+          >
+            {tr("Quitar esta condición")}
+          </button>
+        </div>
+      )}
       {rules.length > 0 && (
         <p className="qrules-flow">
           {tr("↳ Depende de {list}", { list: [...new Set(rules.map((r) => tr("la pregunta {n}", { n: numberOf(r.entry) })))].join(tr(" y ")) })}

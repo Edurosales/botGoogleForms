@@ -18,6 +18,8 @@ export type QConf = {
   order?: "random" | "sequential";
   /** Condiciones: si la pregunta `entry` responde `equals`, esta responde `value` ("" = vacía). */
   when?: { entry: string; equals: string; value: string }[];
+  /** "Responder solo si la pregunta `entry` es alguna de `anyOf`"; si no, queda vacía. */
+  onlyIf?: { entry: string; anyOf: string[] };
 };
 export type QConfMap = Record<string, QConf>;
 

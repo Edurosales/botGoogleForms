@@ -987,3 +987,88 @@ nav.bnav a:not(.btn){display:flex;padding:0}
 .tst-who b{color:var(--ink)}
 .tst-av{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;font-weight:700;font-size:.85rem}
 @media(max-width:560px){.tool-page .store-trust{padding:20px 16px 22px}}
+
+/* Ronda 46: tienda con tarjetas verticales de precios */
+.store-me{margin:0 0 14px}
+.tiers{display:grid;gap:16px;margin:4px 0 20px;align-items:stretch}
+@media(min-width:720px){.tiers{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+.tier{position:relative;display:flex;flex-direction:column;gap:14px;background:#fff;border:1.5px solid var(--line-strong);border-radius:16px;padding:24px 20px 20px;min-width:0;box-shadow:0 1px 2px rgba(33,22,63,.05);transition:border-color .15s,box-shadow .15s,transform .15s}
+.tier:hover{border-color:var(--acc);box-shadow:0 14px 34px -22px rgba(33,22,63,.5)}
+.tier-best{border:2px solid var(--acc);box-shadow:0 18px 40px -24px rgba(91,46,166,.65)}
+@media(min-width:720px){.tier-best{transform:translateY(-6px)}}
+.tier-off{opacity:.6}
+.tool-page .tier-ribbon{position:absolute;top:-13px;left:50%;transform:translateX(-50%);margin:0;background:var(--acc);color:#fff;font-size:.75rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:4px 12px;border-radius:999px;white-space:nowrap}
+.tool-page .tier-qty{margin:0;font-size:2.25rem;line-height:1;font-weight:800;display:flex;flex-direction:column;gap:4px}
+.tier-qty span{font-size:.9375rem;font-weight:600;color:var(--mute);letter-spacing:0}
+.tier-price p{margin:0}
+.tier-was{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--mute);font-size:.9375rem}
+.tier-was s{text-decoration-thickness:1.5px}
+.tier-off-tag{font-size:.75rem;font-weight:800;color:var(--ok);background:var(--ok-bg);padding:2px 8px;border-radius:999px}
+.tier-now{font-size:2rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.15;margin:2px 0!important}
+.tier-rate{font-size:.875rem;color:var(--mute)}
+.tier-ref{font-size:.75rem;color:var(--mute);margin-top:2px!important}
+.tier-feats{list-style:none;margin:0;padding:14px 0 0;border-top:1px solid var(--line);display:grid;gap:8px;flex:1}
+.tier-feats li{display:flex;gap:8px;align-items:flex-start;font-size:.9rem;color:var(--ink);line-height:1.35}
+.tier-feats svg{flex:none;color:var(--ok);margin-top:1px}
+.tier-feats .tier-note{color:var(--mute);font-size:.8125rem}
+.tier-cta{margin-top:2px}
+.store-calc{margin:0 0 4px}
+
+/* Ronda 46: página de pago (checkout) */
+.co-crumbs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.875rem;color:var(--mute);margin:0 0 14px}
+.co-crumbs a{color:var(--acc)}
+.co-crumbs b{color:var(--ink)}
+.co-head{margin:0 0 18px}
+.co-head h1{font-size:clamp(1.625rem,4.5vw,2rem);line-height:1.1;margin:0 0 6px}
+.co-secure{display:flex;gap:6px;align-items:center;margin:0;color:var(--ok);font-weight:600;font-size:.9375rem}
+.co-grid{display:grid;gap:20px;align-items:start}
+@media(min-width:900px){.co-grid{grid-template-columns:minmax(0,1fr) 340px}.co-side{position:sticky;top:16px}}
+.co-main{display:grid;gap:14px;min-width:0}
+.tool-page .co-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;min-width:0}
+.tool-page .co-card h2{display:flex;align-items:center;gap:10px;font-size:1.125rem;margin:0 0 12px}
+.co-step-n{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--acc);font-size:.8125rem;font-weight:800}
+.co-opt{font-weight:500;color:var(--mute);font-size:.875rem}
+.co-acc{display:flex;gap:12px;align-items:center;margin:0}
+.co-acc > span:last-child{display:flex;flex-direction:column;min-width:0}
+.co-acc b{overflow-wrap:anywhere}
+.co-acc .fine{margin:0}
+.co-av{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;font-weight:800}
+.co-methods{margin:0 0 8px}
+.co-pay{display:grid;gap:10px}
+.co-paybtn{min-height:56px;font-size:1.0625rem}
+.co-hint{margin:0;text-align:center}
+.co-cardform{border:2px solid var(--acc)}
+.co-cardform .kr-smart-form,.co-cardform .kr-smart-form .kr-embedded,.co-cardform .kr-smart-form .kr-smart-form-wrapper,
+.co-cardform .kr-smart-form .kr-field-element,.co-cardform .kr-smart-form .kr-payment-button{width:100%!important;max-width:none!important}
+.co-cardform .kr-smart-form input:not([type=hidden]),.co-cardform .kr-smart-form select{min-height:0;padding:revert;border-radius:revert;font-size:revert}
+.co-cardform .kr-wrap{max-width:440px;margin:6px auto 12px}
+.co-sum{background:#fff;border:1px solid var(--line);border-top:6px solid var(--acc);border-radius:14px;padding:18px 18px 12px}
+.tool-page .co-sum h2{font-size:1.125rem;margin:0 0 12px}
+.co-pack{display:flex;gap:12px;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--line)}
+.co-pack > span:nth-child(2){display:flex;flex-direction:column;flex:1;min-width:0}
+.co-pack .fine{margin:0}
+.co-pack-ic{flex:none;min-width:48px;height:48px;padding:0 6px;border-radius:12px;display:grid;place-items:center;background:var(--soft);color:var(--acc);font-weight:800}
+.co-change{font-size:.875rem;font-weight:700}
+.co-sum dl{margin:12px 0 8px;display:grid;gap:8px;font-size:.9375rem}
+.co-sum dl div{display:flex;justify-content:space-between;gap:12px}
+.co-sum dt{color:var(--mute)}
+.co-sum dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.co-strike{text-decoration:line-through;color:var(--mute);font-weight:500!important}
+.co-save dd,.co-save dt{color:var(--ok)!important}
+.co-total{border-top:1px solid var(--line);padding-top:10px;font-size:1.125rem}
+.co-total dt{color:var(--ink)!important;font-weight:800}
+.co-total dd{font-size:1.375rem}
+.co-guarantees{list-style:none;margin:14px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#FBFAFD;display:grid;gap:8px;font-size:.875rem;color:var(--mute)}
+.co-guarantees li{padding-left:22px;position:relative}
+.co-guarantees li::before{content:"";position:absolute;left:2px;top:4px;width:12px;height:7px;border-left:2px solid var(--ok);border-bottom:2px solid var(--ok);transform:rotate(-45deg)}
+@media(max-width:560px){.tool-page .co-card{padding:16px}.co-sum{padding:16px 16px 10px}}
+@media(max-width:899px){.co-side{order:-1}}
+
+/* Ronda 46: IA guardada y "Responder solo si…" */
+.ai-save{flex:none;white-space:nowrap}
+.ai-saved{display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;padding:10px 12px;border:1px solid #BFE3CF;background:var(--ok-bg);border-radius:10px}
+.ai-saved-ic{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ok);color:#fff;font-weight:800;font-size:.8rem}
+.ai-saved-txt{flex:1;display:flex;flex-direction:column;gap:2px;font-size:.9rem;color:var(--mute);min-width:0;overflow-wrap:anywhere}
+.ai-saved-txt b{color:var(--ok)}
+.qgate{border-left:3px solid var(--acc)}
+.qgate .chips{margin:8px 0 4px}
