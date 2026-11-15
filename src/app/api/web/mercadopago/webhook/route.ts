@@ -5,7 +5,7 @@ import { audit } from "@/lib/audit";
 
 /**
  * Webhook de Mercado Pago (configurar en Tus integraciones → Webhooks, evento
- * "Pagos"): https://www.formsbot.app/api/web/mercadopago/webhook
+ * "Pagos"): https://bot-google-forms-servicio.vercel.app/api/web/mercadopago/webhook
  *
  * Responde 200 rápido para que no reintente; 401 si la firma no cuadra; 500
  * si falló algo nuestro (así Mercado Pago lo reintenta más tarde).

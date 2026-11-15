@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.formsbot.app/sitemap.xml
+Sitemap: https://bot-google-forms-servicio.vercel.app/sitemap.xml

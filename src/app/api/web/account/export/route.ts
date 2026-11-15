@@ -35,7 +35,7 @@ export async function GET() {
   await audit({ action: "account.export", userId: user.id, email: user.email });
   const payload = {
     exported_at: new Date().toISOString(),
-    service: "FormsBot (www.formsbot.app)",
+    service: "FormsBot (bot-google-forms-servicio.vercel.app)",
     account: a,
     jobs: jobs.data ?? [],
     orders: orders.data ?? [],

@@ -8,7 +8,7 @@ import SiteNav from "./SiteNav";
  * carpetas fijas (no una ruta dinámica) para que cualquier otra dirección
  * siga respondiendo un 404 real.
  */
-const SITE = "https://www.formsbot.app";
+const SITE = "https://bot-google-forms-servicio.vercel.app";
 export type Lang = "en" | "pt" | "it" | "fr";
 
 

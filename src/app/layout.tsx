@@ -13,7 +13,7 @@ import { LangProvider } from "./LangProvider";
 
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.formsbot.app"),
+  metadataBase: new URL("https://bot-google-forms-servicio.vercel.app"),
   title: {
     default: "FormsBot (Bot Forms) — Prueba tu Google Form con respuestas automáticas",
     template: "%s · FormsBot",
@@ -24,12 +24,12 @@ export const metadata: Metadata = {
   keywords: ["FormsBot", "Bot Forms", "BotForms", "Forms Bot", "bot para Google Forms", "probar Google Forms", "respuestas de prueba", "Google Forms test"],
   alternates: {
     languages: {
-      es: "https://www.formsbot.app/",
-      en: "https://www.formsbot.app/en",
-      pt: "https://www.formsbot.app/pt",
-      it: "https://www.formsbot.app/it",
-      fr: "https://www.formsbot.app/fr",
-      "x-default": "https://www.formsbot.app/en",
+      es: "https://bot-google-forms-servicio.vercel.app/",
+      en: "https://bot-google-forms-servicio.vercel.app/en",
+      pt: "https://bot-google-forms-servicio.vercel.app/pt",
+      it: "https://bot-google-forms-servicio.vercel.app/it",
+      fr: "https://bot-google-forms-servicio.vercel.app/fr",
+      "x-default": "https://bot-google-forms-servicio.vercel.app/en",
     },
   },
 };

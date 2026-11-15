@@ -11,22 +11,22 @@ export const metadata: Metadata = {
   description:
     "FormsBot (Bot Forms): pega el link de tu propio Google Form y recibe respuestas de prueba en minutos, siguiendo cada sección. Tu primera vez es gratis; con créditos se activan las respuestas con IA en 5 idiomas.",
   alternates: {
-    canonical: "https://www.formsbot.app/",
+    canonical: "https://bot-google-forms-servicio.vercel.app/",
     languages: {
-      es: "https://www.formsbot.app/",
-      en: "https://www.formsbot.app/en",
-      pt: "https://www.formsbot.app/pt",
-      it: "https://www.formsbot.app/it",
-      fr: "https://www.formsbot.app/fr",
-      "x-default": "https://www.formsbot.app/en",
+      es: "https://bot-google-forms-servicio.vercel.app/",
+      en: "https://bot-google-forms-servicio.vercel.app/en",
+      pt: "https://bot-google-forms-servicio.vercel.app/pt",
+      it: "https://bot-google-forms-servicio.vercel.app/it",
+      fr: "https://bot-google-forms-servicio.vercel.app/fr",
+      "x-default": "https://bot-google-forms-servicio.vercel.app/en",
     },
   },
   openGraph: {
     type: "website",
     title: "FormsBot — Prueba tu Google Form con respuestas automáticas",
     description: "Pega el link de tu Google Form y recibe respuestas de prueba en minutos.",
-    url: "https://www.formsbot.app/",
-    images: ["https://www.formsbot.app/soft.png"],
+    url: "https://bot-google-forms-servicio.vercel.app/",
+    images: ["https://bot-google-forms-servicio.vercel.app/soft.png"],
   },
 };
 
