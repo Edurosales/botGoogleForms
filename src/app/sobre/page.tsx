@@ -440,18 +440,7 @@ export default function Sobre() {
         </section>
       </main>
 
-      <footer>
-        <p>
-          FormsBot v6 · Lima, Perú · <a href="https://t.me/onPowerTec">@onPowerTec</a>
-        </p>
-        <p style={{ marginTop: 4 }}>© 2026 · Hecho por un dev peruano</p>
-        <div className="footer-links">
-          <a href="acerca-de.html">Acerca de</a>
-          <a href="privacidad.html">Privacidad</a>
-          <a href="terminos.html">Términos de uso</a>
-          <a href="guias.html">Guías</a>
-        </div>
-      </footer>
+      {/* El pie (contacto, términos, reembolsos) lo pone el layout: SiteFooter. */}
 
       <div className="bar-m">
         <a

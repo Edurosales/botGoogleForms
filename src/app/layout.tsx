@@ -8,6 +8,7 @@ import InvitedNote from "./InvitedNote";
 import ReferralFab from "./ReferralFab";
 import BannedGate from "./BannedGate";
 import CookieNotice from "./CookieNotice";
+import SiteFooter from "./SiteFooter";
 import { LangProvider } from "./LangProvider";
 
 
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Medición solo con "Aceptar" en el banner (ver Analytics.tsx). Sin anuncios en el sitio. */}
         <Analytics />
         {children}
+        <SiteFooter />
 
         <SupportButton />
         <ReferralFab />
