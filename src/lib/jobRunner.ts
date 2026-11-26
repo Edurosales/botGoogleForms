@@ -150,8 +150,56 @@ function mainFailCode(failures: FailureDetail[]): FailureCode | null {
   return best;
 }
 
-/** Pasa el job a un estado final una sola vez (aunque haya dos ticks a la vez) y reembolsa. */
-async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob["status"] }) {
+/**
+ * El envío se canceló (cliente o admin) MIENTRAS este paso mandaba un lote.
+ * La cancelación ya devolvió el saldo contando solo `job.sent`, pero las
+ * respuestas de este lote que llegaron a Google también se usaron: se anotan
+ * en el envío y se cobran de vuelta. Sin esto, cancelar a mitad de lote daba
+ * hasta 60 respuestas gratis por vez (y con la bienvenida, envíos gratis
+ * infinitos: con 0 enviadas se devolvía todo).
+ * Este paso tiene el candado del envío, así que nadie más tocó `sent`.
+ */
+async function settleCancelledBatch(job: WebJob, okInBatch: number, failedInBatch: number): Promise<void> {
+  if (okInBatch <= 0) return;
+  const supa = db();
+  try {
+    await supa
+      .from("web_jobs")
+      .update({ sent: job.sent + okInBatch, failed: job.failed + failedInBatch })
+      .eq("id", job.id)
+      .neq("status", "processing");
+    let charged = 0;
+    if (job.is_paid) {
+      // Puede dejar el saldo en negativo si ya lo gastó: es lo que realmente usó.
+      await addCredits(job.user_id, -okInBatch);
+      charged = okInBatch;
+    } else if (job.sent === 0 && job.free_credits_spent > 0) {
+      // La cancelación devolvió toda la bienvenida (creía que no llegó nada).
+      // Puede que esa devolución aún no se haya escrito: se reintenta una vez.
+      for (let i = 0; i < 2 && !charged; i++) {
+        if (i) await new Promise((r) => setTimeout(r, 2_000));
+        const r = await spendCredits(job.user_id, 0, job.free_credits_spent);
+        if (r) charged = job.free_credits_spent;
+      }
+    }
+    await audit({
+      action: "job.cancel_mid_batch",
+      level: "security",
+      userId: job.user_id,
+      target: job.id,
+      details: { title: job.title, is_paid: job.is_paid, delivered_in_batch: okInBatch, charged_back: charged, sent_before: job.sent },
+      meta: { ip: "", country: "", userAgent: "", path: "" },
+    });
+  } catch (e) {
+    console.error(`[job] no se pudo cobrar el lote cancelado del job ${job.id}:`, e);
+  }
+}
+
+/**
+ * Pasa el job a un estado final una sola vez (aunque haya dos ticks a la vez) y reembolsa.
+ * Devuelve false si otro (una cancelación) lo cerró antes.
+ */
+async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob["status"] }): Promise<boolean> {
   const safePatch = await onlyExisting("web_jobs", { ...patch, finished_at: new Date().toISOString() }, ["fail_code"]);
   const { data: won } = await db()
     .from("web_jobs")
@@ -160,7 +208,7 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
     .eq("status", "processing")
     .select("id")
     .maybeSingle();
-  if (!won) return;
+  if (!won) return false;
   const sent = patch.sent ?? job.sent;
   const failed = patch.failed ?? job.failed;
   await refundOnFinish(job, sent);
@@ -225,6 +273,7 @@ async function finishJob(job: WebJob, patch: Partial<WebJob> & { status: WebJob[
       (back > 0 ? (job.is_paid ? tr(" Te devolvimos {n} créditos.", { n: back }) : tr(" Te devolvimos {n} respuestas gratis.", { n: back })) : ""),
     link: "/",
   }));
+  return true;
 }
 
 /**
@@ -509,8 +558,14 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
 
   const cancelled = cancelWatch(job.id);
   const results: SubmitResult[] = await runPool(batch, SUBMIT_CONCURRENCY, tickStart + SUBMIT_BUDGET_MS, (profile) => submitOne(form, profile), cancelled);
-  // Cancelado durante el paso: no se escribe nada más (el saldo ya se devolvió al cancelar).
-  if (await cancelled()) return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
+  const okInBatch = results.filter((r) => r.ok).length;
+  const failedInBatch = results.length - okInBatch;
+  // Cancelado durante el paso: la cancelación ya devolvió el saldo sin contar
+  // este lote; lo que sí llegó a Google se anota y se cobra.
+  if (await cancelled()) {
+    await settleCancelledBatch(job, okInBatch, failedInBatch);
+    return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
+  }
 
   // Google pidió el correo del encuestado y el formulario no lo mostraba al
   // leerlo: se marca y el mismo lote se reintenta con correo en el próximo
@@ -558,7 +613,7 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       sent === 0 && failureDetails.length
         ? `${failFast && failed < job.total ? `Detuvimos el envío: las primeras ${failed} respuestas fueron rechazadas por Google. ` : "Google rechazó todas las respuestas. "}${lastHint}`
         : undefined;
-    await finishJob(job, {
+    const won = await finishJob(job, {
       status,
       sent,
       failed,
@@ -567,6 +622,11 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
       ...(status === "failed" && code ? { fail_code: code } : {}),
       ...(reason ? { moderation_reason: reason } : {}),
     });
+    // Se canceló justo después de revisar (el aviso de cancelación se mira cada 3 s).
+    if (!won) {
+      await settleCancelledBatch(job, okInBatch, failedInBatch);
+      return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
+    }
     return ok(
       statusPayload(
         { ...job, status, sent, failed, failure_details: failureDetails, fail_code: status === "failed" ? code : null },
@@ -575,10 +635,16 @@ export async function advanceJob(job: WebJob): Promise<AdvanceResult> {
     );
   }
 
-  await supa
+  const { data: saved, error: saveErr } = await supa
     .from("web_jobs")
     .update({ sent, failed, failure_details: failureDetails, ...times, ...lockRelease })
     .eq("id", job.id)
-    .eq("status", "processing");
+    .eq("status", "processing")
+    .select("id");
+  // Sin error y sin fila: se canceló entre la última revisión y este guardado.
+  if (!saveErr && !saved?.length) {
+    await settleCancelledBatch(job, okInBatch, failedInBatch);
+    return ok(statusPayload({ ...job, status: "failed" }, { phase: "cancelled" }));
+  }
   return ok(statusPayload({ ...job, sent, failed, failure_details: failureDetails }, { phase: "sending" }));
 }
