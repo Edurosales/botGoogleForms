@@ -576,6 +576,12 @@ async function parseFormUncached(inputUrl: string): Promise<ParsedForm> {
     const rawAction = actionM[1].replace(/&amp;/g, "&").split("?")[0];
     submitUrl = new URL(rawAction, finalUrl).toString();
     assertAllowedFormHost(submitUrl);
+    // Un mismo formulario tiene DOS ids: el público (/d/e/1FAIpQL…) y el del
+    // editor (/d/1AbC…/edit). La regla "gratis una vez por formulario" se
+    // saltaba pegando el otro link. El action siempre trae el público: ese
+    // pasa a ser el link del formulario, así ambos links dan el mismo id.
+    const pub = submitUrl.match(/\/forms\/(?:u\/\d+\/)?d\/e\/([A-Za-z0-9_-]{10,})\/formResponse/);
+    if (pub) viewUrl = `https://docs.google.com/forms/d/e/${pub[1]}/viewform`;
   }
 
   const raw = extractRawJson(html);
