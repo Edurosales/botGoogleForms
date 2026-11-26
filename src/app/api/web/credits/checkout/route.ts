@@ -26,6 +26,9 @@ import { creditsBoughtToday, limitsFor } from "@/lib/limits";
  * Nombre y apellido del comprador para Mercado Pago: los de Google si están
  * guardados; si no (cuentas anteriores), se separa el nombre completo.
  */
+/** Pagos rechazados por el banco en 24 h antes de pausar los pagos de la cuenta. */
+const MAX_REFUSED_PER_DAY = 3;
+
 async function payerNames(userId: string, fullName: string): Promise<{ firstName: string; lastName: string; registeredAt?: string }> {
   const { data } = await db().from("web_users").select("*").eq("id", userId).maybeSingle<Record<string, unknown>>();
   const given = String(data?.given_name ?? "").trim();
@@ -84,6 +87,32 @@ export async function POST(req: Request) {
       { status: 503 }
     );
   }
+  // Freno a la prueba de tarjetas ("card testing"): con varios pagos que el
+  // BANCO rechazó en 24 h (CVV inválido, fraude…), esa cuenta no puede volver
+  // a intentar hasta mañana. Solo cuentan rechazos reales de la pasarela
+  // (traen raw_answer); los errores nuestros al iniciar el pago no.
+  // Un cliente normal rara vez falla más de 2 veces.
+  {
+    const { count: refused } = await db()
+      .from("web_credit_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "failed")
+      .not("raw_answer", "is", null)
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString());
+    if ((refused ?? 0) >= MAX_REFUSED_PER_DAY) {
+      await audit({ action: "payment.too_many_refused", level: "security", userId: user.id, email: user.email, details: { refused } });
+      return NextResponse.json(
+        {
+          message:
+            "Tu banco rechazó varios intentos de pago seguidos, así que pausamos los pagos de tu cuenta por 24 horas. Revisa los datos de tu tarjeta con tu banco o escríbenos a soporte.",
+          code: "TOO_MANY_REFUSED",
+        },
+        { status: 429 }
+      );
+    }
+  }
+
   // Medio de pago: el que pidió el cliente si está activo; si no, el primero activo.
   const providers = activeProviders(settings);
   if (!providers.length) {
